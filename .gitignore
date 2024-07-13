@@ -1,0 +1,6 @@
+__pycache__/*
+venv/*
+coc-settings.json
+
+client/node_modules/*
+client/app.js
