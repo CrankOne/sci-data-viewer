@@ -1,4 +1,5 @@
 from flask import Flask #, send_from_directory
+from flask_cors import CORS, cross_origin
 from flask_restful import Api
 
 import resources
@@ -7,6 +8,8 @@ app = Flask(__name__
         , static_url_path='/static'
         , static_folder='client/'
         )
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 api = Api(app)
 
 @app.route("/")
@@ -25,8 +28,13 @@ def index_view():
 </html>"""
 
 @app.route("/scene")
+@cross_origin()
 def default_scene():
     return {
+            "iterable": True,
+            "expiresIn": None,
+
+            "geometryData": {
                 "materials": [
                     {   "_name": "defaultDetMaterial",
                         "_type": "MeshBasicMaterial",
@@ -83,6 +91,7 @@ def default_scene():
                     }
                 ]
             }
+        }
 
 #@app.route("/static/<str:path>")
 #def get_static_file(path):
