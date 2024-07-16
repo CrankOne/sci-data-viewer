@@ -312,3 +312,37 @@ export function make_pointMarkers(pointMarkers, tm) {
     });
 }
 
+//
+// New API
+
+export function make_material(materialType, materialDefinition) {
+    if('MeshBasicMaterial' == materialType) {
+        console.log(materialDefinition);
+        return new THREE.MeshBasicMaterial(materialDefinition);
+    }
+    if('LineDashedMaterial' == materialType ) {
+        return new THREE.LineDashedMaterial(materialDefinition);
+    }
+    // ... other materials
+    throw new Error(`Unknown material type "${materialType}"`);
+}
+
+export function make_geometry( geoType, material, geoDef ) {
+    //if(!material) {
+    //    throw new Error('xxx null material');
+    //}
+    if('BoxGeometry' == geoType) {
+        console.debug(`Creating box geometry of ${geoDef.sizes[0]}x${geoDef.sizes[1]}x${geoDef.sizes[2]}`);
+        const geo = new THREE.BoxGeometry(...geoDef.sizes);
+        return new THREE.Mesh(geo, material);
+    }
+    if('Line' == geoType ) {
+        const refPointVecs = geoDef.points.map((pt) => new THREE.Vector3(...pt));
+        const refTrackGeo = new THREE.BufferGeometry().setFromPoints(refPointVecs);
+        const line = new THREE.Line(refTrackGeo, material);
+        return line;
+    }
+    // ... other geometries
+    throw new Error(`Unknown material type "${materialType}"`);
+}
+

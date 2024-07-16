@@ -5,17 +5,14 @@
         <span id="reload">{{name}}<span v-if="reload_enabled" v-on:click="reload_data" id="btn-reload"></span></span>
       </div>
     <p class="data-source-endpoint">{{definition.endpoint}}, {{definition.dataSize}}</p>
-    <component :is="concreteSourceItemComponent" :definition="definition"/>
+    <slot name="body"></slot>
+    <slot name="navigation"></slot>
   </li>
 </template>
 
 <script>
-import SourceListItemFwIterable from './sourceListItems/fwIterable.vue'
-// import ... (other source list items)
-
 export default {
-  name: 'SourceListItem',
-  components: {SourceListItemFwIterable},
+  name: 'StaticSourceListItem',
   props: {
     name: String,
     noRemove: false,
@@ -35,24 +32,6 @@ export default {
       //    time is passed
       return true;
     },
-    concreteSourceItemComponent() {
-      if(this.definition.accessModel == 'staticView') {
-        return 'static-source-list-item';
-      }
-      if(this.definition.accessModel == 'staticViewWithPeriodicUpdates') {
-        return 'static-source-list-item-with-periodic-updates';
-      }
-      if(this.definition.accessModel == 'fwIterableCollection') {
-        return 'source-list-item-fw-iterable';
-      }
-      if(this.definition.accessModel == 'sparseCollection') {
-        return 'static-source-list-item-sparse-collection';
-      }
-      if(this.definition.accessModel == 'sparseCollectionWithPagination') {
-        return 'static-source-list-item-sparse-collection-with-pagination';
-      }
-      throw new Error(`Unknown access model type "${this.definition.accessModel}"`)
-    }
     //navigation_enabled() {
     //  return !( this.definition.accessModel == 'staticViewWithPeriodicUpdates'
     //         || this.definition.accessModel == 'staticView'

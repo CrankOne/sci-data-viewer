@@ -17,7 +17,6 @@ const stateModule = {
     }),
     mutations: {
         new_source(state, pl_) {
-            console.log(pl_);  // XXX
             // TODO pl must provide:
             //  - name
             //  - endpoint address (url)

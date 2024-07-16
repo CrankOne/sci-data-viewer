@@ -59,8 +59,8 @@ def default_scene():
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
                         #
-                        "position": [0, 0, -1],
-                        "sizes": [0.75, 1.75, 0.1],
+                        "position": [0, 0, -10],
+                        "sizes": [7.5, 17.5, 1],
                         "rotation": [0, 12, 6.5],
                         #"touchable": "detectors/GEMs"  #< camera can be centered on object, value defines path in scene tree
                         #"titleOnHover": "..."  #< message shown when mouse hovered (prints coordinates, etc)
@@ -69,15 +69,15 @@ def default_scene():
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
                         #
-                        "position": [0, 0, 1],
-                        "sizes": [1.5, 0.83, 0.05],
+                        "position": [0, 0, 10],
+                        "sizes": [15, 8.3, 0.5],
                         "rotation": [-3.4, 0, -4.5],
                     }, {"_name": "det3",
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
                         #
                         "position": [0, 0, 0],
-                        "sizes": [1.4, 1.4, 0.05],
+                        "sizes": [14, 14, 0.5],
                         "rotation": [0, 0, 0],
                     },
                     # "reference track"
@@ -85,8 +85,8 @@ def default_scene():
                         "_type": "Line",
                         "_material": "referenceTrackMaterial",
                         "points": [
-                                [-0.15, 0.56, -2],
-                                [0.23, -0.3, 2],
+                                [-1.5, 5.6, -20],
+                                [2.3, -3, 20],
                             ]
                     }
                 ]

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import _ from 'lodash';
 import * as GeoEntities from './geoEntities';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
@@ -229,10 +230,147 @@ class ThreeView {
                , () => this._vuexStore.getters['view3D/transformationMatrix']
                ]
             , () => {
-                console.log('"geometry updated" hook triggered in ThreeViewer');  // XXX
-                // TODO: use values from this._vuexStore.getters['view3D/geoData']
+                console.debug('"geometry updated" hook triggered in ThreeViewer');
+                // use values from this._vuexStore.getters['view3D/geoData']
                 // to re-draw the scene
-            });
+                Object
+                    .entries(JSON.parse(this._vuexStore.getters['view3D/geoData']))
+                    .map(([sourceName, geoDataStr]) => {
+                        // update source's materials
+                        var thisSourceMats = this._materials[sourceName] || {};
+                        // track used material names
+                        var matNamesInUse = new Set();
+                        var materialsToDispose = [];
+                        const geoData = JSON.parse(geoDataStr);
+                        const materialDefinitions = geoData.materials || [];
+                        geoData.materials.forEach((matDef_) => {
+                            const { _name: matName
+                                  , _type: matType
+                                  , ...matDef } = matDef_;
+                            if(matNamesInUse.has(matName)) {
+                                throw new Error(`Material name "${matName}" met`
+                                    + ` at least twice for source "${sourceName}"`);
+                            }
+                            matNamesInUse.add(matName);
+                            if(thisSourceMats.hasOwnProperty(matName)) {
+                                if(_.isEqual(thisSourceMats[matName]['matDef'])) {
+                                    console.debug(`Material "${sourceName}/${matName}" unchanged.`);
+                                    return;  // skip material construction
+                                }
+                                //thisSourceMats[matName].threeJSMaterial.dispose(); // todo: is that needed?
+                                materialsToDispose.push(thisSourceMats[matName].threeJSMaterial);
+                                // delete thisSourceMats[matName];  // ?
+                            }
+                            // otherwise, create material
+                            const threeJSMaterial = GeoEntities.make_material(matType, matDef);
+                            thisSourceMats[matName] = {threeJSMaterial, matDef};
+                            console.debug(`Created material "${sourceName}/${matName}" of type ${matType}`);
+                        });
+                        // get materials not used by this source anymore, by
+                        // comparing material names registered for this source
+                        // and materials met in this update
+                        const registeredMatNames = new Set(Object.keys(thisSourceMats));
+                        const namesToDispose = registeredMatNames.difference(matNamesInUse);
+                        namesToDispose.forEach((matName) => {
+                                console.debug(`Material "${sourceName}/${matName}"`
+                                    + ' is not used anymore -- queued for disposal.');
+                                materialsToDispose.push(thisSourceMats[matName].threeJSMaterial);
+                            });
+                        this._materials[sourceName] = thisSourceMats;
+                        // update source's geometries
+                        var thisSourceGeo = this._geometries[sourceName] || {};
+                        var geomNamesInUse = new Set();
+                        //var geometriesToDispose = [];  // not needed, as we dispose 'em immediately
+                        geoData.geometry.forEach((geoDef_) => {
+                            const { _name: geoName
+                                  , _type: geoType
+                                  , _material: geoMaterial
+                                  , ...geoDef } = geoDef_;
+                            if(geomNamesInUse.has(geoName)) {
+                                throw new Error(`Geometry name "${geoName}" met`
+                                    + ` at least twice for source "${sourceName}"`);
+                            }
+                            geomNamesInUse.add(geoName);
+                            // pop position and rotation properties, if
+                            // provided, as we shall not re-create object on
+                            // its change
+                            var position = null;
+                            if( geoDef.position ) {
+                                position = geoDef.position;
+                                delete geoDef.position;
+                            }
+                            var rotation = null;
+                            if( geoDef.rotation ) {
+                                rotation = geoDef.rotation;
+                                delete geoDef.rotation;
+                            }
+                            var rotationOrder = null;
+                            if( geoDef.rotation ) {
+                                rotationOrder = geoDef.rotationOrder;
+                                delete geoDef.rotationOrder;
+                            }
+                            // try to get material
+                            if(!thisSourceMats.hasOwnProperty(geoMaterial)) {
+                                console.log(`Error in geometry "${geoName}":`
+                                    + ` material "${geoMaterial}" is not defined`
+                                    + ` by data source "${sourceName}"; geometry`
+                                    + " not constructed!" );
+                                return;
+                            }
+                            if(thisSourceGeo.hasOwnProperty(geoName)) {
+                                if( _.isEqual(thisSourceGeo[geoName].geoDef, geoDef)
+                                 && geoMaterial == thisSourceGeo[geoName].geoMaterial
+                                 && geoType == thisSourceGeo[geoName].geoType
+                                  ) {
+                                    console.debug(`Geometry "${sourceName}/${geoName}" unchanged.`);
+                                    // yet, position/rotation may change
+                                    if(position !== null) {
+                                        thisSourceGeo[geoName].position.set(...position);
+                                    }
+                                    if(rotationOrder != null) {
+                                        thisSourceGeo[geoName].rotation.order = rotationOrder;
+                                    }
+                                    if(rotation !== null) {
+                                        thisSourceGeo[geoName].rotation.set(...rotation);
+                                    }
+                                    return;  // skip geometry construction
+                                }
+                                thisSourceGeo[geoName].threeJSGeo.dispose(); // TODO: is it correct?
+                                // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
+                            }
+                            console.debug(`Creating geo "${geoName}" of type ${geoType}...`);
+                            const threeJSGeo = GeoEntities.make_geometry(
+                                    geoType, thisSourceMats[geoMaterial].threeJSMaterial, geoDef
+                                );
+
+                            this._scene.add(threeJSGeo);
+
+                            if(position !== null) {
+                                console.debug(`Placing new geometry at ${position[0]}x${position[1]}x${position[2]}`);
+                                threeJSGeo.position.set(...position);
+                            }
+                            if(rotationOrder != null) {
+                                thisSourceGeo[geoName].rotation.order = rotationOrder;
+                            }
+                            if(rotation !== null) {
+                                console.debug(`Rotating new geometry by ${rotation[0]},${rotation[1]},${rotation[2]}`);
+                                threeJSGeo.rotation.set(...rotation);
+                            }
+                            thisSourceGeo[geoName] = {threeJSGeo, geoDef, geoMaterial, geoType};
+                            // TODO: geomNamesInUse
+                        });  // end of per-geometry iteration
+                        this._geometries[sourceName] = thisSourceGeo;
+                        // TODO: treat materialsToDispose
+                    });  // end of per-source iteration
+
+                // XXX
+                //const xxxMat = new THREE.MeshBasicMaterial({color: 0xffffaa, wireframe: true});
+                //const xxxBox = new THREE.BoxGeometry(10, 10, 10);
+                //const xxxMesh = new THREE.Mesh(xxxBox, xxxMat);
+                //this._scene.add(xxxMesh);
+
+                this._render();
+            });  // end of watcher
 
         //watch( [ () => this._vuexStore.getters['view3D/staticColoredLineSegments']
         //       , () => this._vuexStore.getters['view3D/transformationMatrix']
@@ -379,10 +517,20 @@ class ThreeView {
 
         // Placeholders for future renewable objects (we keep handles here only
         // to dispose() it at certain watchers)
-        this._coloredLineSegments = {objects: [], geometries: []};
+        //this._coloredLineSegments = {objects: [], geometries: []};
         // Placeholders for dynamic drawables
         //this._dynamicDrawables
         //    = Object.fromEntries(GeoEntities.gDrawableEntities.map(k => [k, {objects: [], geometries: []}]));
+
+        //
+        // Index of materials by source ID {<sourceID:str>:Object}
+        // Where object item is <materialName:str>:{threeJSMaterial, matDef}
+        // One can compare 2nd
+        this._materials = {};
+        // Geometries, of similar structure to materials:
+        //  {<sourceID:str>:Object}, where Object is
+        //  {threeJSGeo, geoDef}
+        this._geometries = {};
 
         // create raycaster and pointer vec
         this._pointer = new THREE.Vector2();

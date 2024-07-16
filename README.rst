@@ -130,14 +130,18 @@ items between ``0`` and ``N`` must be guaranteed):
 Access Model Decision
 ~~~~~~~~~~~~~~~~~~~~~
 
-1. *Static view* -- if ``iterable`` is not provided or ``false``; ``expiresIn``
-   steers whether periodic update is available
-2. *FW-iterable collection* -- ``iterable=true`` and ``total`` is N/A.
-3. *Dense collection* -- ``iterable=true``, ``total`` is valid number
+1. *Static view* (``staticView``) -- if ``iterable`` is not provided or
+   ``false``; ``expiresIn`` steers whether periodic update is available
+2. *FW-iterable collection* (``staticViewWithPeriodicUpdates``) --
+   ``iterable=true`` and ``total`` is N/A.
+3. *Dense collection* (``denseCollection``) -- ``iterable=true``, ``total`` is
+   valid number
    and ``items`` is N/A.
-4. *Sparse collection without pagination* -- ``iterable=true``, ``total`` is
+4. *Sparse collection without pagination* (``sparseCollection``) --
+   ``iterable=true``, ``total`` is
    valid, ``items`` is valid list, and ``pages`` is N/A.
-5. *Sparse collection with pagination* -- ``iterable=true``, ``total`` is
-   valid, ``items`` is valid list, and ``pages`` is valid list.
+5. *Sparse collection with pagination* (``sparseCollectionWithPagination``) --
+   ``iterable=true``, ``total`` is valid, ``items`` is valid list, and ``pages``
+   is valid list.
 
 

@@ -40,8 +40,8 @@ const viewportSettings = reactive({
             },
             persp1: { type: "persp"
                 , fov: 10
-                , position: [1500, 1500, 1500]
-                , cuts: [0.1, 70000]  // near, far
+                , position: [150, 150, 150]
+                , cuts: [0.1, 7000]  // near, far
                 , lookAt: [0, 0, 0]
                 , aspect: 1
                 //, up: [0, 1, 0]  // TODO?
