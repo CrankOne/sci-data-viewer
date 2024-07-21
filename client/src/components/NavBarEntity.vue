@@ -14,8 +14,11 @@
 <script>
 export default {
     name: 'NavBarEntity',
+    props: {
+        defaultOpenedState: false
+    },
     data() {
-        return {'opened': true};
+        return {'opened': this.defaultOpenedState};
     },
     computed: {
         openClass() {
@@ -31,18 +34,21 @@ export default {
 <style scoped>
 div#navbarEntrity {
   max-height: 30%;
+  margin-bottom: 5pt;
+  background-color: #222;
 }
 
 div#header {
   background-color: #333;
-  margin: 3pt;
-  padding: 2pt;
   padding-left: 5pt;
   font-family: Calibri,sans-serif;
   font-weight: bold;
-  border: 1px black solid;
   text-align: left;
   letter-spacing: 1pt;
+
+  text-transform: uppercase;
+  font-size: 9pt;
+  cursor: pointer;
 }
 
 div.opened:before {
@@ -56,10 +62,6 @@ div.closed:before {
 }
 
 div#content {
-  margin: 3pt;
-  margin-top: -4pt;
-  border: 1px solid black;
-  padding: 4pt;
   font-family: monospace;
   font-size: 9pt;
   background-color: #222;

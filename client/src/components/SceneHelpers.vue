@@ -1,6 +1,6 @@
 <template>
   <NavBarEntity>
-    <template #header>Scene</template>
+    <template #header>Scene Helpers</template>
     <template #content>
       <div>X<input min="1.0e-12" max="1.0e+3"  :value.number="scaleX" @input="e => this.update_scale(e, 'x')"/></div>
       <div>Y<input min="1.0e-12" max="1.0e+3"  :value.number="scaleY" @input="e => this.update_scale(e, 'y')"/></div>

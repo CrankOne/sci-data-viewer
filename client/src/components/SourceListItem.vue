@@ -75,7 +75,10 @@ export default {
 
 <style scoped>
 div#source-header {
-  font-size: 15pt;
+  font-size: 12pt;
+  margin: -1.2em -1pt;
+  background-color: #222;
+  padding: 7pt 7pt;
 }
 
 div#btn-remove:after {
@@ -83,7 +86,7 @@ div#btn-remove:after {
   float: right;
   cursor: pointer;
   padding: 2pt 3pt;
-  background-color: #332;
+  background-color: #333;
   border: solid 1px black;
 }
 
@@ -92,7 +95,7 @@ span#btn-reload:after {
   cursor: pointer;
   margin-left: 5pt;
   padding: 1pt 5pt;
-  background-color: #332;
+  background-color: #333;
   border: solid 1px black;
 }
 </style>

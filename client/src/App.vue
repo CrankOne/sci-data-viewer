@@ -10,7 +10,7 @@
 <style>
 @import 'splitpanes/dist/splitpanes.css';
 
-.splitpanes {background-color: #222;}
+.splitpanes {background-color: #111;}
 
 .splitpanes__splitter {background-color: #000;position: relative;}
 .splitpanes__splitter:before {

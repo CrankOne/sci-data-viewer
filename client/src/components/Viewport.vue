@@ -3,17 +3,20 @@
     <div id="evdspViewport" ref="viewport">
         <!-- three.js container -->
     </div>
-    <div id="widgets">
-        <span>
-            <select v-model="viewportSettings.currentCamera">
-                <option v-for="(_,k) in viewportSettings.cameras" v-bind:value="k">
-                    {{k}}
-                </option>
-            </select>
-        </span>
-        <component :is="cCamComponent"
-                v-bind="{'settings': cCamSettings}"
-                />
+    <div id="widgets" v-bind:class="isOpened ? 'opened' : 'closed'">
+        <span id="show-hide-knob" v-bind:class="isOpened ? 'opened' : 'closed'" v-on:click="isOpened = !isOpened"></span>
+            <div v-if="isOpened">
+            <span>
+                <select v-model="viewportSettings.currentCamera">
+                    <option v-for="(_,k) in viewportSettings.cameras" v-bind:value="k">
+                        {{k}}
+                    </option>
+                </select>
+            </span>
+            <component :is="cCamComponent"
+                    v-bind="{'settings': cCamSettings}"
+                    />
+        </div>
     </div>
   </div>
 </template>
@@ -63,6 +66,8 @@ const cCamComponent = computed(() => {
     return null;
 });
 
+const isOpened = ref(false);
+//const openClass = computed(() => (isOpened ? 'opened' : 'closed'));  // todo: does not work
 const cCamSettings = computed(() => viewportSettings.cameras[viewportSettings.currentCamera]);
 
 let mouseMoveDebouncingTimerID = null;
@@ -105,7 +110,30 @@ onMounted(() => {
     left: 15px;
     background-color: #7643;
     padding: 5pt 7pt;
+}
+
+#widgets.opened {
     min-width: 100pt;
     width: 50%;
+}
+
+span#show-hide-knob {
+  float: left;
+}
+
+span#show-hide-knob.opened:before {
+  content: '\229F ';
+  padding-right: 5pt;
+  margin-top: 15pt;
+  font-size: 20pt;
+  cursor: pointer;
+}
+
+span#show-hide-knob.closed:before {
+  content: '\229E ';
+  padding-right: 5pt;
+  margin-top: 15pt;
+  font-size: 20pt;
+  cursor: pointer;
 }
 </style>

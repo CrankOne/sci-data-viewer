@@ -17,6 +17,7 @@
         </p>
         <button type="button">Add</button>
       </form>-->
+      <button>Add</button>
     </template>
   </NavBarEntity>
 </template>
@@ -61,9 +62,9 @@ export default {
 
 .dataSourceItem {
   display: block;
-  border: 1px solid black;
-  padding: 3pt 9pt;
-  margin: 7pt 3pt;;
+  border: 1px solid #686040;
+  padding: 0pt 5pt 4pt 5pt;
+  margin: 1.5em 4pt 1pt 5pt;
 }
 
 form  { display: table;      }
