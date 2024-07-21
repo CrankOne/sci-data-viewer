@@ -1,8 +1,93 @@
+WUI for Scientific Applications
+-------------------------------
 
-3D Viewer SPA
--------------
+.. warning::
+    Project is in early draft state. Albeit a generalized scenario is implied,
+    its current focus now is 3D visualization only.
 
-Single page application (SPA) providing a somewhat generalized 3D viewer.
+The goal of this project is to provide a generalized data viewer for
+non-trivial scientific applications, residing in the web browser and able to
+communicate with (local or remote) server application by the means of HTTP
+protocol.
+
+Usage Scenario
+==============
+
+This project is focused on applications that require sophisticated
+visualization and allows decomposition of its data to collections. Common
+examples are:
+
+* tracking in high-energy physics
+* finite-difference differential-equations
+* frame-based data analysis (video streaming apps)
+
+The Project does not provide feature-rich sophisticated visualization tools by
+itself, instead letting user to create their own representation layers and
+benefit from plethora of JavaScript packages). The Project provides an
+interfacing layer between low-level programs and JS code.
+
+So, common use case implies that:
+
+- an algorithm is capable to generate *items* within some *collection*. The
+  Project covers certain common cases of these *collections*:
+  * A paginated collection of items identified uniquely, by certain string ID,
+    like events in high energy physics, number of frame in streamed video,
+    number of iteration within the iterative algorithm, etc. Common for data
+    residing in DBs.
+  * finite or infinite (or very large) collection that can be iterated only
+    forward (i.e. no random access by ID) -- common case of "full scan" app,
+    or iterative algorithm where you would like to inspect data changes
+    between the iterations.
+  * Trivial case when collection consists from only one item (so no iteration
+    is possible -- data just gets loaded and shown)
+- every *item* can be represented by set of generic primitives (histograms,
+  plots, 3D lines, geometrical primitives and so on) which can be addressed to
+  particular component on a web page.
+
+Having these restriction in mind, the *server* application exposes certain
+HTTP enpoint(s) which client app can communicate.
+
+Project provides a boilerplate code for Vue-based *client* single-page
+application and some utility code for server-side Python (Flask) and C++
+applications.
+
+By customizing client SPA code user can extend presentation layer. Coping with
+simplistic server-side boilerplate code, user can create their own specialized
+applications.
+
+Client SPA
+==========
+
+A client-side single page application uses Vue for components, Vuex for state
+management and Vue-Router for state tracking.
+
+Server Implementations
+======================
+
+C++ Server
+~~~~~~~~~~
+
+Project brings custom implementation of extremely lightweight *synchroneous*
+HTTP server. This server is meant to be embedded in the user's iterative
+algorithm and steer (in a single thread) or monitor (in a forked or threaded
+mode) its execution. See examples in the ``./server-cpp`` directory.
+
+Python (Flask) Server
+~~~~~~~~~~~~~~~~~~~~~
+
+For more complex scenarios with persistent storages (e.g. fetching data from
+DB, distributed or delegated calculus) consider using a Python scripts within
+the Python Flask server (see ``app.py``).
+
+
+
+Misc Notes
+----------
+
+.. warning::
+
+   Text below is some dev notes/spec drafts: this information can be imprecise
+   or simply wrong and must not be used as a guidance.
 
 Development snippets
 ====================
@@ -21,53 +106,6 @@ need virtualenv with Flask, flask-restful, etc) with:
     $ python3 app.py
 
 Then you should able to see something at ``http://127.0.0.1:5000/``.
-
-Design Traits
-=============
-
-* a Flask application forwards output from various sources as an input to JS
-  application in a form of certain "standard" objects
-* JS SPA can navigate through the resources provided by Flask application,
-  allowing one to "list" items
-
-Example: a set of events read and processed by C++ application. Every event
-generates a set of elementary objects (tracks, hit markers, etc). Those
-objects, in a form of primitive JS objects are provided to JS app upon a GET
-request on certain endpoint.
-
-JS app combines items from arbitrary set of endpoints by the ``Resource``
-abstraction.
-
-* ``index.html`` -- provides main HTML page of an SPA
-* ``settings.json`` -- provides settings object for SPA
-* ``static/<file>`` -- provides static assets for the SPA
-* ``resources/<resource-name>/`` -- supports at least GET view, interfaced as
-  collection. Can be of three cases:
-  #. Finite collection, with/without pagination, sort/querying via query
-     string, etc
-  #. Infinite collection, with at least forward iteration (backward may be
-     or may be not supported), with optional indexing, etc
-  #. Scalar object, returning same content
-* ``resources/<resource-name>/<id>`` -- used for collection, returns a scalar
-  object.
-
-A scalar object should contain ``"materials"`` and ``"touchables"``.
-
-* Material (in ``materials``), basically correspond to materials
-  within ``THREE`` JS module. Provided object, excpet for ``_type``,
-  ``_id`` and ``_hash`` attributes will be forwarded directly to
-  constructor named as referenced by ``_type`` and can be referenced
-  by touchables.
-* Touchable (in ``"touchables"``):
-  #. Line
-  #. Lines
-  #. Solid primitive
-    * Box
-    * Cone
-    * Sphere
-  #. Point
-  #. Points
-  #. Text label
 
 Data Source Specification
 =========================
