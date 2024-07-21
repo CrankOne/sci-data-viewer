@@ -27,6 +27,8 @@ def index_view():
 </body>
 </html>"""
 
+#
+# Static scene showing all the available objects, a showroom
 @app.route("/scene")
 @cross_origin()
 def default_scene():
@@ -39,18 +41,43 @@ def default_scene():
                     {   "_name": "defaultDetMaterial",
                         "_type": "MeshBasicMaterial",
                         #
-                        "wireframe": True,
+                        #"wireframe": True,
                         "transparent": True,
                         "opacity": 0.15,
                         "color": 0xffffaa,
-                    }, {"_name": "referenceTrackMaterial",
+                    }, {"_name": "reconstructedTrackMaterial",
                         "_type": "LineDashedMaterial",
                         #
                         "color": 0xff7777,
                         "linewidth": 1,
                         "scale": 1,
-                        "dashSize": 3,
+                        "dashSize": 3,  #< NOTE: does not work for three.js
                         "gapSize": 1,
+                    }, {
+                        "_name": "basicWhiteLineMaterial",
+                        "_type": "LineBasicMaterial",
+                        #
+                        #"linewidth": 5,  # not supported unfortunately
+                        "color": 0xffffff,
+                        "vertexColors": True
+                    }, {
+                        "_name": "dashedLineMaterial",
+                        "_type": "ColoredLineShaderMaterial",
+                        # ...? TODO: shader, shader parameters, etc
+                    }, {
+                        "_name": "markersMat1",
+                        "_type": "PointMarkersShaderMaterial",
+                        #
+                        'shape': 'xCross',
+                        'flags': 0x0,
+                        'size': 16,
+                    }, {
+                        "_name": "markersMat2",
+                        "_type": "PointMarkersShaderMaterial",
+                        #
+                        'shape': 'hollowXCross',
+                        'flags': 0x3,
+                        'size': 32,
                     }
                 ],
                 "geometry": [
@@ -80,18 +107,73 @@ def default_scene():
                         "sizes": [14, 14, 0.5],
                         "rotation": [0, 0, 0],
                     },
-                    # "reference track"
-                    {   "_name": "referenceTrack",
+                    # "reconstructed track"
+                    {   "_name": "reconstructedTrack",
                         "_type": "Line",
-                        "_material": "referenceTrackMaterial",
+                        "_material": "reconstructedTrackMaterial",
                         "points": [
                                 [-1.5, 5.6, -20],
                                 [2.3, -3, 20],
                             ]
+                    }, {"_name": "detXXX",
+                        "_type": 'ColoredLineSegments',
+                        '_material': "basicWhiteLineMaterial",
+                        #
+                        "points": [
+                            [[-10, -10, -10], [0, 0, 1]],
+                            [[-10,  10, -10], [0, 1, 0]],
+                            [[-10,  10,  10], [0, 1, 1]],
+                            [[ 10,  10,  10], [1, 1, 0]],
+                        ]
+                    }, {"_name": "referenceTrack",
+                        "_type": "ColoredLineSegments",
+                        "_material": "dashedLineMaterial",
+                        "points": [
+                                [[-0.65, 5.45, -19.8],   [0, 1, 1]],
+                                [[3.38,  -1.1,  17.2],   [0, 0, 1]],
+                                [[4.38,   3.1,  23.2],   [0, 0, 1]],
+                            ]
+                    }, {
+                        "_name": "hits1",
+                        "_type": "PointMarkers",
+                        "_material": "markersMat1",
+                        #
+                        "items": [
+                            { "position": [-2, -3, -4], "color": [0.3, 0.4, 0.5], "size": 17 },
+                            { "position": [ 2,  3, -4], "color": [0.9, 0.4, 0.2], "size": 32 },
+                        ]
+                    }, {
+                        "_name": "hits2",
+                        "_type": "PointMarkers",
+                        "_material": "markersMat2",
+                        #
+                        "items": [
+                            { "position": [12, -9, -8], "color": [0.9, 0.4, 0.8], "size": 12 },
+                            { "position": [32, 18, 19], "color": [0.9, 0.4, 0.2], "size": 18 },
+                        ]
                     }
                 ]
             }
         }
+
+#
+# Sparse collection with pagination
+# Pretty much like real RESTful application should look like
+#@app.route("/example-items")
+#@cross_origin()
+#def example_items():
+#    """
+#    This view must should not provide geometrical data by its own, but instead
+#    it returns description of collection that can be browsed.
+#    """
+#    return {
+#            'iterable': True,
+#            'total': 100,
+#            'items': [1, 2, 3, 5],
+#            'pages': [
+#                    {}
+#                ]
+#        }
 
 #@app.route("/static/<str:path>")
 #def get_static_file(path):
