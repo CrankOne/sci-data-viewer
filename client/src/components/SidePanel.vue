@@ -2,6 +2,7 @@
     <div id="container">
         <source-list :defaultOpenedState="true" />
         <!--<ev-nav-bar eventID="null"/>-->
+        <items-tree />
         <scene-helpers />
         <!--<event-tree-on-side-panel :eventNum="0"/>-->
     </div>
@@ -11,12 +12,14 @@
 //import EvNavBar from './EvNavBar.vue'
 import SceneHelpers from './SceneHelpers.vue'
 import SourceList from './SourcesList.vue'
+import ItemsTree from './ItemsTree.vue'
 //import EventTreeOnSidePanel from './EventTreeOnSidePanel.vue'
 
 export default {
     components: {
         SourceList,
         //EvNavBar,
+        ItemsTree,
         SceneHelpers,
         //EventTreeOnSidePanel,
     },
