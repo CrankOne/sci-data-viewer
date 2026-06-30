@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <regex>
+#include <cstdint>
 
 namespace sync_http_srv {
 namespace errors {

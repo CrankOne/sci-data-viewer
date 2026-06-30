@@ -3,6 +3,7 @@
 #include <wordexp.h>
 #include <regex>
 #include <vector>
+#include <sstream>
 
 namespace sync_http_srv {
 namespace errors {

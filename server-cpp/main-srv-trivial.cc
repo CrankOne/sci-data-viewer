@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <sstream>
 
 #include "sync-http-srv/logging.hh"
 #include "sync-http-srv/server.hh"

@@ -1,5 +1,7 @@
 #include "sync-http-srv/routes-view.hh"
 
+#include <sstream>
+
 namespace sync_http_srv {
 namespace util {
 namespace http {
