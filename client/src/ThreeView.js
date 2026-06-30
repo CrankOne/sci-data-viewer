@@ -205,7 +205,6 @@ class ThreeView {
 
     _bind_watchers() {
         // NOTE: use getter here instead of plain reactive var
-
         // camera (view) switch
         watch( () => this._cfg.currentCamera
              , newCam => this._switch_cam(newCam)
@@ -225,23 +224,25 @@ class ThreeView {
         //
         // Geometry update watcher
         //  This function is triggered on either geometry data indexed by source
-        //  name gets updated, or global transformation matrix gets changed.
+        //  name gets updated, global transformation matrix gets changed, list
+        //  of drawn items changed, etc.
         watch( [ () => this._vuexStore.getters['view3D/geoData']
                , () => this._vuexStore.getters['view3D/transformationMatrix']
                ]
             , () => {
                 console.debug('"geometry updated" hook triggered in ThreeViewer');
                 // use values from this._vuexStore.getters['view3D/geoData']
-                // to re-draw the scene
+                // to re-draw the scene. Take into account items disabled for
+                // drawing
                 Object
-                    .entries(JSON.parse(this._vuexStore.getters['view3D/geoData']))
-                    .map(([sourceName, geoDataStr]) => {
+                    .entries(this._vuexStore.getters['view3D/geoData'])
+                    .map(([sourceName, geoData]) => {
                         // update source's materials
                         var thisSourceMats = this._materials[sourceName] || {};
                         // track used material names
                         var matNamesInUse = new Set();
                         var materialsToDispose = [];
-                        const geoData = JSON.parse(geoDataStr);
+                        // deserialize geodata
                         const materialDefinitions = geoData.materials || [];
                         geoData.materials.forEach((matDef_) => {
                             const { _name: matName
@@ -375,7 +376,7 @@ class ThreeView {
                     });  // end of per-source iteration
                 this._render();
             });  // end of watcher
-    }
+    }  // _bind_watchers()
 
     // Called on camera switch; see explaination for _prevCam in ctr
     _switch_cam( newCam ) {
@@ -510,13 +511,25 @@ const stateModule = {
         // Global axis scales to be applied for geometrical entities as
         // multiplication factors, f_i, r_shown = f_i * r_original.
         axesScales: [1., 1., 1.],  // x, y, z
+        // List of object names disabled for rendering; not updated automatically
+        disabledGeoItems: new Set(),
+        // List of object tags disabled for rendering; not updated automatically
+        disabledTags: new Set(),
         // ...
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
         // action upon geometry is loaded or updated.
         update_geo_data(state, pl) {
-            state.geoDataBySource[pl.name] = JSON.stringify(pl.geoData);
+            // CAVEAT: this does not seem to work:
+            //state.geoDataBySource[pl.name] = pl.geoData;
+            // since the watcher seem to rely on the object ID here and it is
+            // not updated; one way to overcome is to rely on JSON.stringify(pl.geoData)
+            // or:
+            state.geoDataBySource = {
+                    ...state.geoDataBySource,
+                    [pl.name]: pl.geoData
+                };
             console.log(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);  // suceeds
         },
 
@@ -548,6 +561,24 @@ const stateModule = {
             state.axesScales[nIdx] = pl.v;
         },
 
+        // Items rendering
+        disable_item_rendering(state, id) {
+            state.disabledGeoItems.add(id);
+        },
+
+        enable_item_rendering(state, id) {
+            state.disabledGeoItems.delete(id);
+        },
+
+        // Tags rendering
+        disable_tag_rendering(state, id) {
+            state.disabledTags.add(id);
+        },
+
+        enable_tag_rendering(state, id) {
+            state.disabledTags.delete(id);
+        },
+
         // XXX:
         // Substitutes the static geometry object
         update_placements(state, payload) {
@@ -563,10 +594,9 @@ const stateModule = {
     },
     getters: {
         geoData(state) {
-            // NOTE: do not return simply state.geoDataBySource as it seems to
-            //  turn into [Object: object] and does not launch the watcher
-            //  hooks.
-            return JSON.stringify(state.geoDataBySource);
+            // See CAVEAT at update_geo_data() mutation;
+            //return JSON.stringify(state.geoDataBySource);
+            return state.geoDataBySource;
         },
 
         //

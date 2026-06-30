@@ -142,7 +142,6 @@ const stateModule = {
                                 , geoData: data.geometryData}
                                 , {root:true}
                             );
-                        console.log(data);  // XXX
                         dataSize = JSON.stringify(data.geometryData).length;
                         // add new data source
                         commit('new_source', {name, endpoint, dataSize
