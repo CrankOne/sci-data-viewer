@@ -322,16 +322,27 @@ class ThreeView {
                                  && geoMaterial == thisSourceGeo[geoName].geoMaterial
                                  && geoType == thisSourceGeo[geoName].geoType
                                   ) {
-                                    console.debug(`Geometry "${sourceName}/${geoName}" unchanged.`);
+                                    if(!thisSourceGeo[geoName].hasOwnProperty('threeJSGeo')) {
+                                        console.warn(`Can check/update geometry record ${geoName} as it does not expose its three.js representation`);
+                                        return;
+                                    }
+                                    console.debug(`Geometry "${sourceName}/${geoName}" unchanged, updating position and rotation`);
                                     // yet, position/rotation may change
-                                    if(position !== null) {
-                                        thisSourceGeo[geoName].position.set(...position);
+                                    if(position !== null ) {
+                                        if(thisSourceGeo[geoName].threeJSGeo.hasOwnProperty('position'))
+                                            thisSourceGeo[geoName].threeJSGeo.position.set(...position);
+                                        else
+                                            console.warn(`Can not update position for geometry item ${geoName} as it does not expose 'position' property`)
                                     }
-                                    if(rotationOrder != null) {
-                                        thisSourceGeo[geoName].rotation.order = rotationOrder;
-                                    }
-                                    if(rotation !== null) {
-                                        thisSourceGeo[geoName].rotation.set(...rotation);
+                                    if(thisSourceGeo[geoName].threeJSGeo.hasOwnProperty('rotation')) {
+                                        if(rotationOrder != null ) {
+                                            thisSourceGeo[geoName].threeJSGeo.rotation.order = rotationOrder;
+                                        }
+                                        if(rotation !== null) {
+                                            thisSourceGeo[geoName].threeJSGeo.rotation.set(...rotation);
+                                        }
+                                    } else {
+                                        console.warn(`Can not update position for geometry item ${geoName} as it does not expose 'rotation' property`)
                                     }
                                     return;  // skip geometry construction
                                 }
