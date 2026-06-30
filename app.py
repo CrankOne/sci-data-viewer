@@ -2,11 +2,18 @@ from flask import Flask #, send_from_directory
 from flask_cors import CORS, cross_origin
 from flask_restful import Api
 
+import mimetypes
+from flask import Flask
+
+# Force the correct MIME type mapping before initializing Flask
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
+
 import resources
 
 app = Flask(__name__
-        , static_url_path='/static'
-        , static_folder='client/'
+        , static_url_path='/assets'
+        , static_folder='client/dist/assets'
         )
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -14,18 +21,8 @@ api = Api(app)
 
 @app.route("/")
 def index_view():
-    return """<!DOCTYPE html>
-<html>
-<head>
-  <title>Viewer</title>
-  <meta charset="UTF-8" />
-  <link rel="stylesheet" type="text/css" href="/static/style.css"/>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="static/app.js"></script>
-</body>
-</html>"""
+    with open('client/dist/index.html', 'r') as f:
+        return f.read()
 
 #
 # Static scene showing all the available objects, a showroom

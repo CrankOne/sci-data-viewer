@@ -10,9 +10,20 @@ export default defineConfig({
     "preflightContinue": false,
     "optionsSuccessStatus": 204
   }},
-  //build: {
-  //  sourcemap: true,
-  //},
+  build: {
+    // some dev-only tweaks
+    sourcemap: true,
+    // Disables minification (saves massive CPU time)
+    minify: false,
+    // Skips heavy CSS code splitting
+    cssCodeSplit: false,
+    // Skips asset optimization calculations
+    assetsInlineLimit: 0,
+    rollupOptions: {
+      // Drastically speeds up building by avoiding tree-shaking overhead
+      treeshake: false,
+    }
+  },
   //css: {
   //  devSourcemap: true,
   //},

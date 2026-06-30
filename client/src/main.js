@@ -12,9 +12,9 @@ import { stateModule as connection } from './api'
 
 let defaultDataEndpoint = import.meta.env.VITE_DEFAULT_BACKEND_URL;
 if(!defaultDataEndpoint)
-    defaultDataEndpoint = 'http://' + location.host;
+    defaultDataEndpoint = 'http://' + location.host + '/scene';
 
-// Compose app's store as concatenation of viewe store module (view3D) and
+// Compose app's store as concatenation of viewer store module (view3D) and
 // API connection state model (`connection'):
 const store = createStore({
     modules : { connection, view3D },

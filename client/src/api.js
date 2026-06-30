@@ -142,6 +142,7 @@ const stateModule = {
                                 , geoData: data.geometryData}
                                 , {root:true}
                             );
+                        console.log(data);  // XXX
                         dataSize = JSON.stringify(data.geometryData).length;
                         // add new data source
                         commit('new_source', {name, endpoint, dataSize
@@ -165,8 +166,8 @@ const stateModule = {
                       // http.ClientRequest in node.js
                       console.error(error.request);
                     } else {
-                      // Something happened in setting up the request that triggered an Error
-                      console.error('Error', error.message);
+                      // Something happened in setting up the request that triggered an error
+                      console.error(`Error during setting up the request on endpoint ${endpoint}:`, error.message);
                     }
                     console.log(error.config);
                 })
