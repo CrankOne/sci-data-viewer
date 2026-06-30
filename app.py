@@ -1,4 +1,4 @@
-from flask import Flask #, send_from_directory
+from flask import Flask, send_from_directory
 from flask_cors import CORS, cross_origin
 from flask_restful import Api
 
@@ -23,6 +23,11 @@ api = Api(app)
 def index_view():
     with open('client/dist/index.html', 'r') as f:
         return f.read()
+
+@app.route("/cdn/<path:filename>")
+def misc_static(filename):
+    return send_from_directory('misc-static/', filename)
+    # TODO: use smt like app.config['CUSTOM_STATIC_PATH']
 
 #
 # Static scene showing all the available objects, a showroom
@@ -75,10 +80,15 @@ def default_scene():
                         'shape': 'hollowXCross',
                         'flags': 0x3,
                         'size': 32,
+                    }, {
+                        "_name": "texture1",
+                        "_type": "TexturedMaterial",
+                        #
+                        "texture": "cdn/colored-checker-texture.png"
                     }
                 ],
                 "geometry": [
-                    # "detector boxes"
+                    # BoxGeometry demo -- a "detector boxes"
                     {   "_name": "det1",
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
@@ -104,7 +114,7 @@ def default_scene():
                         "sizes": [14, 14, 0.5],
                         "rotation": [0, 0, 0],
                     },
-                    # "reconstructed track"
+                    # Line and ColoredLineSegments demo, "tracks"
                     {   "_name": "reconstructedTrack",
                         "_type": "Line",
                         "_material": "reconstructedTrackMaterial",
@@ -130,7 +140,9 @@ def default_scene():
                                 [[3.38,  -1.1,  17.2],   [0, 0, 1]],
                                 [[4.38,   3.1,  23.2],   [0, 0, 1]],
                             ]
-                    }, {
+                    },
+                    # Various point markers demo, "hits"
+                    {
                         "_name": "hits1",
                         "_type": "PointMarkers",
                         "_material": "markersMat1",
@@ -148,6 +160,16 @@ def default_scene():
                             { "position": [12, -9, -8], "color": [0.9, 0.4, 0.8], "size": 12 },
                             { "position": [32, 18, 19], "color": [0.9, 0.4, 0.2], "size": 18 },
                         ]
+                    },
+                    # Textured quads demo
+                    {
+                        "_name": "plane1",
+                        "_type": "Plane",
+                        "_material": "texture1",
+                        #
+                        "position": [0, 0, 10],
+                        "sizes": [7.5, 17.5],
+                        "rotation": [23.23, -12, 6.5],
                     }
                 ]
             }

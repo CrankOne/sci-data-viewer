@@ -315,11 +315,17 @@ export function make_pointMarkers(pointMarkers, tm) {
 //
 // New API
 
-export function make_material(materialType, materialDefinition) {
+export function make_material(materialType, materialDefinition, textureLoader) {
     // mesh materials
     if('MeshBasicMaterial' == materialType) {
         console.log(materialDefinition);
         return new THREE.MeshBasicMaterial(materialDefinition);
+    }
+    if('TexturedMaterial' == materialType) {
+        return new THREE.MeshBasicMaterial({ 
+            map: textureLoader.load(materialDefinition['texture']),
+            side: THREE.DoubleSide  // TODO: flag
+        });
     }
     // line materials
     if('LineBasicMaterial' == materialType) {
@@ -350,12 +356,13 @@ export function make_material(materialType, materialDefinition) {
 }
 
 export function make_geometry( geoType, material, geoDef ) {
-    //if(!material) {
-    //    throw new Error('xxx null material');
-    //}
     if('BoxGeometry' == geoType) {
         console.debug(`Creating box geometry of ${geoDef.sizes[0]}x${geoDef.sizes[1]}x${geoDef.sizes[2]}`);
         const geo = new THREE.BoxGeometry(...geoDef.sizes);
+        return new THREE.Mesh(geo, material);
+    }
+    if('Plane' == geoType) {
+        const geo = new THREE.PlaneGeometry(...geoDef.sizes);
         return new THREE.Mesh(geo, material);
     }
     if('Line' == geoType ) {

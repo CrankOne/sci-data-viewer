@@ -262,7 +262,7 @@ class ThreeView {
                                 // delete thisSourceMats[matName];  // ?
                             }
                             // otherwise, create material
-                            const threeJSMaterial = GeoEntities.make_material(matType, matDef);
+                            const threeJSMaterial = GeoEntities.make_material(matType, matDef, this._textureLoader);
                             thisSourceMats[matName] = {threeJSMaterial, matDef};
                             console.debug(`Created material "${sourceName}/${matName}" of type ${matType}`);
                         });
@@ -573,6 +573,9 @@ class ThreeView {
         //    this._update();
         //    this._render();
         //});
+
+        // TODO: add error handlers to this object; useful for debugging
+        this._textureLoader = new THREE.TextureLoader();
 
         this._bind_watchers();
     }
