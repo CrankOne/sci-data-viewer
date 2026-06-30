@@ -92,14 +92,18 @@ Misc Notes
 Development snippets
 ====================
 
-Build client app (at the ``client/`` dir) with:
+To run ``yarn`` it is better to use container environment, so build the image,
+run it and keep the terminal for subsequent (re)builds.
 
 .. code-block:: shell
 
-    $ yarn run build
+   $ docker build . -t sciviewer
+   $ docker run -v $(pwd):/var/src -ti sciviewer /bin/s
+   container $ cd /var/src/client
+   container $ yarn run build
 
-Then run the server (Flask development, at the repo's root dir, perhaps you'll
-need virtualenv with Flask, flask-restful, etc) with:
+Run the server (Flask development, at the repo's root dir, perhaps you'll
+need virtualenv with Flask, flask-restful from ``requirements.txt``, etc) with:
 
 .. code-block:: shell
 
