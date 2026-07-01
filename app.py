@@ -93,6 +93,9 @@ def default_scene():
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
                         #
+                        "_category": ["detectors", "GEMs"],
+                        "_tags": ["solid", "demo"],
+                        #
                         "position": [0, 0, -10],
                         "sizes": [7.5, 17.5, 1],
                         "rotation": [0, 12, 6.5],
@@ -103,12 +106,18 @@ def default_scene():
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
                         #
+                        "_category": ["detectors", "GEMs"],
+                        "_tags": ["solid", "demo"],
+                        #
                         "position": [0, 0, 10],
                         "sizes": [15, 8.3, 0.5],
                         "rotation": [-3.4, 0, -4.5],
                     }, {"_name": "det3",
                         "_type": "BoxGeometry",
                         "_material": "defaultDetMaterial",
+                        #
+                        "_category": ["detectors", "GEMs"],
+                        "_tags": ["solid", "demo"],
                         #
                         "position": [0, 0, 0],
                         "sizes": [14, 14, 0.5],
@@ -118,6 +127,10 @@ def default_scene():
                     {   "_name": "reconstructedTrack",
                         "_type": "Line",
                         "_material": "reconstructedTrackMaterial",
+                        #
+                        "_category": ["tracks"],
+                        "_tags": ["lines", "demo"],
+                        #
                         "points": [
                                 [-1.5, 5.6, -20],
                                 [2.3, -3, 20],
@@ -125,6 +138,9 @@ def default_scene():
                     }, {"_name": "detXXX",
                         "_type": 'ColoredLineSegments',
                         '_material': "basicWhiteLineMaterial",
+                        #
+                        "_category": ["detectors"],
+                        "_tags": ["lines", "demo"],
                         #
                         "points": [
                             [[-10, -10, -10], [0, 0, 1]],
@@ -135,6 +151,10 @@ def default_scene():
                     }, {"_name": "referenceTrack",
                         "_type": "ColoredLineSegments",
                         "_material": "dashedLineMaterial",
+                        #
+                        "_category": ["tracks"],
+                        "_tags": ["lines", "demo"],
+                        #
                         "points": [
                                 [[-0.65, 5.45, -19.8],   [0, 1, 1]],
                                 [[3.38,  -1.1,  17.2],   [0, 0, 1]],
@@ -147,6 +167,9 @@ def default_scene():
                         "_type": "PointMarkers",
                         "_material": "markersMat1",
                         #
+                        "_category": ["hits"],
+                        "_tags": ["points", "demo"],
+                        #
                         "items": [
                             { "position": [-2, -3, -4], "color": [0.3, 0.4, 0.5], "size": 17 },
                             { "position": [ 2,  3, -4], "color": [0.9, 0.4, 0.2], "size": 32 },
@@ -155,6 +178,9 @@ def default_scene():
                         "_name": "hits2",
                         "_type": "PointMarkers",
                         "_material": "markersMat2",
+                        #
+                        "_category": ["hits"],
+                        "_tags": ["points", "demo"],
                         #
                         "items": [
                             { "position": [12, -9, -8], "color": [0.9, 0.4, 0.8], "size": 12 },
@@ -166,6 +192,9 @@ def default_scene():
                         "_name": "plane1",
                         "_type": "Plane",
                         "_material": "texture1",
+                        #
+                        "_category": ["detectors"],
+                        "_tags": ["planes", "demo"],
                         #
                         "position": [0, 0, 10],
                         "sizes": [7.5, 17.5],

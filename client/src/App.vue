@@ -10,16 +10,16 @@
 <style>
 @import 'splitpanes/dist/splitpanes.css';
 
-.splitpanes {background-color: #111;}
+.splitpanes {background-color: var(--clr-bg-main);}
 
-.splitpanes__splitter {background-color: #000;position: relative;}
+.splitpanes__splitter {background-color: var(--clr-border-active); position: relative;}
 .splitpanes__splitter:before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   transition: opacity 0.2s;
-  background-color: rgba(255,255,255, 0.4);
+  background-color: var(--clr-border-active);
   opacity: 0;
   z-index: 1;
 }
@@ -28,9 +28,9 @@
 .splitpanes--horizontal > .splitpanes__splitter:before {top: -5px;bottom: -5px;width: 100%;}
 
 input {
-  color: #6495ED;
-  background-color: #110603;
-  border: 1px solid #660;
+  color: var(--clr-fg-panel);
+  background-color: var(--clr-bg-panel);
+  border: 1px solid var(--clr-border-inactive);
   width: 45pt;
   font-size: 7.5pt;
   padding: 2pt 5pt;
@@ -38,9 +38,9 @@ input {
 }
 
 button, select {
-  background-color: #665;
-  border: #110;
-  color: #ffe;
+  background-color: var(--clr-bg-button);
+  border: var(--clr-border-inactive);
+  color: var(--clr-bg-main);
   padding: 3pt 5pt;
   text-decoration: none;
   margin: 4pt 2pt;

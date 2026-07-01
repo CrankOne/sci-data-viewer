@@ -108,8 +108,9 @@ onMounted(() => {
     position: absolute;
     top: 15px;
     left: 15px;
-    background-color: #7643;
-    padding: 5pt 7pt;
+    background-color: var(--clr-neutral-transparent);
+    border: 1px solid var(--clr-border-inactive);
+    padding: 5pt 5pt;
 }
 
 #widgets.opened {

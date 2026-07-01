@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as Markers from './markers';
-import { groupBy } from './utils';
+import { group_by } from './utils';
 import * as Shaders from './shaders';
 
 export const gDrawableEntities = [ 'coloredLineSegments'
@@ -270,7 +270,7 @@ export function make_coloredLines(lines, tm) {
 export function make_pointMarkers(pointMarkers, tm) {
     //const tm = getters['view3D/transformationMatrix'];
     // Sort markers by type; each type will have its own material
-    const pointMarkersByType = groupBy(pointMarkers, 'type');
+    const pointMarkersByType = group_by(pointMarkers, 'type');
     // Iterate over point markers, create spearate point set for every type
     // and assign a separate shader-based point-material for each type
     return Object.entries(pointMarkersByType).map(([typeName, PMs]) => {

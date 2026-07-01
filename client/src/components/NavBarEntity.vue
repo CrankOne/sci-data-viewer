@@ -1,5 +1,5 @@
 <template>
-  <div id="navbarEntrity">
+  <div id="navbarEntity">
     <div :class="openClass" id="header" v-on:click="opened = !opened">
       <slot name="header"></slot>
     </div>
@@ -32,14 +32,14 @@ export default {
 </script>
 
 <style scoped>
-div#navbarEntrity {
+div#navbarEntity {
   max-height: 30%;
   margin-bottom: 5pt;
-  background-color: #222;
+  background-color: var(--clr-bg-panel);
 }
 
 div#header {
-  background-color: #333;
+  background-color: var(--clr-bg-panel);
   padding-left: 5pt;
   font-family: Calibri,sans-serif;
   font-weight: bold;
@@ -64,7 +64,7 @@ div.closed:before {
 div#content {
   font-family: monospace;
   font-size: 9pt;
-  background-color: #222;
+  background-color: var(--clr-bg-panel);
 }
 </style>
 

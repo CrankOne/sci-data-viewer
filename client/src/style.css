@@ -1,4 +1,52 @@
+/* Default "theme" is somewhat neutral dark */
+:root {
+    /* basic palette: neutral, supporting, accent colors and their shades */
+    --clr-neutral:   #2a363b;
+    --clr-supporting:#99b898;
+    --clr-accent:    #e84a5f;
+
+    /* basic variations
+     * - Neutral */
+    --clr-neutral-darker:       color-mix(in srgb, var(--clr-neutral) 70%, black);
+    --clr-neutral-lighter:      color-mix(in srgb, var(--clr-neutral) 80%, white);
+    --clr-neutral-lighter2:     color-mix(in srgb, var(--clr-neutral) 35%, white);
+    --clr-neutral-transparent:  color-mix(in srgb, var(--clr-neutral) 50%, transparent);
+    /* - Supporting */
+    --clr-supporting-darker:    color-mix(in srgb, var(--clr-supporting) 80%, black);
+    --clr-supporting-lighter:   color-mix(in srgb, var(--clr-supporting) 65%, white);
+    /* - Accent */
+    --clr-accent-darker:        color-mix(in srgb, var(--clr-accent) 85%, black);
+    --clr-accent-lighter:       color-mix(in srgb, var(--clr-accent) 70%, white);
+
+    /* splitting colors by semantics:
+     * - neutral should take 60%: backgrounds, usual text */
+    --clr-bg-main: var(--clr-neutral-darker);
+    --clr-fg-main: var(--clr-supporting-lighter);
+    --clr-fg-muted: var(--clr-neutral-lighter);
+    --clr-bg-panel: var(--clr-neutral);
+    --clr-bg-button: var(--clr-supporting-lighter);
+
+    /* - supporting is about 30%: panels text, inputs, borders */
+    --clr-fg-panel: var(--clr-supporting-lighter);
+    --clr-border-active: var(--clr-supporting);
+    --clr-border-inactive: var(--clr-supporting-darker);
+
+    /* - accent should take 10%: edited input, selection */
+    --clr-bg-hover: var(--clr-accent-darker);
+
+    /* - graph entities (plots, 3D, etc) */
+    --clr-graph-background: var(--clr-neutral);
+    --clr-graph-grid1: var(--clr-neutral-lighter);
+    --clr-graph-grid2: var(--clr-neutral-darker);
+    --clr-graph-annotations-mute: var(--clr-neutral-darker);
+    --clr-graph-annotations: var(--clr-supporting);
+    --clr-graph-annotations-highlight: var(--clr-supporting-lighter);
+    --clr-graph-selection: var(--clr-accent);
+    /* TODO: would probably need explicit colors and palettes here,
+     * like --clr-graph-red, --clr-graph-hue1, etc */
+}
+
 body {
-  color: #ffa;
-  background-color: #111;
+  color: var(--clr-fg-main);
+  background-color: var(--clr-bg-main);
 }

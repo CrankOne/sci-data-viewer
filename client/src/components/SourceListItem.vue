@@ -77,7 +77,7 @@ export default {
 div#source-header {
   font-size: 12pt;
   margin: -1.2em -1pt;
-  background-color: #222;
+  background-color: var(--clr-bg-panel);
   padding: 7pt 7pt;
 }
 
@@ -86,8 +86,9 @@ div#btn-remove:after {
   float: right;
   cursor: pointer;
   padding: 2pt 3pt;
-  background-color: #333;
-  border: solid 1px black;
+  background-color: var(--clr-bg-button);
+  color: var(--clr-bg-main);
+  border: solid 1px var(--clr-border-inactive);
 }
 
 span#btn-reload:after {
@@ -95,8 +96,9 @@ span#btn-reload:after {
   cursor: pointer;
   margin-left: 5pt;
   padding: 1pt 5pt;
-  background-color: #333;
-  border: solid 1px black;
+  background-color: var(--clr-bg-button);
+  color: var(--clr-bg-main);
+  border: solid 1px var(--clr-border-inactive);
 }
 </style>
 

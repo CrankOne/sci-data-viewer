@@ -4,6 +4,7 @@ import * as GeoEntities from './geoEntities';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
 import { watch } from 'vue';
+import { get_theme } from './utils';
 //import { getGPUTier } from "detect-gpu";
 
 //                  * * *   * * *   * * *
@@ -103,6 +104,7 @@ class ThreeView {
     }
 
     _create_lights() {
+        // TODO: themed?
         const mainLight = new THREE.DirectionalLight(0xffffff, 5);
         mainLight.position.set(10, 10, 10);
 
@@ -115,7 +117,8 @@ class ThreeView {
         const axesHelper = new THREE.AxesHelper( 5 );
         this._scene.add( axesHelper );
         // create grid helper; to be removed?
-        const gridHelper = new THREE.GridHelper(5000, 50, 0x444222, 0x222222);
+        const theme = get_theme();
+        const gridHelper = new THREE.GridHelper(5000, 50, theme.grid1, theme.grid2);
         this._scene.add( gridHelper );
         // xxx:
         //const markers = get_markers();
@@ -427,7 +430,7 @@ class ThreeView {
 
         // Creating the scene
         this._scene = new THREE.Scene();
-        this._scene.background = new THREE.Color(0x161608);
+        this._scene.background = new THREE.Color(get_theme().background);
 
         // Create cameras, one per entry
         this._camctrls = Object.fromEntries(Object.entries(this._cfg.cameras).map(([camName, camCfg], i) => {
