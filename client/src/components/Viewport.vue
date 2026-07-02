@@ -88,7 +88,7 @@ onMounted(() => {
                 if(mouseMoveDebouncingTimerID) clearTimeout(mouseMoveDebouncingTimerID);
                 mouseMoveDebouncingTimerID = setTimeout(() => {
                                 viewObj.update_pointer(e);
-                            }, 300);
+                            }, 50);
             });
         viewport.value.addEventListener('mouseleave', e => {
                 if(!mouseMoveDebouncingTimerID) return;
