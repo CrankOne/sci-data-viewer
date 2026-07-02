@@ -39,8 +39,8 @@ input {
 
 button, select {
   background-color: var(--clr-bg-button);
-  border: var(--clr-border-inactive);
-  color: var(--clr-bg-main);
+  border: 1px solid var(--clr-border-inactive);
+  color: var(--clr-fg-button);
   padding: 3pt 5pt;
   text-decoration: none;
   margin: 4pt 2pt;

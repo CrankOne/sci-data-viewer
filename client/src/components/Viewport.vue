@@ -132,8 +132,6 @@ span#show-hide-knob.opened:before {
 
 span#show-hide-knob.closed:before {
   content: '\229E ';
-  padding-right: 5pt;
-  margin-top: 15pt;
   font-size: 20pt;
   cursor: pointer;
 }

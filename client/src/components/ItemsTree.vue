@@ -7,8 +7,13 @@
         <li
           v-for="item in filteredItems"
           :key="item._name"
-          :class="{ selected: selectedIds.has(item._name) }"
-          @click="toggle_item(item._name)"
+          :class="{
+            selected: selectedGeoItemIDs.has(item._name),
+            hovered: highlightedGeoItemIDs.has(item._name)
+          }"
+          @click="toggle_item_selection(item._name)"
+          @mouseenter="hover_item(item._name)"
+          @mouseleave="unhover_item()"
         >
           {{ item._name }}
         </li>
@@ -28,13 +33,14 @@ export default {
   components: {NavBarEntity}, //, DrawableItem},
   data() {
     return {
-      query: "",
-      selectedIds: new Set()
+      query: ""
     };
   },  // data
   computed: {
-    // A shortcut, returns geoData from store
+    // shortcuts, returns corresponding objects from store
     geoData() { return this.$store.getters['view3D/geoData']; },
+    selectedGeoItemIDs() { return this.$store.getters['view3D/selectedGeoItemIDs']; },
+    highlightedGeoItemIDs() { return this.$store.getters['view3D/highlightedGeoItemIDs']; },
 
     // available items with their id, label and category
     availableItems() {
@@ -57,18 +63,30 @@ export default {
     }
   },  // computed
   methods: {
-    toggle_item(id) {
-      const next = new Set(this.selectedIds);
-      if (next.has(id))
-        next.delete(id);
+    toggle_item_selection(id) {
+      console.debug(`Toggle item selection for geo item with ID "${id}"`);
+      if(this.selectedGeoItemIDs.has(id))
+        this.$store.commit('view3D/unselect_geo_items', id);
       else
-        next.add(id);
-      this.selectedIds = next;
+        this.$store.commit('view3D/select_geo_items', id);
+    },
+    hover_item(id) {
+        this.$store.commit('view3D/set_highlight_geo_items', id);
+    },
+    unhover_item(id) {
+        this.$store.commit('view3D/clear_geo_items_highlight');
     }
   }  // methods
 }
 </script>
 
 <style scoped>
+li.selected {
+    color: var(--clr-accent);
+}
 
+li.hovered {
+    background-color: var(--clr-bg-button);
+    color: var(--clr-fg-button);
+}
 </style>

@@ -1,10 +1,27 @@
-/* Default "theme" is somewhat neutral dark */
+/*                                                               _____________
+ * ____________________________________________________________/ Basic palette
+ * neutral, supporting, accent colors and their shades
+ * A basic color triade */
+
+/* - bright theme */
 :root {
-    /* basic palette: neutral, supporting, accent colors and their shades */
+    --clr-neutral:      #fcfcfc;
+    --clr-supporting:   #3286cd;
+    --clr-accent:       #d99962;
+}
+
+/* - dark theme */
+/*:root {
     --clr-neutral:   #2a363b;
     --clr-supporting:#99b898;
     --clr-accent:    #e84a5f;
+}*/
 
+/*                                                        ____________________
+ * _____________________________________________________/ Blending and shading
+ * Defined basic colors are mixed here into shades.
+ * TODO: [data-theme="dark"]*/
+:root {
     /* basic variations
      * - Neutral */
     --clr-neutral-darker:       color-mix(in srgb, var(--clr-neutral) 70%, black);
@@ -17,14 +34,26 @@
     /* - Accent */
     --clr-accent-darker:        color-mix(in srgb, var(--clr-accent) 85%, black);
     --clr-accent-lighter:       color-mix(in srgb, var(--clr-accent) 70%, white);
+}
 
+/*                                                ____________________________
+ * _____________________________________________/ Semantic application colors
+ */
+:root {
     /* splitting colors by semantics:
      * - neutral should take 60%: backgrounds, usual text */
     --clr-bg-main: var(--clr-neutral-darker);
     --clr-fg-main: var(--clr-supporting-lighter);
     --clr-fg-muted: var(--clr-neutral-lighter);
     --clr-bg-panel: var(--clr-neutral);
-    --clr-bg-button: var(--clr-supporting-lighter);
+
+    /* for dark: */
+    /*--clr-bg-button: var(--clr-supporting-lighter);
+    --clr-fg-button: var(--clr-bg-main);*/
+
+    /* for bright */
+    --clr-bg-button: var(--clr-neutral-lighter2);
+    --clr-fg-button: var(--clr-accent);
 
     /* - supporting is about 30%: panels text, inputs, borders */
     --clr-fg-panel: var(--clr-supporting-lighter);

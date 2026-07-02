@@ -358,6 +358,8 @@ class ThreeView {
                                     geoType, thisSourceMats[geoMaterial].threeJSMaterial, geoDef
                                 );
 
+                            threeJSGeo.name = geoName;
+
                             this._scene.add(threeJSGeo);
 
                             if(position !== null) {
@@ -467,10 +469,15 @@ class ThreeView {
         // update picking ray with camera and pointer position
         this._raycaster.setFromCamera(this._pointer, this.get_cam());
         // get the intersecting objects
-        const intersects = this._raycaster.intersectObjects( this._scene.children );
-        const names2highlihght = intersects.filter(item => item.object.name);
-        if(names2highlihght && names2highlihght.length)
-            console.log('Object under cursor:', names2highlihght.map(item => item.object.name));
+        const intersects = this._raycaster.intersectObjects( this._scene.children, true );
+        const items2highlight = intersects.filter(item => item.object.name);
+        if(items2highlight && items2highlight.length) {
+            const ids2highlight = items2highlight.map(item => item.object.name);
+            console.debug('Object under cursor:', ids2highlight);
+            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
+        } else {
+            this._vuexStore.commit('view3D/clear_geo_items_highlight');
+        }
         //for( let i = 0; i < intersects.length; i ++ ) {
 		//    //intersects[i].object.material.color.set( 0xff0000 );
         //    console.log(intersects[i]);  // XXX
@@ -505,20 +512,14 @@ const stateModule = {
     namespaced: true,
     state: () => ({
         geoDataBySource: {}, //Object.create(null),
-        // serialized static geometry
-        //placementsStr: '[]',
-        // serialized dynamic geometry
-        //dynamicGeometryStr: '[]',
         // Axis-aligned bounding box for objects of interest
         regionOfInterest: [[null, null, null], [null, null, null]],
         // Global axis scales to be applied for geometrical entities as
         // multiplication factors, f_i, r_shown = f_i * r_original.
         axesScales: [1., 1., 1.],  // x, y, z
-        // List of object names disabled for rendering; not updated automatically
-        disabledGeoItems: new Set(),
-        // List of object tags disabled for rendering; not updated automatically
-        disabledTags: new Set(),
-        // ...
+
+        highlightedGeoItemIDs: new Set(),  // higlighted item IDs
+        selectedGeoItemIDs: new Set(),  // selected item IDs
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -564,46 +565,84 @@ const stateModule = {
             state.axesScales[nIdx] = pl.v;
         },
 
-        // Items rendering
-        disable_item_rendering(state, id) {
-            state.disabledGeoItems.add(id);
+        //
+        // Highlight
+
+        highlight_geo_items(state, ids) {
+            const next = new Set(state.highlightedGeoItemIDs);
+            if (typeof ids === "string") {
+                next.add(ids);
+            } else {
+                for (const id of ids)
+                    next.add(id);
+            }
+            state.highlightedGeoItemIDs = next;
         },
 
-        enable_item_rendering(state, id) {
-            state.disabledGeoItems.delete(id);
+        set_highlight_geo_items(state, ids) {
+            let next = new Set(state.highlightedGeoItemIDs);
+            if (typeof ids === "string") {
+                next = new Set([ids]);
+            } else {
+                next = new Set(ids);
+            }
+            state.highlightedGeoItemIDs = next;
         },
 
-        // Tags rendering
-        disable_tag_rendering(state, id) {
-            state.disabledTags.add(id);
+        unhighlight_geo_items(state, ids) {
+            const next = new Set(state.highlightedGeoItemIDs);
+            if (typeof ids === "string") {
+                next.delete(ids);
+            } else {
+                for (const id of ids)
+                    next.delete(id);
+            }
+            state.highlightedGeoItemIDs = next;
         },
 
-        enable_tag_rendering(state, id) {
-            state.disabledTags.delete(id);
+        clear_geo_items_highlight(state) {
+            state.highlightedGeoItemIDs = new Set();
         },
 
-        // XXX:
-        // Substitutes the static geometry object
-        update_placements(state, payload) {
-            state.placementsStr = JSON.stringify(payload);
+        //
+        // Selection
+
+        select_geo_items(state, ids) {
+            const next = new Set(state.selectedGeoItemIDs);
+            if (typeof ids === "string") {
+                next.add(ids);
+            } else {
+                for (const id of ids)
+                    next.add(id);
+            }
+            state.selectedGeoItemIDs = next;
         },
-        // Updates dynamic geometry
-        update_dynamic_geometry(state, payload) {
-            state.dynamicGeometryStr = JSON.stringify(payload.entities);
+
+        unselect_geo_items(state, ids) {
+            const next = new Set(state.selectedGeoItemIDs);
+            if (typeof ids === "string") {
+                next.delete(ids);
+            } else {
+                for (const id of ids)
+                    next.delete(id);
+            }
+            state.selectedGeoItemIDs = next;
         },
+
+        clear_geo_items_selection(state) {
+            state.selectedGeoItemIDs = new Set();
+        },
+        // TODO: invert selection?
     },
     actions: {
         // ...
     },
     getters: {
-        geoData(state) {
-            // See CAVEAT at update_geo_data() mutation;
-            //return JSON.stringify(state.geoDataBySource);
-            return state.geoDataBySource;
-        },
+        // See CAVEAT at update_geo_data() mutation; return JSON.stringify(state.geoDataBySource);
+        geoData: state => state.geoDataBySource,
 
-        //
-        // Miscellaneous getters
+        highlightedGeoItemIDs: state => state.highlightedGeoItemIDs,
+        selectedGeoItemIDs: state => state.selectedGeoItemIDs,
 
         // Returns current global transformation (for viewing objects)
         transformationMatrix( state ) {

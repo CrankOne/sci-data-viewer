@@ -45,8 +45,8 @@ def default_scene():
                         #
                         #"wireframe": True,
                         "transparent": True,
-                        "opacity": 0.15,
-                        "color": 0xffffaa,
+                        "opacity": 0.55, #0.15,
+                        "color":  0x3286cd, #0xffffaa,
                     }, {"_name": "reconstructedTrackMaterial",
                         "_type": "LineDashedMaterial",
                         #
