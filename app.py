@@ -41,15 +41,16 @@ def default_scene():
             "geometryData": {
                 "materials": [
                     {   "_name": "defaultDetMaterial",
-                        "_type": "MeshBasicMaterial",
+                        "_type": "MeshMaterial",
                         #
                         #"wireframe": True,
                         "transparent": True,
                         "opacity": 0.55, #0.15,
                         "color":  0x3286cd, #0xffffaa,
                     }, {"_name": "reconstructedTrackMaterial",
-                        "_type": "LineDashedMaterial",
+                        "_type": "LineMaterial",
                         #
+                        "lineStrokeType": "dashed",
                         "color": 0xff7777,
                         "linewidth": 1,
                         "scale": 1,
@@ -57,7 +58,7 @@ def default_scene():
                         "gapSize": 1,
                     }, {
                         "_name": "basicWhiteLineMaterial",
-                        "_type": "LineBasicMaterial",
+                        "_type": "LineMaterial",
                         #
                         #"linewidth": 5,  # not supported unfortunately
                         "color": 0xffffff,
@@ -82,7 +83,7 @@ def default_scene():
                         'size': 32,
                     }, {
                         "_name": "texture1",
-                        "_type": "TexturedMaterial",
+                        "_type": "MeshMaterial",
                         #
                         "texture": "cdn/colored-checker-texture.png"
                     }

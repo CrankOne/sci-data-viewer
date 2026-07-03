@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import _ from 'lodash';
-import * as GeoEntities from './geoEntities';
+import * as Geometry from './geometry';
+import * as Materials from './materials';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
 import { watch } from 'vue';
@@ -418,7 +419,7 @@ class ThreeView {
             // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
         }
         console.debug(`Creating geo "${geoName}" of type ${geoType}...`);
-        const threeJSGeo = GeoEntities.make_geometry(
+        const threeJSGeo = Geometry.make_geometry(
                 geoType, thisSourceMats[geoMaterial].threeJSMaterial, geoDef
             );
         // assign name to the three.js object; used to link between three.js
@@ -473,7 +474,8 @@ class ThreeView {
                 // delete thisSourceMats[matName];  // ?
             }
             // otherwise, create material
-            const threeJSMaterial = GeoEntities.make_material(matType, matDef, this._textureLoader);
+            const threeJSMaterial = Materials.make_material(matType, matDef
+                , {textureLoader: this._textureLoader});
             thisSourceMats[matName] = {threeJSMaterial, matDef};
             console.debug(`Created material "${sourceName}/${matName}" of type ${matType}`);
         });
@@ -502,12 +504,13 @@ class ThreeView {
 
     // Called by watcher on highlight change; should not modify store's values,
     // but follow given ones. Implements changes of the geometrical entities
-    // appearance, as defined by `geoEntities.js` API.
+    // appearance, as defined by `Geometry.js` API.
     update_highlighted_graphics(hlItems, hlItemsOld) {
         const added   = Utils.set_difference(hlItems, hlItemsOld);
         const removed = Utils.set_difference(hlItemsOld, hlItems);
         // Get items to un-highlight
         removed.forEach((itemID) => {
+                //Geometry.
                 console.debug(`un-highlight ${itemID}`);
             });
         // Items to highlight
