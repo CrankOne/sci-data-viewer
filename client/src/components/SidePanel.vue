@@ -1,8 +1,8 @@
 <template>
     <div id="container">
-        <source-list :defaultOpenedState="true" />
+        <source-list />
         <!--<ev-nav-bar eventID="null"/>-->
-        <items-tree />
+        <items-tree :defaultOpenedState="true" />
         <scene-helpers />
         <!--<event-tree-on-side-panel :eventNum="0"/>-->
     </div>
@@ -18,10 +18,8 @@ import ItemsTree from './ItemsTree.vue'
 export default {
     components: {
         SourceList,
-        //EvNavBar,
         ItemsTree,
         SceneHelpers,
-        //EventTreeOnSidePanel,
     },
     data() {
         return {};
@@ -32,7 +30,7 @@ export default {
 <style scoped>
 div#container {
     max-height: 100%;
-    padding: 2pt 1pt;
+    padding: 5pt 3pt;
 }
 </style>
 

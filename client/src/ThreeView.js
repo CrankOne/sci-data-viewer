@@ -4,7 +4,7 @@ import * as GeoEntities from './geoEntities';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
 import { watch } from 'vue';
-import { get_theme } from './utils';
+import * as Utils from './utils';
 //import { getGPUTier } from "detect-gpu";
 
 //                  * * *   * * *   * * *
@@ -117,7 +117,7 @@ class ThreeView {
         const axesHelper = new THREE.AxesHelper( 5 );
         this._scene.add( axesHelper );
         // create grid helper; to be removed?
-        const theme = get_theme();
+        const theme = Utils.get_theme();
         const gridHelper = new THREE.GridHelper(5000, 50, theme.grid1, theme.grid2);
         this._scene.add( gridHelper );
         // xxx:
@@ -224,7 +224,7 @@ class ThreeView {
                      , {deep:true} );
             }
         });
-        //
+
         // Geometry update watcher
         //  This function is triggered on either geometry data indexed by source
         //  name gets updated, global transformation matrix gets changed, list
@@ -233,6 +233,11 @@ class ThreeView {
                , () => this._vuexStore.getters['view3D/transformationMatrix']
                ]
             , this.update_drawables.bind(this) );  // end of watcher
+
+        // Highlighted items updater
+        watch( () => this._vuexStore.getters['view3D/highlightedGeoItemIDs']
+            , (hlItems, hlItemsOld) => this.update_highlighted_graphics(hlItems, hlItemsOld)
+            );
     }  // _bind_watchers()
 
     // Called on camera switch; see explaination for _prevCam in ctr
@@ -261,21 +266,13 @@ class ThreeView {
         this._vuexStore = vuexStore;
         this._container = container;
 
-        // Placeholders for future renewable objects (we keep handles here only
-        // to dispose() it at certain watchers)
-        //this._coloredLineSegments = {objects: [], geometries: []};
-        // Placeholders for dynamic drawables
-        //this._dynamicDrawables
-        //    = Object.fromEntries(GeoEntities.gDrawableEntities.map(k => [k, {objects: [], geometries: []}]));
-
-        //
         // Index of materials by source ID {<sourceID:str>:Object}
         // Where object item is <materialName:str>:{threeJSMaterial, matDef}
         // One can compare 2nd
         this._materials = {};
         // Geometries, of similar structure to materials:
         //  {<sourceID:str>:Object}, where Object is
-        //  {threeJSGeo, geoDef}
+        //      {threeJSGeo, geoDef, geoMaterial, geoType}
         this._geometries = {};
 
         // create raycaster and pointer vec
@@ -284,7 +281,7 @@ class ThreeView {
 
         // Creating the scene
         this._scene = new THREE.Scene();
-        this._scene.background = new THREE.Color(get_theme().background);
+        this._scene.background = new THREE.Color(Utils.get_theme().background);
 
         // Create cameras, one per entry
         this._camctrls = Object.fromEntries(Object.entries(this._cfg.cameras).map(([camName, camCfg], i) => {
@@ -303,11 +300,6 @@ class ThreeView {
         this._switch_cam(this._cfg.currentCamera);
 
         this._render();
-        
-        //this._renderer.setAnimationLoop(() => {
-        //    this._update();
-        //    this._render();
-        //});
 
         // TODO: add error handlers to this object; useful for debugging
         this._textureLoader = new THREE.TextureLoader();
@@ -330,14 +322,6 @@ class ThreeView {
         } else {
             this._vuexStore.commit('view3D/clear_geo_items_highlight');
         }
-        //for( let i = 0; i < intersects.length; i ++ ) {
-		//    //intersects[i].object.material.color.set( 0xff0000 );
-        //    console.log(intersects[i]);  // XXX
-        //    // ^^^ TODO: every object here has `object.name` attribute that can
-        //    // be used to locate the drawable object, and `.point` vec3 that can
-        //    // be used to address particular hit/line (within array).
-        //    // We need to connect it with the global index of drawables...
-	    //}
     }
 
     get_cam() {
@@ -348,12 +332,7 @@ class ThreeView {
         const w = this._container.clientWidth;
         const h = this._container.clientHeight;
         this._cfg.cameras.persp1.aspect = w/h;  // ?
-        //this.get_cam().aspect = w/h;
-        //this._camctrls[this._cfg.currentCamera][0].aspect = w/h;  // TODO!
-        //this._camctrls[this._cfg.currentCamera][0].updateProjectionMatrix();
         this._renderer.setSize(w, h);
-        //this._camctrls[this._cfg.currentCamera][1].update();  // XXX
-        //this._render();
     }
 
     update_drawables() {
@@ -370,7 +349,7 @@ class ThreeView {
     // Creates/updates item by its geometrical definition; assumes materials
     // and geometrical definitions are scoped by the source (should be
     // forwarded by `thisSourceMats` and `thisSourceGeo`).
-    update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, thisSourceGeo) {
+    update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, thisSourceID, thisSourceGeo) {
         const { _name: geoName
               , _type: geoType
               , _material: geoMaterial
@@ -444,8 +423,7 @@ class ThreeView {
             );
         // assign name to the three.js object; used to link between three.js
         // objects and data model instances
-        // TODO: should be scoped by data source!
-        threeJSGeo.name = geoName;
+        threeJSGeo.name = `${geoName}@${thisSourceID}`;
 
         this._scene.add(threeJSGeo);
 
@@ -515,10 +493,27 @@ class ThreeView {
         var geomNamesInUse = new Set();
         //var geometriesToDispose = [];  // not needed, as we dispose 'em immediately
         geoData.geometry.forEach((geoDef_) => {
-                this.update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, thisSourceGeo);
+                this.update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats
+                    , sourceName, thisSourceGeo);
             });
         this._geometries[sourceName] = thisSourceGeo;
         // TODO: treat materialsToDispose
+    }
+
+    // Called by watcher on highlight change; should not modify store's values,
+    // but follow given ones. Implements changes of the geometrical entities
+    // appearance, as defined by `geoEntities.js` API.
+    update_highlighted_graphics(hlItems, hlItemsOld) {
+        const added   = Utils.set_difference(hlItems, hlItemsOld);
+        const removed = Utils.set_difference(hlItemsOld, hlItems);
+        // Get items to un-highlight
+        removed.forEach((itemID) => {
+                console.debug(`un-highlight ${itemID}`);
+            });
+        // Items to highlight
+        added.forEach((itemID) => {
+                console.debug(`highlight ${itemID}`);
+            });
     }
 }  // class ThreeView
 

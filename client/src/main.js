@@ -27,7 +27,7 @@ const routes = [
         , component: ThreeViewer
         , props: {
                 defaultDataSources: {
-                    'Default source': defaultDataEndpoint
+                    'default': defaultDataEndpoint
                 }
             }
         , name: 'three-view'

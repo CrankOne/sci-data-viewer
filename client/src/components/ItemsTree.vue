@@ -6,16 +6,16 @@
       <ul class="geo-items-list">
         <li
           v-for="item in filteredItems"
-          :key="item._name"
-          :class="{
-            selected: selectedGeoItemIDs.has(item._name),
-            hovered: highlightedGeoItemIDs.has(item._name)
-          }"
-          @click="toggle_item_selection(item._name)"
-          @mouseenter="hover_item(item._name)"
+          :key="item.name"
+          @click="toggle_item_selection(item.name)"
+          @mouseenter="hover_item(item.name)"
           @mouseleave="unhover_item()"
         >
-          {{ item._name }}
+        <span :class="{
+                selected: selectedGeoItemIDs.has(item.name),
+                hovered: highlightedGeoItemIDs.has(item.name)
+              }"
+            >{{item.label}}</span><span>@{{item.source}}</span>
         </li>
       </ul>
     </template>
@@ -44,10 +44,12 @@ export default {
 
     // available items with their id, label and category
     availableItems() {
-      return Object.values(this.geoData).flatMap(src =>
+      return Object.entries(this.geoData).flatMap(([srcID, src]) =>
         src.geometry.map(item => ({
-          _name: item._name,
-          _category: item._category ?? []
+          name: `${item._name}@${srcID}`,
+          label: item._name,
+          source: srcID,
+          category: item._category ?? []
         }))
       );
     },
@@ -58,7 +60,7 @@ export default {
       const q = this.query.trim().toLowerCase();
       if(!q) return this.availableItems;
       return this.availableItems.filter(item =>
-            item._name.toLowerCase().includes(q)
+            item.name.toLowerCase().includes(q)
           );
     }
   },  // computed
@@ -81,11 +83,11 @@ export default {
 </script>
 
 <style scoped>
-li.selected {
+.selected {
     color: var(--clr-accent);
 }
 
-li.hovered {
+.hovered {
     background-color: var(--clr-bg-button);
     color: var(--clr-fg-button);
 }

@@ -10,6 +10,15 @@ export function group_by(arr, property) {
   }, {});
 }
 
+export function set_difference(a, b) {
+    const out = new Set();
+    for(const x of a) {
+        if(!b.has(x))
+            out.add(x);
+    }
+    return out;
+}
+
 //
 // Colors
 
