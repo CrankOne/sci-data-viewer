@@ -4,18 +4,18 @@
  * A basic color triade */
 
 /* - bright theme */
-:root {
+/*:root {
     --clr-neutral:      #fcfcfc;
     --clr-supporting:   #3286cd;
     --clr-accent:       #d99962;
-}
+}*/
 
 /* - dark theme */
-/*:root {
+:root {
     --clr-neutral:   #2a363b;
     --clr-supporting:#99b898;
     --clr-accent:    #e84a5f;
-}*/
+}
 
 /*                                                        ____________________
  * _____________________________________________________/ Blending and shading

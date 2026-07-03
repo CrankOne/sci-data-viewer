@@ -9,3 +9,13 @@ export function make_geometry(material, geoDef, context = {}) {
     return line;
 }
 
+export function make_overlay_geometry(geoDef, context={}) {
+    if(!context.hasOwnProperty('lineSelectionMaterial')) {
+        throw new Error('Context does not provide "lineSelectionMaterial" to create pickable line overlay');
+    }
+    return make_geometry(context.lineSelectionMaterial
+        , geoDef
+        , context
+        );
+}
+

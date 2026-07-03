@@ -167,6 +167,7 @@ def default_scene():
                         "_name": "hits1",
                         "_type": "PointMarkers",
                         "_material": "markersMat1",
+                        "_pickable": False,
                         #
                         "_category": ["hits"],
                         "_tags": ["points", "demo"],
@@ -179,6 +180,7 @@ def default_scene():
                         "_name": "hits2",
                         "_type": "PointMarkers",
                         "_material": "markersMat2",
+                        "_pickable": False,
                         #
                         "_category": ["hits"],
                         "_tags": ["points", "demo"],

@@ -115,8 +115,8 @@ class ThreeView {
 
     _create_meshes() {
         // create axes helper; perhaps to be removed at some point
-        const axesHelper = new THREE.AxesHelper( 5 );
-        this._scene.add( axesHelper );
+        //const axesHelper = new THREE.AxesHelper( 5 );
+        //this._scene.add( axesHelper );
         // create grid helper; to be removed?
         const theme = Utils.get_theme();
         const gridHelper = new THREE.GridHelper(5000, 50, theme.grid1, theme.grid2);
@@ -250,6 +250,22 @@ class ThreeView {
         this._render();
     }
 
+    // Creates default materials expected across API
+    _create_default_materials() {
+        this._defaultMaterials['meshSelectionMaterial'] = new THREE.MeshBasicMaterial({
+                color: Utils.get_theme().selected,
+                side: THREE.DoubleSide,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.55
+            });
+        this._defaultMaterials['lineSelectionMaterial'] = new THREE.LineBasicMaterial({
+                color: Utils.get_theme().selected,
+                linewidth: 2
+            });
+        //this._defaultMaterials['pointSelectionMaterial'];  // TODO
+    }
+
     /* Creates fixture to render things using three.js
      *
      * Optionally, creates static geometry.
@@ -267,6 +283,8 @@ class ThreeView {
         this._vuexStore = vuexStore;
         this._container = container;
 
+        // Default materials
+        this._defaultMaterials = {};
         // Index of materials by source ID {<sourceID:str>:Object}
         // Where object item is <materialName:str>:{threeJSMaterial, matDef}
         // One can compare 2nd
@@ -297,6 +315,7 @@ class ThreeView {
         this._create_lights();
         this._create_meshes();
         this._create_renderer();
+        this._create_default_materials();
 
         this._switch_cam(this._cfg.currentCamera);
 
@@ -315,9 +334,10 @@ class ThreeView {
         this._raycaster.setFromCamera(this._pointer, this.get_cam());
         // get the intersecting objects
         const intersects = this._raycaster.intersectObjects( this._scene.children, true );
-        const items2highlight = intersects.filter(item => item.object.name);
+        const items2highlight = intersects.filter(item => item.object.userData?.pickable );
         if(items2highlight && items2highlight.length) {
-            const ids2highlight = items2highlight.map(item => item.object.name);
+            const ids2highlight = items2highlight.map(item =>
+                `${item.object.userData.geoID}@${item.object.userData.srcID}`);
             console.debug('Object under cursor:', ids2highlight);
             this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
         } else {
@@ -419,13 +439,14 @@ class ThreeView {
             // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
         }
         console.debug(`Creating geo "${geoName}" of type ${geoType}...`);
-        const threeJSGeo = Geometry.make_geometry(
-                geoType, thisSourceMats[geoMaterial].threeJSMaterial, geoDef
+        const threeJSGeo = Geometry.make_geometry( geoType  // geo type name string (one of geometry/*.js)
+                , thisSourceMats[geoMaterial].threeJSMaterial  // material for the item
+                , geoDef  // geometry definition object as provided
+                , {geoID: geoName, srcID: thisSourceID}  // userdata to save in the three.js group object, shallow-copied
+                , { 'meshSelectionMaterial': this._defaultMaterials.meshSelectionMaterial
+                  , 'lineSelectionMaterial': this._defaultMaterials.lineSelectionMaterial
+                  }  // context
             );
-        // assign name to the three.js object; used to link between three.js
-        // objects and data model instances
-        threeJSGeo.name = `${geoName}@${thisSourceID}`;
-
         this._scene.add(threeJSGeo);
 
         if(position !== null) {
