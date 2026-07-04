@@ -108,3 +108,8 @@ export function get_theme() {
         selected   : css_var('--clr-graph-selection'),
     };
 }
+
+// Used to highlight geometry entities by maintaining copy objects
+export const LAYER_MAIN = 0;
+export const LAYER_MASK_HIGHLIGHTED = 1;
+export const LAYER_MASK_SELECTED = 2;

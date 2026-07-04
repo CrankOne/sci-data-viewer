@@ -153,8 +153,8 @@ class MarkerAssets {
                 //pointTexture: { value: new THREE.TextureLoader().load( 'textures/sprites/spark1.png' ) }
                 // ...
             },
-            vertexShader: Shaders.markerPointVertexShader,
-            fragmentShader: Shaders.markerPointFragmentShader,
+            vertexShader: Shaders.markers.markerPointVertexShader,
+            fragmentShader: Shaders.markers.markerPointFragmentShader,
 
             blending: THREE.AdditiveBlending,
             depthTest: false,

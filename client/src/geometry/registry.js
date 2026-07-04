@@ -4,6 +4,7 @@ import * as pointMarkers from "./pointMarkers";
 import * as boxGeometry from "./boxGeometry";
 import * as plane from "./plane";
 import * as line from "./line";
+import * as Utils from "../utils";
 
 const registry = new Map();
 
@@ -41,9 +42,11 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
         base.userData[udKey] = udVal;
     }
     base.userData.pickable = (geoDef._pickable !== false);
+    base.userData.role = 'base';
 
     group.add(base);
     group.userData.handles = {};
+    group.userData.role = 'geoEntityGroup';
     group.userData.handles.base = base;
     // if picking is not explicitly disabled (by default)
     if(base.userData.pickable) {
@@ -55,7 +58,10 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
                 highlight.name = `hl-${userData.geoID}@${userData.srcID}`;
             }
+            highlight.matrixAutoUpdate = false;
             highlight.visible = false;  // highlighted overlay is hidden by default
+            highlight.layers.set(Utils.LAYER_MASK_HIGHLIGHTED);
+
             group.add(highlight);
             group.userData.handles.highlight = highlight;
         }
@@ -68,7 +74,10 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
                 selected.name = `selected-${userData.geoID}@${userData.srcID}`;
             }
+            selected.matrixAutoUpdate = false;
             selected.visible = false;  // selected overlay is hidden by default
+            selected.layers.set(Utils.LAYER_MASK_SELECTED);
+
             group.add(selected);
             group.userData.handles.selected = selected;
         }

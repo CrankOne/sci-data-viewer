@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import _ from 'lodash';
 import * as Geometry from './geometry';
+import * as Shaders from "./shaders";
 import * as Materials from './materials';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
 import { watch } from 'vue';
 import * as Utils from './utils';
@@ -42,21 +44,44 @@ export function parse_evdsp_id(s) {
 }
 
 //                  * * *   * * *   * * *
+// Helper to inspect the mask
+function make_texture_dbg_view(texture, size = 0.45, x = -0.7, y = -0.7) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(
+    -1, 1,
+     1, -1,
+     0, 1
+  );
+  const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        depthTest: false,
+        depthWrite: false,
+        transparent: false,
+    });
+  const quad = new THREE.Mesh( new THREE.PlaneGeometry(size, size), material );
+  quad.position.set(x, y, 0);
+  scene.add(quad);
+  return { scene, camera, quad, material, };
+}
+//                  * * *   * * *   * * *
 
 /* Event display class
  *
  * Maintains scope with objects responsible for displaying the data. */
 class ThreeView {
     // Creates and returns perspective camera + orbit controls
-    _create_persp_camera(cfg) {
+    _create_persp_camera(cfg) {  // {{{
         cfg.aspect = this._container.clientWidth / this._container.clientHeight;  // TODO
         const cam = new THREE.PerspectiveCamera( cfg.fov
                 , cfg.aspect
                 , cfg.cuts[0], cfg.cuts[1]
                 );
         cam.position.set( cfg.position[0], cfg.position[1], cfg.position[2] );
-        //cam.lookAt(cfg.lookAt[0], cfg.lookAt[1], cfg.lookAt[2]);  // has no effect with controls
-        //this._scene.add(cam);  // why does it work even without this line?
+
+        // normal camera sees only normal layer:
+        cam.layers.enable(Utils.LAYER_MAIN);
+        cam.layers.disable(Utils.LAYER_MASK_SELECTED);
+        cam.layers.disable(Utils.LAYER_MASK_HIGHLIGHTED);
 
         // create new control
         const controls = new OrbitControls(cam, this._container);
@@ -67,10 +92,9 @@ class ThreeView {
         controls.enabled = false;
 
         return [cam, controls];
-    }
-
+    }  // }}}
     // Creates and returns orthograpic camera + orbit controls
-    _create_ortho_camera(cfg) {
+    _create_ortho_camera(cfg) {  // {{{
         const aspect = this._container.clientWidth
                      / this._container.clientHeight
                      ;
@@ -83,7 +107,11 @@ class ThreeView {
         cam.position.set( cfg.lookAt[0], cfg.lookAt[1], cfg.lookAt[2] );
         cam.up.set(cfg.up[0], cfg.up[1], cfg.up[2]);
         // ...
-        //this._scene.add(cam);
+
+        // normal camera sees only normal layer:
+        cam.layers.enable(Utils.LAYER_MAIN);
+        cam.layers.disable(Utils.LAYER_MASK_SELECTED);
+        cam.layers.disable(Utils.LAYER_MASK_HIGHLIGHTED);
 
         // create new control
         const controls = new OrbitControls(cam, this._container);
@@ -102,18 +130,16 @@ class ThreeView {
         controls.enabled = false;
 
         return [cam, controls];
-    }
-
-    _create_lights() {
+    }  // }}}
+    _create_lights() {  // {{{
         // TODO: themed?
         const mainLight = new THREE.DirectionalLight(0xffffff, 5);
         mainLight.position.set(10, 10, 10);
 
         const hemisphereLight = new THREE.HemisphereLight(0x99aaee, 0x202020, 5);
         this._scene.add(mainLight, hemisphereLight);
-    }
-
-    _create_meshes() {
+    }  // }}}
+    _create_static_meshes() { // {{{
         // create axes helper; perhaps to be removed at some point
         //const axesHelper = new THREE.AxesHelper( 5 );
         //this._scene.add( axesHelper );
@@ -125,9 +151,8 @@ class ThreeView {
         //const markers = get_markers();
         //const sprite = new THREE.Sprite( markers['whiteCircle-10x10'] );
         //this._scene.add( sprite );
-    }
-
-    _create_renderer() {
+    }  // }}}
+    _create_renderer() {  // {{{
         this._renderer = new THREE.WebGLRenderer({ antialias: true });  // TODO: option?
         this._renderer.setSize( this._container.clientWidth
                               , this._container.clientHeight
@@ -136,11 +161,9 @@ class ThreeView {
         //this._renderer.gammaFactor = 2.2;  // deprecated?
         this._renderer.gammaOutput = true;
         this._renderer.physicallyCorrectLights = true;
-
         this._container.appendChild(this._renderer.domElement);
-    }
-
-    _update() {
+    }  // }}}
+    _update() {  // {{{
         const c = this._camctrls[this._cfg.currentCamera];
         const dest = this._cfg.cameras[this._cfg.currentCamera];
         if(dest['type'] == 'persp') {
@@ -160,13 +183,63 @@ class ThreeView {
             dest.cuts[0] = c[0].near;  dest.cuts[1] = c[0].far;
             dest.up[0] = c[0].up.x; dest.up[1] = c[0].up.y; dest.up[2] = c[0].up.z;
         }
-    }
-
-    _render() {
+    }  // }}}
+    _render(maskUpdate=true) {  // {{{
+        this._renderer.setRenderTarget(null);
         this._renderer.render(this._scene, this.get_cam());
-    }
+        if(maskUpdate) {
+            this._render_mask();
+            if(this._debugMaskView && this._doDebugMask == 'highlight') {
+                this._renderer.setRenderTarget(null);
+                this._renderer.autoClear = false;
+                this._renderer.render(this._debugMaskView.scene, this._debugMaskView.camera);
+                this._renderer.autoClear = true;
+            }
+            this._render_dilated_mask();
+            if(this._debugMaskView && this._doDebugMask == 'hl-dilate') {
+                this._renderer.setRenderTarget(null);
+                this._renderer.autoClear = false;
+                this._renderer.render(this._debugMaskView.scene, this._debugMaskView.camera);
+                this._renderer.autoClear = true;
+            }
+        }
+    } // }}}
+    _render_mask() {  // {{{
+        if(!this._highlightedMaskRT) return;
+        // togle layers
+        this.get_cam().layers.disable(Utils.LAYER_MAIN);
+        this.get_cam().layers.enable(Utils.LAYER_MASK_HIGHLIGHTED);
+        this.get_cam().layers.disable(Utils.LAYER_MASK_SELECTED);
 
-    _update_persp_camera(newCfg, camName) {
+        this._renderer.setRenderTarget(this._highlightedMaskRT);
+        this._renderer.setClearColor(0x000000, 1);
+        this._renderer.clear();
+        this._renderer.render(this._scene, this.get_cam());
+        if(this._doDebugMask) {
+            console.log("hl mask updated");
+            if(this._doDebugMask == "highlight") {
+                this._debugMaskView = make_texture_dbg_view(this._highlightedMaskRT.texture);
+            } else if(this._doDebugMask == "hl-dilate") {
+                this._debugMaskView = make_texture_dbg_view(this._dilatedMaskRT.texture);
+                this._debugMaskView.material.map = this._dilatedMaskRT.texture;
+                this._debugMaskView.material.needsUpdate = true;
+            }
+        }
+
+        // toggle layers back
+        this.get_cam().layers.enable(Utils.LAYER_MAIN);
+        this.get_cam().layers.disable(Utils.LAYER_MASK_HIGHLIGHTED);
+        this.get_cam().layers.disable(Utils.LAYER_MASK_SELECTED);
+    }  // }}}
+    _render_dilated_mask() {  // {{{
+        if(!this._dilatedMaskRT) return;
+        this._renderer.setRenderTarget(this._dilatedMaskRT);
+        this._renderer.setClearColor(0x000000, 1);
+        this._renderer.clear();
+        this._renderer.render(this._dilateScene, this._dilateCamera);
+        this._renderer.setRenderTarget(null);
+    }  // }}}
+    _update_persp_camera(newCfg, camName) {  // {{{
         this._camctrls[camName][0].fov    = newCfg.fov;
         this._camctrls[camName][0].near   = newCfg.cuts[0];
         this._camctrls[camName][0].far    = newCfg.cuts[1];
@@ -186,9 +259,8 @@ class ThreeView {
         this._camctrls[camName][1].update();
         this._camctrls[camName][0].updateProjectionMatrix();
         this._render();
-    }
-
-    _update_ortho_camera(newCfg, camName) {
+    }  // }}}
+    _update_ortho_camera(newCfg, camName) {  // {{{
         const aspect = this._container.clientWidth
                      / this._container.clientHeight;
         const halfHeight = newCfg.width/(2*aspect);
@@ -205,9 +277,8 @@ class ThreeView {
 
         this._camctrls[camName][0].updateProjectionMatrix();
         this._render();
-    }
-
-    _bind_watchers() {
+    }  // }}}
+    _bind_watchers() {  // {{{
         // NOTE: use getter here instead of plain reactive var
         // camera (view) switch
         watch( () => this._cfg.currentCamera
@@ -243,25 +314,22 @@ class ThreeView {
         watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
             , (hlItems, hlItemsOld) => this.update_selected_graphics(hlItems, hlItemsOld)
             );
-    }  // _bind_watchers()
-
+    }  // _bind_watchers() }}}
     // Called on camera switch; see explaination for _prevCam in ctr
-    _switch_cam( newCam ) {
+    _switch_cam( newCam ) {  // {{{
         if(this._prevCam)
             this._camctrls[this._prevCam][1].enabled = false;
         this._camctrls[newCam][1].enabled = true;
         this._prevCam = newCam;
         this._render();
-    }
-
+    }  // }}}
     // Creates default materials expected across API
-    _create_default_materials() {
+    _create_default_materials() {  // {{{
         this._defaultMaterials['meshHighlightedMaterial'] = new THREE.MeshBasicMaterial({
                 color: Utils.get_theme().selected,
                 side: THREE.DoubleSide,
                 wireframe: true,
                 transparent: false,
-                linewidth: 4
                 //opacity: 0.15
             });
         this._defaultMaterials['meshSelectedMaterial'] = new THREE.MeshBasicMaterial({
@@ -281,26 +349,84 @@ class ThreeView {
                 color: Utils.get_theme().selected,
                 linewidth: 2
             });
+        // NOTE: this are not all the default ones used, some others are
+        // created in the `_create_highlight_assets()`.
         //this._defaultMaterials['pointSelectionMaterial'];  // TODO
-    }
+    }  // }}}
+    _create_highlight_assets() {
+        const w = this._container.clientWidth;
+        const h = this._container.clientHeight;
 
-    /* Creates fixture to render things using three.js
-     *
-     * Optionally, creates static geometry.
-     * */
-    constructor(container, cfgObj, vuexStore) {
+        // white material for highlighted mask render
+        this._defaultMaterials['meshMaskMaterial'] = new THREE.MeshBasicMaterial({
+                  color: 0xffffff
+                , side: THREE.DoubleSide
+                , depthTest: false
+                , depthWrite: false
+            });
+        // for ordinary lines and line segments
+        this._defaultMaterials['lineMaskMaterial'] = new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                depthTest: false,
+                depthWrite: false,
+            });
+        // for LineSegments2, Line2, LineSegmentsGeometry, etc
+        this._defaultMaterials['fatLineMaskMaterial'] = new LineMaterial({
+                color: 0xffffff,
+                linewidth: 5,
+                depthTest: false,
+                depthWrite: false,
+            });
+
+        // (re)create screen render targets for the masks
+        this._highlightedMaskRT = new THREE.WebGLRenderTarget(w, h, {
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                depthBuffer: false,
+                stencilBuffer: false,
+                type: THREE.UnsignedByteType,
+            });
+        // ... TODO: selected?
+
+        this._dilatedMaskRT = new THREE.WebGLRenderTarget(w, h, {
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                depthBuffer: false,
+            });
+
+        // special material used to dilate highlight/selected mask
+        this._defaultMaterials['dilateMaterial'] = new THREE.ShaderMaterial({
+                uniforms: {
+                    uMask: { value: this._highlightedMaskRT.texture },
+                    uInvResolution: { value: new THREE.Vector2(1 / w, 1 / h) },
+                    uRadius: { value: 3.0 }, // pixels
+                },
+                vertexShader: Shaders.highlight.dilationVertexShader,
+                fragmentShader: Shaders.highlight.dilationFragmentShader,
+                depthTest: false,
+                depthWrite: false,
+            });
+        // a tmp scene to maintain the dilation step after mask has been
+        // computed
+        this._dilateScene = new THREE.Scene();
+        this._dilateCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        this._dilateQuad = new THREE.Mesh(
+                new THREE.PlaneGeometry(2, 2),
+                this._defaultMaterials['dilateMaterial']
+            );
+        this._dilateScene.add(this._dilateQuad);
+    }
+    // Creates fixture to render things using three.js
+    constructor(container, cfgObj, vuexStore) {  // {{{
         //const gpu = getGPUTier();
         //console.log(gpu);
-
         // Vue's `watch()' for `reactive' object does not provide previous
         // state of watched object, but when we switch camera we have to
         // disable previous controls, so this cache is needed
         this._prevCam = null;
-
         this._cfg = cfgObj;
         this._vuexStore = vuexStore;
         this._container = container;
-
         // Default materials
         this._defaultMaterials = {};
         // Index of materials by source ID {<sourceID:str>:Object}
@@ -311,15 +437,15 @@ class ThreeView {
         //  {<sourceID:str>:Object}, where Object is
         //      {threeJSGeo, geoDef, geoMaterial, geoType}
         this._geometries = {};
-
+        // set this to "highlight" or "selected" to see small quad showing the
+        // mask
+        this._doDebugMask = 'hl-dilate'; //'highlight';
         // create raycaster and pointer vec
         this._pointer = new THREE.Vector2();
         this._raycaster = new THREE.Raycaster();
-
-        // Creating the scene
+        // Creating the (main) scene
         this._scene = new THREE.Scene();
         this._scene.background = new THREE.Color(Utils.get_theme().background);
-
         // Create cameras, one per entry
         this._camctrls = Object.fromEntries(Object.entries(this._cfg.cameras).map(([camName, camCfg], i) => {
                 if(camCfg.type === 'persp') {
@@ -329,23 +455,19 @@ class ThreeView {
                     return [camName, this._create_ortho_camera(camCfg)];
                 }
             }));
-
         this._create_lights();
-        this._create_meshes();
+        this._create_static_meshes();
         this._create_renderer();
         this._create_default_materials();
-
         this._switch_cam(this._cfg.currentCamera);
-
+        this._create_highlight_assets();
         this._render();
-
         // TODO: add error handlers to this object; useful for debugging
         this._textureLoader = new THREE.TextureLoader();
-
         this._bind_watchers();
-    }
-
-    update_pointer(event) {
+    }  // }}}
+    // Raycasting pointer
+    update_pointer(event) {  // {{{
         this._pointer.x = ( event.clientX / this._container.clientWidth ) * 2 - 1;
 	    this._pointer.y = - ( event.clientY / this._container.clientHeight ) * 2 + 1;
         // update picking ray with camera and pointer position
@@ -362,20 +484,31 @@ class ThreeView {
         } else {
             this._vuexStore.commit('view3D/clear_geo_items_highlight');
         }
-    }
-
-    get_cam() {
+    }  // }}}
+    get_cam() {  // {{{
         return this._camctrls[this._cfg.currentCamera][0];
-    }
-
-    on_resize() {
+    }  // }}}
+    on_resize() {  // {{{
         const w = this._container.clientWidth;
         const h = this._container.clientHeight;
         this._cfg.cameras.persp1.aspect = w/h;  // ?
         this._renderer.setSize(w, h);
-    }
-
-    update_drawables() {
+        if(this._highlightedMaskRT) {
+            this._highlightedMaskRT.setSize(w, h);
+            //this._selectedMaskRT.setSize(w, h);
+        }
+        if(this._dilatedMaskRT) {
+            this._dilatedMaskRT.setSize(w, h);
+        }
+        if(this._defaultMaterials && this._defaultMaterials.hasOwnProperty('dilateMaterial')) {
+            this._defaultMaterials['dilateMaterial'].uniforms.uInvResolution.value.set(1/w, 1/h);
+        }
+        // this is required for this kind of materials
+        if(this._defaultMaterials && this._defaultMaterials.hasOwnProperty('fatLineMaskMaterial')) {
+            this._defaultMaterials['fatLineMaskMaterial'].resolution.set(w, h);
+        }
+    }  // }}}
+    update_drawables() {  // {{{
         console.debug('"geometry updated" hook triggered in ThreeViewer');
         // use values from this._vuexStore.getters['view3D/geoData']
         // to re-draw the scene. Take into account items disabled for
@@ -384,12 +517,11 @@ class ThreeView {
             .entries(this._vuexStore.getters['view3D/geoData'])
             .map(([sourceName, geoData]) => this.update_drawables_from_source(sourceName, geoData));
         this._render();
-    }
-
+    }  // }}}
     // Creates/updates item by its geometrical definition; assumes materials
     // and geometrical definitions are scoped by the source (should be
     // forwarded by `thisSourceMats` and `thisSourceGeo`).
-    update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, thisSourceID, thisSourceGeo) {
+    update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, thisSourceID, thisSourceGeo) {  // {{{
         const { _name: geoName
               , _type: geoType
               , _material: geoMaterial
@@ -466,6 +598,9 @@ class ThreeView {
                   , 'meshSelectedMaterial':     this._defaultMaterials.meshSelectedMaterial
                   , 'lineHighlightedMaterial':  this._defaultMaterials.lineHighlightedMaterial
                   , 'lineSelectedMaterial':     this._defaultMaterials.lineSelectedMaterial
+
+                  , 'meshMaskMaterial':         this._defaultMaterials.meshMaskMaterial
+                  , 'lineMaskMaterial':         this._defaultMaterials.lineMaskMaterial
                   }  // context
             );
         this._scene.add(threeJSGeo);
@@ -484,12 +619,11 @@ class ThreeView {
         // Push item to the global collection
         thisSourceGeo[geoName] = {threeJSGeo, geoDef, geoMaterial, geoType};
         // TODO: geomNamesInUse
-    }
-
+    }  // }}}
     // (Re)creates geometry items defined by `geoData' parameter including
     // materials and drawable objects (point markers, lines, meshes, etc).
     // May dispose materials/remove geometrical entities.
-    update_drawables_from_source(sourceName, geoData) {
+    update_drawables_from_source(sourceName, geoData) {  // {{{
         // update source's materials
         var thisSourceMats = this._materials[sourceName] || {};
         // track used material names
@@ -542,12 +676,11 @@ class ThreeView {
             });
         this._geometries[sourceName] = thisSourceGeo;
         // TODO: treat materialsToDispose
-    }
-
+    }  // }}}
     // Called by watcher on highlight change; should not modify store's values,
     // but follow given ones. Implements changes of the geometrical entities
     // appearance, as defined by `Geometry.js` API.
-    update_highlighted_graphics(hlItems, hlItemsOld) {
+    update_highlighted_graphics(hlItems, hlItemsOld) {  // {{{
         const added   = Utils.set_difference(hlItems, hlItemsOld);
         const removed = Utils.set_difference(hlItemsOld, hlItems);
         // Get items to un-highlight
@@ -574,12 +707,11 @@ class ThreeView {
                 //item.threeJSGeo.userData.handles.base.visible = false;
             });
         this._render();
-    }
-
+    }  // }}}
     // Called by watcher on selection change; should not modify store's values,
     // but follow given ones. Implements changes of the geometrical entities
     // appearance, as defined by `Geometry.js` API.
-    update_selected_graphics(hlItems, hlItemsOld) {
+    update_selected_graphics(hlItems, hlItemsOld) {  // {{{
         const added   = Utils.set_difference(hlItems, hlItemsOld);
         const removed = Utils.set_difference(hlItemsOld, hlItems);
         // Get items to un-highlight
@@ -606,14 +738,13 @@ class ThreeView {
                 //item.threeJSGeo.userData.handles.base.visible = false;
             });
         this._render();
-    }
-
-    get_geometry_item(itemID) {
+    }  // }}}
+    get_geometry_item(itemID) {  // {{{
         const [srcID, geoItemID] = Utils.destruct_geo_id(itemID);
         if(!this._geometries.hasOwnProperty(srcID)) return;
         if(!this._geometries[srcID].hasOwnProperty(geoItemID)) return;
         return this._geometries[srcID][geoItemID];
-    }
+    }  // }}}
 }  // class ThreeView
 
 //                  * * *   * * *   * * *
