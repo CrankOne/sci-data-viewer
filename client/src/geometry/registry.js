@@ -43,17 +43,34 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
     base.userData.pickable = (geoDef._pickable !== false);
 
     group.add(base);
+    group.userData.handles = {};
+    group.userData.handles.base = base;
     // if picking is not explicitly disabled (by default)
     if(base.userData.pickable) {
-        if(typeof definition.make_overlay_geometry !== "function") {
-            console.warn(`Drawable "${definition.type}" has no make_overlay_geometry() to indicate picking/selection`);
+        // highlight
+        if(typeof definition.make_highlight_overlay_geometry !== "function") {
+            console.warn(`Drawable "${definition.type}" has no make_highlight_overlay_geometry() to indicate hover/highlight`);
         } else {
-            const highlight = definition.make_overlay_geometry(geoDef, context);
+            const highlight = definition.make_highlight_overlay_geometry(geoDef, context);
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
                 highlight.name = `hl-${userData.geoID}@${userData.srcID}`;
             }
-            highlight.visible = false;  // overlay is hidden by default
+            highlight.visible = false;  // highlighted overlay is hidden by default
             group.add(highlight);
+            group.userData.handles.highlight = highlight;
+        }
+
+        // selection
+        if(typeof definition.make_selected_overlay_geometry !== "function") {
+            console.warn(`Drawable "${definition.type}" has no make_selected_overlay_geometry() to indicate picking/selection`);
+        } else {
+            const selected = definition.make_selected_overlay_geometry(geoDef, context);
+            if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
+                selected.name = `selected-${userData.geoID}@${userData.srcID}`;
+            }
+            selected.visible = false;  // selected overlay is hidden by default
+            group.add(selected);
+            group.userData.handles.selected = selected;
         }
     }
     return group;

@@ -7,11 +7,17 @@ export function make_geometry(material, geoDef, context = {}) {
     return new THREE.Mesh(geo, material);
 }
 
-export function make_overlay_geometry(geoDef, context={}) {
-    const geo = new THREE.PlaneGeometry(...geoDef.sizes);
-    if(!context.hasOwnProperty('meshSelectionMaterial')) {
-        throw new Error('Context does not provide "meshSelectionMaterial" to create pickable mesh overlay');
+export function make_highlight_overlay_geometry(geoDef, context={}) {
+    if(!context.hasOwnProperty('meshHighlightedMaterial')) {
+        throw new Error('Context does not provide "meshHighlightedMaterial" to create highlighted mesh overlay');
     }
-    return new THREE.Mesh(geo, context.meshSelectionMaterial);
+    return make_geometry(context.meshHighlightedMaterial, geoDef, context);
+}
+
+export function make_selected_overlay_geometry(geoDef, context={}) {
+    if(!context.hasOwnProperty('meshSelectedMaterial')) {
+        throw new Error('Context does not provide "meshSelectedMaterial" to create selected mesh overlay');
+    }
+    return make_geometry(context.meshSelectedMaterial, geoDef, context);
 }
 

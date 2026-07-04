@@ -239,6 +239,10 @@ class ThreeView {
         watch( () => this._vuexStore.getters['view3D/highlightedGeoItemIDs']
             , (hlItems, hlItemsOld) => this.update_highlighted_graphics(hlItems, hlItemsOld)
             );
+        // Selected items updater
+        watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
+            , (hlItems, hlItemsOld) => this.update_selected_graphics(hlItems, hlItemsOld)
+            );
     }  // _bind_watchers()
 
     // Called on camera switch; see explaination for _prevCam in ctr
@@ -252,14 +256,28 @@ class ThreeView {
 
     // Creates default materials expected across API
     _create_default_materials() {
-        this._defaultMaterials['meshSelectionMaterial'] = new THREE.MeshBasicMaterial({
+        this._defaultMaterials['meshHighlightedMaterial'] = new THREE.MeshBasicMaterial({
                 color: Utils.get_theme().selected,
                 side: THREE.DoubleSide,
                 wireframe: true,
+                transparent: false,
+                linewidth: 4
+                //opacity: 0.15
+            });
+        this._defaultMaterials['meshSelectedMaterial'] = new THREE.MeshBasicMaterial({
+                color: Utils.get_theme().selected,
+                side: THREE.DoubleSide,
+                wireframe: false,
                 transparent: true,
                 opacity: 0.55
             });
-        this._defaultMaterials['lineSelectionMaterial'] = new THREE.LineBasicMaterial({
+
+        this._defaultMaterials['lineHighlightedMaterial'] = new THREE.LineBasicMaterial({
+                color: Utils.get_theme().selected,
+                linewidth: 4
+            });
+
+        this._defaultMaterials['lineSelectedMaterial'] = new THREE.LineBasicMaterial({
                 color: Utils.get_theme().selected,
                 linewidth: 2
             });
@@ -337,7 +355,8 @@ class ThreeView {
         const items2highlight = intersects.filter(item => item.object.userData?.pickable );
         if(items2highlight && items2highlight.length) {
             const ids2highlight = items2highlight.map(item =>
-                `${item.object.userData.geoID}@${item.object.userData.srcID}`);
+                    Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+                );
             console.debug('Object under cursor:', ids2highlight);
             this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
         } else {
@@ -443,8 +462,10 @@ class ThreeView {
                 , thisSourceMats[geoMaterial].threeJSMaterial  // material for the item
                 , geoDef  // geometry definition object as provided
                 , {geoID: geoName, srcID: thisSourceID}  // userdata to save in the three.js group object, shallow-copied
-                , { 'meshSelectionMaterial': this._defaultMaterials.meshSelectionMaterial
-                  , 'lineSelectionMaterial': this._defaultMaterials.lineSelectionMaterial
+                , { 'meshHighlightedMaterial':  this._defaultMaterials.meshHighlightedMaterial
+                  , 'meshSelectedMaterial':     this._defaultMaterials.meshSelectedMaterial
+                  , 'lineHighlightedMaterial':  this._defaultMaterials.lineHighlightedMaterial
+                  , 'lineSelectedMaterial':     this._defaultMaterials.lineSelectedMaterial
                   }  // context
             );
         this._scene.add(threeJSGeo);
@@ -531,13 +552,67 @@ class ThreeView {
         const removed = Utils.set_difference(hlItemsOld, hlItems);
         // Get items to un-highlight
         removed.forEach((itemID) => {
-                //Geometry.
-                console.debug(`un-highlight ${itemID}`);
+                const item = this.get_geometry_item(itemID);
+                if(!item) return;
+                if(!item.threeJSGeo) return;
+                if(!item.threeJSGeo.isGroup) return;
+                // disabele visibility for highlighted handle,
+                item.threeJSGeo.userData.handles.highlight.visible = false;
+                // enable visibility for base handle unless item is in the
+                // selection -- in this case enable selected
+                //item.threeJSGeo.userData.handles.base.visible = true;
             });
         // Items to highlight
         added.forEach((itemID) => {
-                console.debug(`highlight ${itemID}`);
+                const item = this.get_geometry_item(itemID);
+                if(!item) return;
+                if(!item.threeJSGeo) return;
+                if(!item.threeJSGeo.isGroup) return;
+                // enable visibility for highlighted handle, disable for others
+                item.threeJSGeo.userData.handles.highlight.visible = true; 
+                //item.threeJSGeo.userData.handles.selected.visible = false;
+                //item.threeJSGeo.userData.handles.base.visible = false;
             });
+        this._render();
+    }
+
+    // Called by watcher on selection change; should not modify store's values,
+    // but follow given ones. Implements changes of the geometrical entities
+    // appearance, as defined by `Geometry.js` API.
+    update_selected_graphics(hlItems, hlItemsOld) {
+        const added   = Utils.set_difference(hlItems, hlItemsOld);
+        const removed = Utils.set_difference(hlItemsOld, hlItems);
+        // Get items to un-highlight
+        removed.forEach((itemID) => {
+                const item = this.get_geometry_item(itemID);
+                if(!item) return;
+                if(!item.threeJSGeo) return;
+                if(!item.threeJSGeo.isGroup) return;
+                // disabele visibility for selected handle,
+                item.threeJSGeo.userData.handles.selected.visible = false;
+                // enable visibility for base handle unless item is in the
+                // selection -- in this case enable selected
+                //item.threeJSGeo.userData.handles.base.visible = true;
+            });
+        // Items to highlight
+        added.forEach((itemID) => {
+                const item = this.get_geometry_item(itemID);
+                if(!item) return;
+                if(!item.threeJSGeo) return;
+                if(!item.threeJSGeo.isGroup) return;
+                // enable visibility for highlighted handle, disable for others
+                //item.threeJSGeo.userData.handles.highlight.visible = true; 
+                item.threeJSGeo.userData.handles.selected.visible = true;
+                //item.threeJSGeo.userData.handles.base.visible = false;
+            });
+        this._render();
+    }
+
+    get_geometry_item(itemID) {
+        const [srcID, geoItemID] = Utils.destruct_geo_id(itemID);
+        if(!this._geometries.hasOwnProperty(srcID)) return;
+        if(!this._geometries[srcID].hasOwnProperty(geoItemID)) return;
+        return this._geometries[srcID][geoItemID];
     }
 }  // class ThreeView
 

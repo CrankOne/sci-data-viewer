@@ -15,10 +15,17 @@ export function make_geometry(material, geoDef, context={}) {
     return l;
 }
 
-export function make_overlay_geometry(geoDef, context={}) {
-    if(!context.hasOwnProperty('lineSelectionMaterial')) {
-        throw new Error('Context does not provide "lineSelectionMaterial" to create pickable line overlay');
+export function make_highlight_overlay_geometry(geoDef, context={}) {
+    if(!context.hasOwnProperty('lineHighlightedMaterial')) {
+        throw new Error('Context does not provide "lineHighlightedMaterial" to create highlighted line overlay');
     }
-    return make_geometry(context.lineSelectionMaterial, geoDef, context);
+    return make_geometry(context.lineHighlightedMaterial, geoDef, context);
+}
+
+export function make_selected_overlay_geometry(geoDef, context={}) {
+    if(!context.hasOwnProperty('lineSelectedMaterial')) {
+        throw new Error('Context does not provide "lineSelectedMaterial" to create selected line overlay');
+    }
+    return make_geometry(context.lineSelectedMaterial, geoDef, context);
 }
 
