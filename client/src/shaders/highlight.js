@@ -23,7 +23,7 @@ void main() {
     gl_FragColor = vec4(m, m, m, 1.0);
 }`;
 
-const dilationVertexShader = `
+const fullscreenVertexShader = `
 varying vec2 vUv;
 
 void main() {
@@ -31,27 +31,44 @@ void main() {
     gl_Position = vec4(position.xy, 0.0, 1.0);
 }`;
 
-//
-// ... unused?
+const overlayFragmentShader = `
+uniform sampler2D uMask;
+uniform vec3 uColor;
+uniform float uOpacity;
 
-const maskVertexShader = `
-precision highp float;
-attribute vec3 position;
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
+varying vec2 vUv;
+
+float bayer4(vec2 p) {
+    int x = int(mod(p.x, 4.0));
+    int y = int(mod(p.y, 4.0));
+    int i = y * 4 + x;
+
+    float b[16];
+    b[0] = 0.0;   b[1] = 8.0;   b[2] = 2.0;   b[3] = 10.0;
+    b[4] = 12.0;  b[5] = 4.0;   b[6] = 14.0;  b[7] = 6.0;
+    b[8] = 3.0;   b[9] = 11.0;  b[10] = 1.0;  b[11] = 9.0;
+    b[12] = 15.0; b[13] = 7.0;  b[14] = 13.0; b[15] = 5.0;
+
+    return b[i] / 16.0;
+}
+
 void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`;
+    float m = texture2D(uMask, vUv).r;
 
-const maskFragmentShader = `
-precision mediump float;
-uniform vec3 uIDColor;
-void main() {
-    gl_FragColor = vec4(uIDColor, 1.0);
-}`;
+    if (m < 0.5)
+        discard;
 
-export { dilationFragmentShader, dilationVertexShader
-       , maskVertexShader, maskFragmentShader
+    float d = bayer4(gl_FragCoord.xy);
+
+    if (d > uOpacity)
+        discard;
+
+    gl_FragColor = vec4(uColor, 1.0);
+}
+`;
+
+export { dilationFragmentShader, fullscreenVertexShader
+       , overlayFragmentShader
        };
 
 

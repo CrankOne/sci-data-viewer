@@ -188,6 +188,13 @@ class ThreeView {
         this._renderer.setRenderTarget(null);
         this._renderer.render(this._scene, this.get_cam());
         if(maskUpdate) {
+            // TODO: check we have highlights/selection
+            const oldClearColor = new THREE.Color();
+            this._renderer.getClearColor(oldClearColor);
+            const oldClearAlpha = this._renderer.getClearAlpha();
+            const oldBackground = this._scene.background;
+            this._scene.background = null;
+
             this._render_mask();
             if(this._debugMaskView && this._doDebugMask == 'highlight') {
                 this._renderer.setRenderTarget(null);
@@ -202,6 +209,11 @@ class ThreeView {
                 this._renderer.render(this._debugMaskView.scene, this._debugMaskView.camera);
                 this._renderer.autoClear = true;
             }
+            this._render_composition_overlay();
+
+            this._renderer.setRenderTarget(null);
+            this._renderer.setClearColor(oldClearColor, oldClearAlpha);
+            this._scene.background = oldBackground;
         }
     } // }}}
     _render_mask() {  // {{{
@@ -213,7 +225,7 @@ class ThreeView {
 
         this._renderer.setRenderTarget(this._highlightedMaskRT);
         this._renderer.setClearColor(0x000000, 1);
-        this._renderer.clear();
+        this._renderer.clear(true, true, true);
         this._renderer.render(this._scene, this.get_cam());
         if(this._doDebugMask) {
             console.log("hl mask updated");
@@ -235,9 +247,16 @@ class ThreeView {
         if(!this._dilatedMaskRT) return;
         this._renderer.setRenderTarget(this._dilatedMaskRT);
         this._renderer.setClearColor(0x000000, 1);
-        this._renderer.clear();
+        this._renderer.clear(true, true, true);
         this._renderer.render(this._dilateScene, this._dilateCamera);
         this._renderer.setRenderTarget(null);
+    }  // }}}
+    _render_composition_overlay() {  // {{{
+        if(!this._dilatedMaskRT) return;
+        this._renderer.setRenderTarget(null);
+        this._renderer.autoClear = false;
+        this._renderer.render(this._overlayScene, this._overlayCamera);
+        this._renderer.autoClear = true;
     }  // }}}
     _update_persp_camera(newCfg, camName) {  // {{{
         this._camctrls[camName][0].fov    = newCfg.fov;
@@ -353,7 +372,7 @@ class ThreeView {
         // created in the `_create_highlight_assets()`.
         //this._defaultMaterials['pointSelectionMaterial'];  // TODO
     }  // }}}
-    _create_highlight_assets() {
+    _create_highlight_assets() {  // {{{
         const w = this._container.clientWidth;
         const h = this._container.clientHeight;
 
@@ -399,9 +418,9 @@ class ThreeView {
                 uniforms: {
                     uMask: { value: this._highlightedMaskRT.texture },
                     uInvResolution: { value: new THREE.Vector2(1 / w, 1 / h) },
-                    uRadius: { value: 3.0 }, // pixels
+                    uRadius: { value: 2.0 }, // pixels
                 },
-                vertexShader: Shaders.highlight.dilationVertexShader,
+                vertexShader: Shaders.highlight.fullscreenVertexShader,
                 fragmentShader: Shaders.highlight.dilationFragmentShader,
                 depthTest: false,
                 depthWrite: false,
@@ -409,13 +428,41 @@ class ThreeView {
         // a tmp scene to maintain the dilation step after mask has been
         // computed
         this._dilateScene = new THREE.Scene();
+        //this._dilateScene.background = new THREE.Color(0x000000);
         this._dilateCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         this._dilateQuad = new THREE.Mesh(
                 new THREE.PlaneGeometry(2, 2),
                 this._defaultMaterials['dilateMaterial']
             );
         this._dilateScene.add(this._dilateQuad);
-    }
+        // Assets for overlay pass (a final step)
+        this._overlayMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uMask: {
+                    value: this._dilatedMaskRT.texture,
+                },
+                uColor: {
+                    value: new THREE.Color(Utils.get_theme().selected),
+                },
+                uOpacity: {
+                    value: 0.15,
+                },
+            },
+            vertexShader: Shaders.highlight.fullscreenVertexShader,
+            fragmentShader: Shaders.highlight.overlayFragmentShader,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+        });
+        this._overlayScene = new THREE.Scene();
+        //this._overlayScene.background = new THREE.Color(0x000000);
+        this._overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        this._overlayQuad = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 2),
+            this._overlayMaterial
+        );
+        this._overlayScene.add(this._overlayQuad);
+    }  // }}}
     // Creates fixture to render things using three.js
     constructor(container, cfgObj, vuexStore) {  // {{{
         //const gpu = getGPUTier();
@@ -760,7 +807,7 @@ const stateModule = {
         // multiplication factors, f_i, r_shown = f_i * r_original.
         axesScales: [1., 1., 1.],  // x, y, z
 
-        highlightedGeoItemIDs: new Set(),  // higlighted item IDs
+        highlightedGeoItemIDs: new Set(),  // highlighted item IDs
         selectedGeoItemIDs: new Set(),  // selected item IDs
     }),
     mutations: {
