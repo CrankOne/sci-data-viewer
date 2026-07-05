@@ -8,6 +8,7 @@ import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 //import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls';
 import { watch } from 'vue';
 import * as Utils from './utils';
+import * as HlOverlay from './hl-overlay';
 //import { getGPUTier } from "detect-gpu";
 
 //                  * * *   * * *   * * *
@@ -43,26 +44,6 @@ export function parse_evdsp_id(s) {
     };
 }
 
-//                  * * *   * * *   * * *
-// Helper to inspect the mask
-function make_texture_dbg_view(texture, size = 0.45, x = -0.7, y = -0.7) {
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(
-    -1, 1,
-     1, -1,
-     0, 1
-  );
-  const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        depthTest: false,
-        depthWrite: false,
-        transparent: false,
-    });
-  const quad = new THREE.Mesh( new THREE.PlaneGeometry(size, size), material );
-  quad.position.set(x, y, 0);
-  scene.add(quad);
-  return { scene, camera, quad, material, };
-}
 //                  * * *   * * *   * * *
 
 /* Event display class
@@ -187,7 +168,7 @@ class ThreeView {
     _render(maskUpdate=true) {  // {{{
         this._renderer.setRenderTarget(null);
         this._renderer.render(this._scene, this.get_cam());
-        if(maskUpdate) {
+        if(maskUpdate && (this._hoverHL || this._selectHL)) {
             // TODO: check we have highlights/selection
             const oldClearColor = new THREE.Color();
             this._renderer.getClearColor(oldClearColor);
@@ -195,69 +176,18 @@ class ThreeView {
             const oldBackground = this._scene.background;
             this._scene.background = null;
 
-            this._render_mask();
-            if(this._debugMaskView && this._doDebugMask == 'highlight') {
-                this._renderer.setRenderTarget(null);
-                this._renderer.autoClear = false;
-                this._renderer.render(this._debugMaskView.scene, this._debugMaskView.camera);
-                this._renderer.autoClear = true;
-            }
-            this._render_dilated_mask();
-            if(this._debugMaskView && this._doDebugMask == 'hl-dilate') {
-                this._renderer.setRenderTarget(null);
-                this._renderer.autoClear = false;
-                this._renderer.render(this._debugMaskView.scene, this._debugMaskView.camera);
-                this._renderer.autoClear = true;
-            }
-            this._render_composition_overlay();
+            const oldMask = this.get_cam().layers.mask;
+            if(this._hoverHL)  
+                this._hoverHL.render(this._renderer, this.get_cam(), this._scene);
+            if(this._selectHL)
+                this._selectHL.render(this._renderer, this.get_cam(), this._scene);
+            this.get_cam().layers.mask = oldMask;
 
             this._renderer.setRenderTarget(null);
             this._renderer.setClearColor(oldClearColor, oldClearAlpha);
             this._scene.background = oldBackground;
         }
     } // }}}
-    _render_mask() {  // {{{
-        if(!this._highlightedMaskRT) return;
-        // togle layers
-        this.get_cam().layers.disable(Utils.LAYER_MAIN);
-        this.get_cam().layers.enable(Utils.LAYER_MASK_HIGHLIGHTED);
-        this.get_cam().layers.disable(Utils.LAYER_MASK_SELECTED);
-
-        this._renderer.setRenderTarget(this._highlightedMaskRT);
-        this._renderer.setClearColor(0x000000, 1);
-        this._renderer.clear(true, true, true);
-        this._renderer.render(this._scene, this.get_cam());
-        if(this._doDebugMask) {
-            console.log("hl mask updated");
-            if(this._doDebugMask == "highlight") {
-                this._debugMaskView = make_texture_dbg_view(this._highlightedMaskRT.texture);
-            } else if(this._doDebugMask == "hl-dilate") {
-                this._debugMaskView = make_texture_dbg_view(this._dilatedMaskRT.texture);
-                this._debugMaskView.material.map = this._dilatedMaskRT.texture;
-                this._debugMaskView.material.needsUpdate = true;
-            }
-        }
-
-        // toggle layers back
-        this.get_cam().layers.enable(Utils.LAYER_MAIN);
-        this.get_cam().layers.disable(Utils.LAYER_MASK_HIGHLIGHTED);
-        this.get_cam().layers.disable(Utils.LAYER_MASK_SELECTED);
-    }  // }}}
-    _render_dilated_mask() {  // {{{
-        if(!this._dilatedMaskRT) return;
-        this._renderer.setRenderTarget(this._dilatedMaskRT);
-        this._renderer.setClearColor(0x000000, 1);
-        this._renderer.clear(true, true, true);
-        this._renderer.render(this._dilateScene, this._dilateCamera);
-        this._renderer.setRenderTarget(null);
-    }  // }}}
-    _render_composition_overlay() {  // {{{
-        if(!this._dilatedMaskRT) return;
-        this._renderer.setRenderTarget(null);
-        this._renderer.autoClear = false;
-        this._renderer.render(this._overlayScene, this._overlayCamera);
-        this._renderer.autoClear = true;
-    }  // }}}
     _update_persp_camera(newCfg, camName) {  // {{{
         this._camctrls[camName][0].fov    = newCfg.fov;
         this._camctrls[camName][0].near   = newCfg.cuts[0];
@@ -344,6 +274,8 @@ class ThreeView {
     }  // }}}
     // Creates default materials expected across API
     _create_default_materials() {  // {{{
+        // NOTE: these are not all the default ones used to create geometries,
+        // some others are created in the highlighting overlays.
         this._defaultMaterials['meshHighlightedMaterial'] = new THREE.MeshBasicMaterial({
                 color: Utils.get_theme().selected,
                 side: THREE.DoubleSide,
@@ -368,105 +300,16 @@ class ThreeView {
                 color: Utils.get_theme().selected,
                 linewidth: 2
             });
-        // NOTE: this are not all the default ones used, some others are
-        // created in the `_create_highlight_assets()`.
-        //this._defaultMaterials['pointSelectionMaterial'];  // TODO
-    }  // }}}
-    _create_highlight_assets() {  // {{{
-        const w = this._container.clientWidth;
-        const h = this._container.clientHeight;
 
-        // white material for highlighted mask render
-        this._defaultMaterials['meshMaskMaterial'] = new THREE.ShaderMaterial({
-                uniforms: {
-                    uMin: { value: 0.25 },
-                    uMax: { value: 1.0  },
-                },
-                vertexShader: Shaders.highlight.maskVertexShader,
-                fragmentShader: Shaders.highlight.maskFragmentShader,
-                side: THREE.DoubleSide,  //THREE.FrontSide,
-                depthTest: true,
-                depthWrite: true,
-            });
-        // need another one for double sided planes, to account for
-        // bi-directional normals as usual hulls double-sided results in a 
-        // for ordinary lines and line segments
-        this._defaultMaterials['lineMaskMaterial'] = new THREE.LineBasicMaterial({
-                color: 0xffffff,
-                depthTest: false,
-                depthWrite: false,
-            });
-        // for LineSegments2, Line2, LineSegmentsGeometry, etc
         this._defaultMaterials['fatLineMaskMaterial'] = new LineMaterial({
                 color: 0xffffff,
                 linewidth: 5,
                 depthTest: false,
                 depthWrite: false,
             });
-
-        // (re)create screen render targets for the masks
-        this._highlightedMaskRT = new THREE.WebGLRenderTarget(w, h, {
-                minFilter: THREE.NearestFilter,
-                magFilter: THREE.NearestFilter,
-                depthBuffer: true,
-                stencilBuffer: false,
-                type: THREE.UnsignedByteType,
-            });
-        // ... TODO: selected?
-
-        this._dilatedMaskRT = new THREE.WebGLRenderTarget(w, h, {
-                minFilter: THREE.NearestFilter,
-                magFilter: THREE.NearestFilter,
-                depthBuffer: false,
-            });
-
-        // special material used to dilate highlight/selected mask
-        this._defaultMaterials['dilateMaterial'] = new THREE.ShaderMaterial({
-                uniforms: {
-                    uMask: { value: this._highlightedMaskRT.texture },
-                    uInvResolution: { value: new THREE.Vector2(1 / w, 1 / h) },
-                    uRadius: { value: 2.0 }, // pixels
-                },
-                vertexShader: Shaders.highlight.fullscreenVertexShader,
-                fragmentShader: Shaders.highlight.dilationFragmentShader,
-                depthTest: false,
-                depthWrite: false,
-            });
-        // a tmp scene to maintain the dilation step after mask has been
-        // computed
-        this._dilateScene = new THREE.Scene();
-        //this._dilateScene.background = new THREE.Color(0x000000);
-        this._dilateCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        this._dilateQuad = new THREE.Mesh(
-                new THREE.PlaneGeometry(2, 2),
-                this._defaultMaterials['dilateMaterial']
-            );
-        this._dilateScene.add(this._dilateQuad);
-        // Assets for overlay pass (a final step)
-        this._overlayMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uMask:          { value: this._highlightedMaskRT.texture },
-                uDilatedMask:   { value: this._dilatedMaskRT.texture },
-                uColor:         { value: new THREE.Color(Utils.get_theme().selected), },
-                uOpacity:       { value: 0.15, },
-            },
-            vertexShader: Shaders.highlight.fullscreenVertexShader,
-            fragmentShader: Shaders.highlight.overlayFragmentShader,
-            transparent: true,
-            depthTest: false,
-            depthWrite: false,
-        });
-        this._overlayScene = new THREE.Scene();
-        //this._overlayScene.background = new THREE.Color(0x000000);
-        this._overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-        this._overlayQuad = new THREE.Mesh(
-            new THREE.PlaneGeometry(2, 2),
-            this._overlayMaterial
-        );
-        this._overlayScene.add(this._overlayQuad);
     }  // }}}
     // Creates fixture to render things using three.js
-    constructor(container, cfgObj, vuexStore) {  // {{{
+    constructor(container, cfgObj, vuexStore, highlightOnHover=true, highlightOnSelection=true) {  // {{{
         //const gpu = getGPUTier();
         //console.log(gpu);
         // Vue's `watch()' for `reactive' object does not provide previous
@@ -486,9 +329,6 @@ class ThreeView {
         //  {<sourceID:str>:Object}, where Object is
         //      {threeJSGeo, geoDef, geoMaterial, geoType}
         this._geometries = {};
-        // set this to "highlight" or "selected" to see small quad showing the
-        // mask
-        this._doDebugMask = 'hl-dilate'; //'highlight';
         // create raycaster and pointer vec
         this._pointer = new THREE.Vector2();
         this._raycaster = new THREE.Raycaster();
@@ -509,11 +349,24 @@ class ThreeView {
         this._create_renderer();
         this._create_default_materials();
         this._switch_cam(this._cfg.currentCamera);
-        this._create_highlight_assets();
         this._render();
+
         // TODO: add error handlers to this object; useful for debugging
         this._textureLoader = new THREE.TextureLoader();
         this._bind_watchers();
+
+        const w = this._container.clientWidth;
+        const h = this._container.clientHeight;
+        if(highlightOnHover)
+            this._hoverHL = new HlOverlay.SilhouetteOverlay(Utils.LAYER_MASK_HIGHLIGHTED
+                    , w, h, Utils.get_theme().highlight
+                    , null  // enables debug quad; possible options: 'mask', 'dilate'
+                    );
+        if(highlightOnSelection)
+            this._selectHL = new HlOverlay.SilhouetteOverlay(Utils.LAYER_MASK_SELECTED
+                    , w, h, Utils.get_theme().selected
+                    , null  // enables debug quad; possible options: 'mask', 'dilate'
+                    );
     }  // }}}
     // Raycasting pointer
     update_pointer(event) {  // {{{
@@ -542,20 +395,12 @@ class ThreeView {
         const h = this._container.clientHeight;
         this._cfg.cameras.persp1.aspect = w/h;  // ?
         this._renderer.setSize(w, h);
-        if(this._highlightedMaskRT) {
-            this._highlightedMaskRT.setSize(w, h);
-            //this._selectedMaskRT.setSize(w, h);
-        }
-        if(this._dilatedMaskRT) {
-            this._dilatedMaskRT.setSize(w, h);
-        }
-        if(this._defaultMaterials && this._defaultMaterials.hasOwnProperty('dilateMaterial')) {
-            this._defaultMaterials['dilateMaterial'].uniforms.uInvResolution.value.set(1/w, 1/h);
-        }
         // this is required for this kind of materials
-        if(this._defaultMaterials && this._defaultMaterials.hasOwnProperty('fatLineMaskMaterial')) {
-            this._defaultMaterials['fatLineMaskMaterial'].resolution.set(w, h);
-        }
+        this._defaultMaterials['fatLineMaskMaterial'].resolution.set(w, h);
+        if(this._hoverHL)
+            this._hoverHL.notify_resized(w, h);
+        if(this._selectHL)
+            this._selectHL.notify_resized(w, h);
     }  // }}}
     update_drawables() {  // {{{
         console.debug('"geometry updated" hook triggered in ThreeViewer');
@@ -639,18 +484,20 @@ class ThreeView {
             // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
         }
         console.debug(`Creating geo "${geoName}" of type ${geoType}...`);
+        const geometryCreationContext = {
+                  meshHighlightedMaterial:  this._defaultMaterials.meshHighlightedMaterial
+                , meshSelectedMaterial:     this._defaultMaterials.meshSelectedMaterial
+                , lineHighlightedMaterial:  this._defaultMaterials.lineHighlightedMaterial
+                , lineSelectedMaterial:     this._defaultMaterials.lineSelectedMaterial
+
+                , meshMaskMaterial:         HlOverlay.SilhouetteOverlay.meshMaskMaterial
+                , lineMaskMaterial:         HlOverlay.SilhouetteOverlay.lineMaskMaterial
+            };  // context;
         const threeJSGeo = Geometry.make_geometry( geoType  // geo type name string (one of geometry/*.js)
                 , thisSourceMats[geoMaterial].threeJSMaterial  // material for the item
                 , geoDef  // geometry definition object as provided
                 , {geoID: geoName, srcID: thisSourceID}  // userdata to save in the three.js group object, shallow-copied
-                , { 'meshHighlightedMaterial':  this._defaultMaterials.meshHighlightedMaterial
-                  , 'meshSelectedMaterial':     this._defaultMaterials.meshSelectedMaterial
-                  , 'lineHighlightedMaterial':  this._defaultMaterials.lineHighlightedMaterial
-                  , 'lineSelectedMaterial':     this._defaultMaterials.lineSelectedMaterial
-
-                  , 'meshMaskMaterial':         this._defaultMaterials.meshMaskMaterial
-                  , 'lineMaskMaterial':         this._defaultMaterials.lineMaskMaterial
-                  }  // context
+                , geometryCreationContext // context
             );
         this._scene.add(threeJSGeo);
 
@@ -667,7 +514,6 @@ class ThreeView {
         }
         // Push item to the global collection
         thisSourceGeo[geoName] = {threeJSGeo, geoDef, geoMaterial, geoType};
-        // TODO: geomNamesInUse
     }  // }}}
     // (Re)creates geometry items defined by `geoData' parameter including
     // materials and drawable objects (point markers, lines, meshes, etc).

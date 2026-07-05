@@ -105,6 +105,7 @@ export function get_theme() {
         annotations: css_var('--clr-graph-annotations'),
         annotations_mute: css_var('--clr-graph-annotations-mute'),
         geometry   : css_var('--clr-graph-annotations-lighter'),
+        highlight  : css_var('--clr-graph-highlight'),
         selected   : css_var('--clr-graph-selection'),
     };
 }

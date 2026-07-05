@@ -70,6 +70,7 @@
     --clr-graph-annotations-mute: var(--clr-neutral-darker);
     --clr-graph-annotations: var(--clr-supporting);
     --clr-graph-annotations-highlight: var(--clr-supporting-lighter);
+    --clr-graph-highlight: var(--clr-supporting-lighter);
     --clr-graph-selection: var(--clr-accent);
     /* TODO: would probably need explicit colors and palettes here,
      * like --clr-graph-red, --clr-graph-hue1, etc */
