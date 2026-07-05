@@ -332,6 +332,7 @@ class ThreeView {
         // create raycaster and pointer vec
         this._pointer = new THREE.Vector2();
         this._raycaster = new THREE.Raycaster();
+        //this._raycaset.threshold = 5.0;  // world units unfortunately
         // Creating the (main) scene
         this._scene = new THREE.Scene();
         this._scene.background = new THREE.Color(Utils.get_theme().background);
@@ -446,7 +447,7 @@ class ThreeView {
         // try to get material
         if(!thisSourceMats.hasOwnProperty(geoMaterial)) {
             console.log(`Error in geometry "${geoName}":`
-                + ` material "${geoMaterial}" is not defined`
+                + ` materials set "${geoMaterial}" is not defined`
                 + ` by data source "${sourceName}"; geometry`
                 + " not constructed!" );
             return;
@@ -490,11 +491,12 @@ class ThreeView {
                 , lineHighlightedMaterial:  this._defaultMaterials.lineHighlightedMaterial
                 , lineSelectedMaterial:     this._defaultMaterials.lineSelectedMaterial
 
-                , meshMaskMaterial:         HlOverlay.SilhouetteOverlay.meshMaskMaterial
+                //, pointsMaskMaterial:       ,
                 , lineMaskMaterial:         HlOverlay.SilhouetteOverlay.lineMaskMaterial
+                , meshMaskMaterial:         HlOverlay.SilhouetteOverlay.meshMaskMaterial
             };  // context;
         const threeJSGeo = Geometry.make_geometry( geoType  // geo type name string (one of geometry/*.js)
-                , thisSourceMats[geoMaterial].threeJSMaterial  // material for the item
+                , thisSourceMats[geoMaterial].threeJSMaterials  // materials for the item
                 , geoDef  // geometry definition object as provided
                 , {geoID: geoName, srcID: thisSourceID}  // userdata to save in the three.js group object, shallow-copied
                 , geometryCreationContext // context
@@ -545,9 +547,9 @@ class ThreeView {
                 // delete thisSourceMats[matName];  // ?
             }
             // otherwise, create material
-            const threeJSMaterial = Materials.make_material(matType, matDef
-                , {textureLoader: this._textureLoader});
-            thisSourceMats[matName] = {threeJSMaterial, matDef};
+            const threeJSMaterials = Materials.make_material(matType, matDef
+                , { textureLoader: this._textureLoader });
+            thisSourceMats[matName] = {threeJSMaterials, matDef};
             console.debug(`Created material "${sourceName}/${matName}" of type ${matType}`);
         });
         // get materials not used by this source anymore, by

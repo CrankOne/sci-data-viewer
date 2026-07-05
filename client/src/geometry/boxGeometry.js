@@ -8,13 +8,13 @@ export function make_geometry(material, geoDef, context = {}) {
     return new THREE.Mesh(geo, material);
 }
 
-export function make_highlight_overlay_geometry(geoDef, context={}) {
-    const hl = make_geometry(context.meshMaskMaterial, geoDef, context);
+export function make_highlight_overlay_geometry(material, geoDef, context={}) {
+    const hl = make_geometry(material || context.meshMaskMaterial, geoDef, context);
     return hl;
 }
 
-export function make_selected_overlay_geometry(geoDef, context={}) {
-    const hl = make_geometry(context.meshMaskMaterial, geoDef, context);
+export function make_selected_overlay_geometry(material, geoDef, context={}) {
+    const hl = make_geometry(material || context.meshMaskMaterial, geoDef, context);
     return hl;
 }
 

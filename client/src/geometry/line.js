@@ -11,14 +11,14 @@ export function make_geometry(material, geoDef, context = {}) {
     return line;
 }
 
-export function make_highlight_overlay_geometry(geoDef, context={}) {
+export function make_highlight_overlay_geometry(material, geoDef, context={}) {
     const refPointVecs = geoDef.points.map((pt) => new THREE.Vector3(...pt));
     const refTrackGeo = new THREE.BufferGeometry().setFromPoints(refPointVecs);
-    const line = new Line2(refTrackGeo, context.lineMaskMaterial);
+    const line = new THREE.Line(refTrackGeo, material || context.lineMaskMaterial);
     return line;
 }
 
-export function make_selected_overlay_geometry(geoDef, context={}) {
-    return make_highlight_overlay_geometry(geoDef, context);
+export function make_selected_overlay_geometry(material, geoDef, context={}) {
+    return make_highlight_overlay_geometry(material, geoDef, context);
 }
 

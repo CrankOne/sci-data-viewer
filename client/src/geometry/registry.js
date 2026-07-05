@@ -21,7 +21,7 @@ export function register(definition) {
 //
 // Constructor, destructor
 
-export function make_geometry(geoType, material, geoDef, userData, context = {}) {
+export function make_geometry(geoType, materials, geoDef, userData, context = {}) {
     const definition = registry.get(geoType);
     if(!definition) throw new Error(`Unknown geometry type: ${geoType}`);
     
@@ -33,7 +33,7 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
     //}
 
     // create the drawable item itself
-    const base = definition.make_geometry(material, geoDef, context);
+    const base = definition.make_geometry(materials.base, geoDef, context);
     if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
         base.name = `base-${userData.geoID}@${userData.srcID}`;
     }
@@ -54,7 +54,7 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
         if(typeof definition.make_highlight_overlay_geometry !== "function") {
             console.warn(`Drawable "${definition.type}" has no make_highlight_overlay_geometry() to indicate hover/highlight`);
         } else {
-            const highlight = definition.make_highlight_overlay_geometry(geoDef, context);
+            const highlight = definition.make_highlight_overlay_geometry(materials.mask, geoDef, context);
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
                 highlight.name = `hl-${userData.geoID}@${userData.srcID}`;
             }
@@ -70,7 +70,7 @@ export function make_geometry(geoType, material, geoDef, userData, context = {})
         if(typeof definition.make_selected_overlay_geometry !== "function") {
             console.warn(`Drawable "${definition.type}" has no make_selected_overlay_geometry() to indicate picking/selection`);
         } else {
-            const selected = definition.make_selected_overlay_geometry(geoDef, context);
+            const selected = definition.make_selected_overlay_geometry(materials.mask, geoDef, context);
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
                 selected.name = `selected-${userData.geoID}@${userData.srcID}`;
             }

@@ -79,8 +79,8 @@ def default_scene():
                         "_type": "PointMarkersShaderMaterial",
                         #
                         'shape': 'hollowXCross',
-                        'flags': 0x3,
-                        'size': 32,
+                        #'flags': 0x3,  # set it to get a color-filled marker
+                        'size': 16,
                     }, {
                         "_name": "texture1",
                         "_type": "MeshMaterial",
@@ -180,14 +180,14 @@ def default_scene():
                         "_name": "hits2",
                         "_type": "PointMarkers",
                         "_material": "markersMat2",
-                        "_pickable": False,
+                        "_pickable": True,
                         #
                         "_category": ["hits"],
                         "_tags": ["points", "demo"],
                         #
                         "items": [
-                            { "position": [12, -9, -8], "color": [0.9, 0.4, 0.8], "size": 12 },
-                            { "position": [32, 18, 19], "color": [0.9, 0.4, 0.2], "size": 18 },
+                            { "position": [12, -9, -8], "color": [0.9, 0.4, 0.8] },
+                            { "position": [32, 18, 19], "color": [0.9, 0.4, 0.2] },
                         ]
                     },
                     # Textured quads demo

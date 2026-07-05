@@ -102,23 +102,23 @@ class MarkerAssets {
         this._textureCache = {};
     }
     // Returns tuple of texture lookup key, shape and size
-    // (shape and size are set to default vals if not provided by `p')
-    complete_texture_lookup_key(p) {
+    // (shape and size are set to default vals if not provided by `pattern')
+    complete_texture_lookup_key(pattern) {
         // lookup for existing marker material of certain shape, flags and size
-        if(typeof p === 'string') {
+        if(typeof pattern === 'string') {
             const rx = /(\w+)(?:-(\d+))?(?:-(\d+))?/;
-            const m = p.match(rx);
-            if(!m) throw new Error("Marker type string does not match expected pattern");
-            p = { shape: m[1]
-                , size: parseInt(m[3])
-                , flags : parseInt(m[2])
+            const m = pattern.match(rx);
+            if(!m) throw new Error("Marker type string does not match expected pattern <name>[-flags][-pxSize]");
+            pattern = { shape: m[1]
+                    , flags : parseInt(m[2])
+                    , size: parseInt(m[3])
                 };
-        } else if(!(typeof p === 'object')) {
+        } else if(!(typeof pattern === 'object')) {
             throw new Error("Bad argument type for marker type parameter.");
         }
-        const shape = p.shape || this._defaults.shape;
-        const size  = p.size  || this._defaults.size;
-        const flags = p.flags || this._defaults.flags;
+        const shape = pattern.shape || this._defaults.shape;
+        const size  = pattern.size  || this._defaults.size;
+        const flags = pattern.flags || this._defaults.flags;
         const k = `${shape}-${flags}-${size}`;
         return [k, shape, flags & 0x3, size];
     }
@@ -126,9 +126,9 @@ class MarkerAssets {
     // Object has `texture' field referring to canvas object keeping the drawn
     // texture and `materials' field referencing sub-object listing created
     // materials
-    get_texture_catalogue(p) {
+    get_texture_catalogue(pattern) {
         let k, shape, flags, size;
-        [k, shape, flags, size] = this.complete_texture_lookup_key(p);
+        [k, shape, flags, size] = this.complete_texture_lookup_key(pattern);
         if(k in this._textureCache) return this._textureCache[k];
         this._textureCache[k] = {
                 texture: new THREE.Texture(draw_texture( markerDrawingFunctions[shape], size, flags)),
@@ -138,11 +138,11 @@ class MarkerAssets {
         return this._textureCache[k]
     }
     // Returns shader-based material for marker
-    get_material(p) {
-        p = p || {};
-        let flags = p.flags || this._defaults.flags;
+    get_material(patternObj) {
+        patternObj = patternObj || {};
+        let flags = patternObj.flags || this._defaults.flags;
         flags &= ~0x3;
-        const cat = this.get_texture_catalogue(p);
+        const cat = this.get_texture_catalogue(patternObj);
         if(flags in cat.materials) return cat.materials[flags];
         // Create new material otherwise
         cat.materials[flags] = new THREE.ShaderMaterial( {
@@ -157,7 +157,7 @@ class MarkerAssets {
             fragmentShader: Shaders.markers.markerPointFragmentShader,
 
             blending: THREE.AdditiveBlending,
-            depthTest: false,
+            depthTest: true,
             transparent: true,
 
             vertexColors: ((flags & 0x4) ? false : true)
