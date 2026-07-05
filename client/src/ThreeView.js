@@ -380,10 +380,14 @@ class ThreeView {
         const items2highlight = intersects.filter(item => item.object.userData?.pickable );
         if(items2highlight && items2highlight.length) {
             const ids2highlight = items2highlight.map(item =>
-                    Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+                    [ Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+                    , item.index
+                    ]
                 );
-            console.debug('Object under cursor:', ids2highlight);
-            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
+            // TODO: having index one way one may utilize the in-array
+            //       ID of points. Need to modify the state to account for it
+            console.debug('Pickable object under cursor:', ids2highlight);
+            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight.map(item => item[0]));
         } else {
             this._vuexStore.commit('view3D/clear_geo_items_highlight');
         }

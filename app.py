@@ -167,7 +167,7 @@ def default_scene():
                         "_name": "hits1",
                         "_type": "PointMarkers",
                         "_material": "markersMat1",
-                        "_pickable": False,
+                        "_pickable": True,  # TODO: False breaks state in items list widget (simple issue)
                         #
                         "_category": ["hits"],
                         "_tags": ["points", "demo"],
