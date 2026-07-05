@@ -377,12 +377,19 @@ class ThreeView {
         const h = this._container.clientHeight;
 
         // white material for highlighted mask render
-        this._defaultMaterials['meshMaskMaterial'] = new THREE.MeshBasicMaterial({
-                  color: 0xffffff
-                , side: THREE.DoubleSide
-                , depthTest: false
-                , depthWrite: false
+        this._defaultMaterials['meshMaskMaterial'] = new THREE.ShaderMaterial({
+                uniforms: {
+                    uMin: { value: 0.25 },
+                    uMax: { value: 1.0  },
+                },
+                vertexShader: Shaders.highlight.maskVertexShader,
+                fragmentShader: Shaders.highlight.maskFragmentShader,
+                side: THREE.DoubleSide,  //THREE.FrontSide,
+                depthTest: true,
+                depthWrite: true,
             });
+        // need another one for double sided planes, to account for
+        // bi-directional normals as usual hulls double-sided results in a 
         // for ordinary lines and line segments
         this._defaultMaterials['lineMaskMaterial'] = new THREE.LineBasicMaterial({
                 color: 0xffffff,
@@ -401,7 +408,7 @@ class ThreeView {
         this._highlightedMaskRT = new THREE.WebGLRenderTarget(w, h, {
                 minFilter: THREE.NearestFilter,
                 magFilter: THREE.NearestFilter,
-                depthBuffer: false,
+                depthBuffer: true,
                 stencilBuffer: false,
                 type: THREE.UnsignedByteType,
             });
@@ -438,15 +445,10 @@ class ThreeView {
         // Assets for overlay pass (a final step)
         this._overlayMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                uMask: {
-                    value: this._dilatedMaskRT.texture,
-                },
-                uColor: {
-                    value: new THREE.Color(Utils.get_theme().selected),
-                },
-                uOpacity: {
-                    value: 0.15,
-                },
+                uMask:          { value: this._highlightedMaskRT.texture },
+                uDilatedMask:   { value: this._dilatedMaskRT.texture },
+                uColor:         { value: new THREE.Color(Utils.get_theme().selected), },
+                uOpacity:       { value: 0.15, },
             },
             vertexShader: Shaders.highlight.fullscreenVertexShader,
             fragmentShader: Shaders.highlight.overlayFragmentShader,

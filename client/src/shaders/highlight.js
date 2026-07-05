@@ -1,4 +1,29 @@
 //
+// Mask
+
+const maskVertexShader = `
+varying vec3 vNormalView;
+
+void main() {
+    vNormalView = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const maskFragmentShader = `
+uniform float uMin;
+uniform float uMax;
+
+varying vec3 vNormalView;
+
+void main() {
+    float facing = abs(dot(normalize(vNormalView), vec3(0.0, 0.0, 1.0)));
+    float edgeOn = pow(1.0 - facing, 1.5);
+    float m = mix(uMin, uMax, edgeOn);
+
+    gl_FragColor = vec4(vec3(m), 1.0);
+}`;
+
+//
 // Dilation
 
 const dilationFragmentShader = `
@@ -33,6 +58,7 @@ void main() {
 
 const overlayFragmentShader = `
 uniform sampler2D uMask;
+uniform sampler2D uDilatedMask;
 uniform vec3 uColor;
 uniform float uOpacity;
 
@@ -53,21 +79,34 @@ float bayer4(vec2 p) {
 }
 
 void main() {
-    float m = texture2D(uMask, vUv).r;
+    float    mask = texture2D(uMask, vUv).r;
+    float dilated = texture2D(uDilatedMask, vUv).r;
 
-    if (m < 0.5)
+    float inside        = step(0.02, mask);
+    float insideDilated = step(0.02, dilated);
+
+    float outline = insideDilated * (1.0 - inside);
+
+    if (outline > 0.5) {
+        gl_FragColor = vec4(uColor, 1.0);
+        return;
+    }
+
+    if (inside < 0.5)
         discard;
 
+    float density = uOpacity * mask;
     float d = bayer4(gl_FragCoord.xy);
 
-    if (d > uOpacity)
+    if (d > density)
         discard;
 
     gl_FragColor = vec4(uColor, 1.0);
 }
 `;
 
-export { dilationFragmentShader, fullscreenVertexShader
+export { maskFragmentShader, maskVertexShader
+       , dilationFragmentShader, fullscreenVertexShader
        , overlayFragmentShader
        };
 
