@@ -17,7 +17,9 @@ export function make_geometry(material, geoDef, context = {}) {
     geometry.setAttribute( 'position',  new THREE.Float32BufferAttribute( positions.flat(), 3 ) );
     geometry.setAttribute( 'color',     new THREE.Float32BufferAttribute( colors.flat(), 3 ) );
     geometry.setAttribute( 'size',      new THREE.Float32BufferAttribute( sizes, 1) );
-    return new THREE.Points(geometry, material);
+    const geo = new THREE.Points(geometry, material);
+    geo.userData.isPointCloud = true;
+    return geo;
 }
 
 export function make_highlight_overlay_geometry(material, geoDef, context={}) {

@@ -263,6 +263,10 @@ class ThreeView {
         watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
             , (hlItems, hlItemsOld) => this.update_selected_graphics(hlItems, hlItemsOld)
             );
+        // Highlighted markers
+        watch( () => this._vuexStore.getters['view3D/highlightedMarkers']
+            , (hlMarkers) => this.update_highlighted_markers(hlMarkers)
+            );
     }  // _bind_watchers() }}}
     // Called on camera switch; see explaination for _prevCam in ctr
     _switch_cam( newCam ) {  // {{{
@@ -378,17 +382,30 @@ class ThreeView {
         // get the intersecting objects
         const intersects = this._raycaster.intersectObjects( this._scene.children, true );
         const items2highlight = intersects.filter(item => item.object.userData?.pickable );
+        const markers2highlight = intersects.filter(item => (item.object.userData?.pickable
+                    && item.object.userData?.isPointCloud));
+        let hasSome = false;
         if(items2highlight && items2highlight.length) {
+            const ids2highlight = items2highlight.map(item => Utils.full_geo_id(
+                    item.object.userData.srcID, item.object.userData.geoID));
+            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
+            hasSome = true;
+        }
+        if(markers2highlight && markers2highlight.length) {
             const ids2highlight = items2highlight.map(item =>
                     [ Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
                     , item.index
                     ]
                 );
-            // TODO: having index one way one may utilize the in-array
-            //       ID of points. Need to modify the state to account for it
-            console.debug('Pickable object under cursor:', ids2highlight);
-            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight.map(item => item[0]));
-        } else {
+            const ptsByGeo = new Map();
+            for(const [geoID, idx] of ids2highlight) {
+                if(!ptsByGeo.has(geoID)) ptsByGeo.set(geoID, new Set());
+                ptsByGeo.get(geoID).add(idx);
+            }
+            this._vuexStore.commit('view3D/set_highlighted_markers', ptsByGeo);
+            hasSome = true;
+        }
+        if(!hasSome) {
             this._vuexStore.commit('view3D/clear_geo_items_highlight');
         }
     }  // }}}
@@ -609,6 +626,35 @@ class ThreeView {
             });
         this._render();
     }  // }}}
+    // Called on highlighted markers set change
+    update_highlighted_markers(highlightedMarkers) {  // {{{
+        console.debug(highlightedMarkers);  // XXX
+        highlightedMarkers.forEach((idxs, itemID) => {
+            console.log(itemID);  // XXX
+            const item = this.get_geometry_item(itemID);
+            if(!item) return;
+            if(!item.threeJSGeo) return;
+            if(!item.threeJSGeo.isGroup) return;
+            // Handle point markers in a bit of special way -- update
+            // colors of highlighted markers using indeces information
+                console.debug("updating highlightedMarkers...");  // XXX
+                if(item.threeJSGeo.userData.handles.highlight.isPoints) {
+                    const clrAttr = item.threeJSGeo.userData.handles.highlight.geometry.getAttribute('color');
+                    if(clrAttr) {
+                        clrAttr.array.fill(0.0);
+                        for(const idx of idxs) {
+                            clrAttr.array[3*idx    ] = 1.0;
+                            clrAttr.array[3*idx + 1] = 1.0;
+                            clrAttr.array[3*idx + 2] = 1.0;
+                        }
+                        clrAttr.needsUpdate = true;
+                    }
+                } else {
+                    console.warn("Ignoring unsupported by-index marker(?) item");
+                }
+        });
+        this._render();
+    }  // }}}
     // Called by watcher on selection change; should not modify store's values,
     // but follow given ones. Implements changes of the geometrical entities
     // appearance, as defined by `Geometry.js` API.
@@ -662,7 +708,9 @@ const stateModule = {
         axesScales: [1., 1., 1.],  // x, y, z
 
         highlightedGeoItemIDs: new Set(),  // highlighted item IDs
+        highlightedMarkers: new Map(), // goeID -> Set(point indeces)
         selectedGeoItemIDs: new Set(),  // selected item IDs
+        selectedMarkers: new Map(), // goeID -> Set(point indeces)
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -743,8 +791,33 @@ const stateModule = {
             state.highlightedGeoItemIDs = next;
         },
 
+        highlight_markers(state, { geoID, indices }) {
+            const next = new Map(state.highlightedMarkers);
+            next.set(geoID, new Set(indices));
+            state.highlightedMarkers = next;
+        },
+
+        set_highlighted_markers(state, markersByGeoID) {
+            state.highlightedMarkers = new Map(
+                [...markersByGeoID.entries()].map(([geoID, indices]) => [
+                    geoID,
+                    new Set(indices),
+                ])
+            );
+        },
+
+        clear_highlighted_markers(state, geoID = null) {
+            const next = new Map(state.highlightedMarkers);
+            if(geoID === null)
+                next.clear();
+            else
+                next.delete(geoID);
+            state.highlightedMarkers = next;
+        },
+
         clear_geo_items_highlight(state) {
             state.highlightedGeoItemIDs = new Set();
+            state.highlightedMarkers = new Map();
         },
 
         //
@@ -772,8 +845,24 @@ const stateModule = {
             state.selectedGeoItemIDs = next;
         },
 
+        select_markers(state, { geoID, indices }) {
+            const next = new Map(state.selectedMarkers);
+            next.set(geoID, new Set(indices));
+            state.selectedMarkers = next;
+        },
+
+        clear_selected_markers(state, geoID = null) {
+            const next = new Map(state.selectedMarkers);
+            if(geoID === null)
+                next.clear();
+            else
+                next.delete(geoID);
+            state.selectedMarkers = next;
+        },
+
         clear_geo_items_selection(state) {
             state.selectedGeoItemIDs = new Set();
+            state.selectedMarkers = new Map();
         },
         // TODO: invert selection?
     },
@@ -785,7 +874,10 @@ const stateModule = {
         geoData: state => state.geoDataBySource,
 
         highlightedGeoItemIDs: state => state.highlightedGeoItemIDs,
+        highlightedMarkers: state => state.highlightedMarkers,
+
         selectedGeoItemIDs: state => state.selectedGeoItemIDs,
+        selectedMarkers: state => state.selectedMarkers,
 
         // Returns current global transformation (for viewing objects)
         transformationMatrix( state ) {
@@ -812,7 +904,13 @@ const stateModule = {
             const c = mins.clone();
             c.add(maxs).divideScalar(2.);
             return [mins, maxs, c];
-        }
+        },
+
+        //highlightedMarkersList: state =>
+        //    [...state.highlightedMarkers.entries()].map(([geoID, indices]) => ({
+        //        geoID,
+        //        indices: [...indices],
+        //        })),
     }
 }  // stateModel
 
