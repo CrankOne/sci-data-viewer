@@ -7,15 +7,15 @@
         <li
           v-for="item in filteredItems"
           :key="item.name"
+          :class="{hovered: highlightedGeoItemIDs.has(item.name)}"
           @click="toggle_item_selection(item.name)"
           @mouseenter="hover_item(item.name)"
           @mouseleave="unhover_item()"
         >
         <span :class="{
-                selected: selectedGeoItemIDs.has(item.name),
-                hovered: highlightedGeoItemIDs.has(item.name)
+                selected: selectedGeoItemIDs.has(item.name)
               }"
-            >{{item.label}}</span><span>@{{item.source}}</span>
+            >{{item.label}}</span><span class='source'>@{{item.source}}</span>
         </li>
       </ul>
     </template>
@@ -84,11 +84,19 @@ export default {
 
 <style scoped>
 .selected {
-    color: var(--clr-accent);
+  color: var(--clr-accent);
 }
 
-.hovered {
-    background-color: var(--clr-bg-button);
-    color: var(--clr-fg-button);
+ul.geo-items-list {
+  background-color: var(--clr-neutral);
+  margin: 5pt;
+}
+
+li.hovered {
+  background-color: var(--clr-bg-hover);
+}
+
+span.source {
+  color: var(--clr-neutral-darken);
 }
 </style>
