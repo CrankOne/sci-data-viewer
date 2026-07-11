@@ -40,7 +40,7 @@ def default_scene():
 
             "geometryData": {
                 "materials": [
-                    {   "_name": "defaultDetMaterial",
+                    {   "_name": "exampleVolumeMaterial",
                         "_type": "MeshMaterial",
                         #
                         #"wireframe": True,
@@ -92,7 +92,7 @@ def default_scene():
                     # BoxGeometry demo -- a "detector boxes"
                     {   "_name": "det1",
                         "_type": "BoxGeometry",
-                        "_material": "defaultDetMaterial",
+                        "_material": "defaultMeshMaterial",
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
@@ -105,7 +105,7 @@ def default_scene():
                         # ...
                     }, {"_name": "det2",
                         "_type": "BoxGeometry",
-                        "_material": "defaultDetMaterial",
+                        "_material": "defaultMeshMaterial",
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
@@ -115,7 +115,7 @@ def default_scene():
                         "rotation": [-3.4, 0, -4.5],
                     }, {"_name": "det3",
                         "_type": "BoxGeometry",
-                        "_material": "defaultDetMaterial",
+                        "_material": "exampleVolumeMaterial",
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
@@ -127,7 +127,7 @@ def default_scene():
                     # Line and ColoredLineSegments demo, "tracks"
                     {   "_name": "reconstructedTrack",
                         "_type": "Line",
-                        "_material": "reconstructedTrackMaterial",
+                        "_material": "defaultLineMaterial",
                         #
                         "_category": ["tracks"],
                         "_tags": ["lines", "demo"],

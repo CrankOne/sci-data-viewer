@@ -5,6 +5,7 @@
         <items-tree :defaultOpenedState="true" />
         <scene-helpers />
         <!--<event-tree-on-side-panel :eventNum="0"/>-->
+        <appearance-ctrls :defaultOpenedState="true"/>
     </div>
 </template>
 
@@ -12,7 +13,8 @@
 //import EvNavBar from './EvNavBar.vue'
 import SceneHelpers from './SceneHelpers.vue'
 import SourceList from './SourcesList.vue'
-import ItemsTree from './ItemsTree.vue'
+import ItemsTree from './ItemsTree'
+import AppearanceCtrls from './AppearanceCtrls.vue'
 //import EventTreeOnSidePanel from './EventTreeOnSidePanel.vue'
 
 export default {
@@ -20,6 +22,7 @@ export default {
         SourceList,
         ItemsTree,
         SceneHelpers,
+        AppearanceCtrls,
     },
     data() {
         return {};

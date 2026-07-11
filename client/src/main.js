@@ -7,8 +7,22 @@ import ThreeViewer from './components/ThreeViewer.vue'
 //import Runs from './components/Runs.vue'
 //import Run from './components/Run.vue'
 //import Spill from './components/Spill.vue'
-import { stateModule as view3D } from './ThreeView'
-import { stateModule as connection } from './api'
+import { stateModule as view3D } from './ThreeView'  // viewer state module
+import { stateModule as connection } from './connection'  // data source state module
+// application state module
+const appCommon = {
+    namespaced: true,
+    state: () => ({
+        theme: localStorage.getItem("theme") ?? "dark"
+    }),
+    mutations: {
+        set_theme(state, theme) {
+            state.theme = theme;
+            document.documentElement.dataset.theme = theme;
+            localStorage.setItem("theme", theme);
+        }
+    }
+};
 
 let defaultDataEndpoint = import.meta.env.VITE_DEFAULT_BACKEND_URL;
 if(!defaultDataEndpoint)
@@ -17,7 +31,7 @@ if(!defaultDataEndpoint)
 // Compose app's store as concatenation of viewer store module (view3D) and
 // API connection state model (`connection'):
 const store = createStore({
-    modules : { connection, view3D },
+    modules : { connection, view3D, appCommon },
 });
 
 const routes = [
@@ -48,6 +62,9 @@ const app = createApp(App);
 app.use(store);  // BEFORE app.mount()!
 app.use(router);
 app.mount('#app');
+
+const savedTheme = localStorage.getItem("theme") ?? "dark";
+document.documentElement.dataset.theme = savedTheme;
 
 // add; xxx, gets triggered before watchers are bound within three viewers
 //store.dispatch('connection/add_data_source', {name:'Test Source', endpoint:'http://foo.bar'});

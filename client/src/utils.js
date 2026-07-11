@@ -100,6 +100,7 @@ function css_var(name, { resolveColor = true } = {}) {
 export function get_theme() {
     return {
         background : css_var('--clr-neutral'),
+        foreground : css_var('--clr-graph-foreground'),
         grid1      : css_var('--clr-graph-grid1'),
         grid2      : css_var('--clr-graph-grid2'),
         annotations: css_var('--clr-graph-annotations'),

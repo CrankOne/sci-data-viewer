@@ -128,11 +128,13 @@ span#show-hide-knob.opened:before {
   margin-top: 15pt;
   font-size: 20pt;
   cursor: pointer;
+  line-height: 15pt;
 }
 
 span#show-hide-knob.closed:before {
   content: '\229E ';
   font-size: 20pt;
   cursor: pointer;
+  line-height: 15pt;
 }
 </style>

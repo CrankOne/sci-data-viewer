@@ -39,13 +39,14 @@ div#navbarEntity {
 }
 
 div#header {
-  background-color: var(--clr-bg-panel);
-  padding-left: 5pt;
+  background-color: var(--clr-bg-panel-header);
+  color: var(--clr-fg-panel-header);
+
+  padding: 2pt 5pt;
   font-family: Calibri,sans-serif;
   font-weight: bold;
   text-align: left;
   letter-spacing: 1pt;
-
   text-transform: uppercase;
   font-size: 9pt;
   cursor: pointer;
@@ -65,6 +66,7 @@ div#content {
   font-family: monospace;
   font-size: 9pt;
   background-color: var(--clr-bg-panel);
+  padding: 2pt 5pt;
 }
 </style>
 

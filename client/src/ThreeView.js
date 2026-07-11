@@ -280,36 +280,20 @@ class ThreeView {
     _create_default_materials() {  // {{{
         // NOTE: these are not all the default ones used to create geometries,
         // some others are created in the highlighting overlays.
-        this._defaultMaterials['meshHighlightedMaterial'] = new THREE.MeshBasicMaterial({
-                color: Utils.get_theme().selected,
+        this._defaultMaterials['defaultMeshMaterial'] = new THREE.MeshBasicMaterial({
+                color: Utils.get_theme().foreground,
                 side: THREE.DoubleSide,
-                wireframe: true,
-                transparent: false,
-                //opacity: 0.15
-            });
-        this._defaultMaterials['meshSelectedMaterial'] = new THREE.MeshBasicMaterial({
-                color: Utils.get_theme().selected,
-                side: THREE.DoubleSide,
-                wireframe: false,
                 transparent: true,
-                opacity: 0.55
+                opacity: 0.15
             });
 
-        this._defaultMaterials['lineHighlightedMaterial'] = new THREE.LineBasicMaterial({
-                color: Utils.get_theme().selected,
-                linewidth: 4
+        this._defaultMaterials['defaultLineMaterial'] = new THREE.LineBasicMaterial({
+                color: Utils.get_theme().foreground,
             });
 
-        this._defaultMaterials['lineSelectedMaterial'] = new THREE.LineBasicMaterial({
-                color: Utils.get_theme().selected,
-                linewidth: 2
-            });
-
-        this._defaultMaterials['fatLineMaskMaterial'] = new LineMaterial({
-                color: 0xffffff,
-                linewidth: 5,
-                depthTest: false,
-                depthWrite: false,
+        this._defaultMaterials['defaultFatLineMaterial'] = new LineMaterial({
+                color: Utils.get_theme().foreground,
+                linewidth: 5
             });
     }  // }}}
     // Creates fixture to render things using three.js
@@ -418,7 +402,7 @@ class ThreeView {
         this._cfg.cameras.persp1.aspect = w/h;  // ?
         this._renderer.setSize(w, h);
         // this is required for this kind of materials
-        this._defaultMaterials['fatLineMaskMaterial'].resolution.set(w, h);
+        this._defaultMaterials['defaultFatLineMaterial'].resolution.set(w, h);
         if(this._hoverHL)
             this._hoverHL.notify_resized(w, h);
         if(this._selectHL)
@@ -466,20 +450,22 @@ class ThreeView {
             delete geoDef.rotationOrder;
         }
         // try to get material
-        if(!thisSourceMats.hasOwnProperty(geoMaterial)) {
-            console.log(`Error in geometry "${geoName}":`
+        if(!( thisSourceMats.hasOwnProperty(geoMaterial)
+            || this._defaultMaterials.hasOwnProperty(geoMaterial)
+            )) {
+            console.error(`Error in geometry "${geoName}":`
                 + ` materials set "${geoMaterial}" is not defined`
-                + ` by data source "${sourceName}"; geometry`
+                + ` by data source "${thisSourceID}"; geometry`
                 + " not constructed!" );
             return;
         }
-        if(thisSourceGeo.hasOwnProperty(geoName)) {
+        if(thisSourceGeo.hasOwnProperty(geoName)) {  // eponymous geo item exists
             if( _.isEqual(thisSourceGeo[geoName].geoDef, geoDef)
              && geoMaterial == thisSourceGeo[geoName].geoMaterial
              && geoType == thisSourceGeo[geoName].geoType
-              ) {
+              ) {  // geometry definition and material did not change (position/rotation can)
                 if(!thisSourceGeo[geoName].hasOwnProperty('threeJSGeo')) {
-                    console.warn(`Can check/update geometry record ${geoName} as it does not expose its three.js representation`);
+                    console.warn(`Can't check/update geometry record ${geoName} as it does not expose its three.js representation`);
                     return;
                 }
                 console.debug(`Geometry "${sourceName}/${geoName}" unchanged, updating position and rotation`);
@@ -502,22 +488,26 @@ class ThreeView {
                 }
                 return;  // skip geometry construction
             }
+            // otherwise, destroy existing eponymous geometry record (to
+            // substitute below)
             thisSourceGeo[geoName].threeJSGeo.dispose(); // TODO: is it correct?
             // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
         }
-        console.debug(`Creating geo "${geoName}" of type ${geoType}...`);
+        console.debug(`Creating geometry item "${geoName}" of type ${geoType}...`);
         const geometryCreationContext = {
-                  meshHighlightedMaterial:  this._defaultMaterials.meshHighlightedMaterial
-                , meshSelectedMaterial:     this._defaultMaterials.meshSelectedMaterial
-                , lineHighlightedMaterial:  this._defaultMaterials.lineHighlightedMaterial
-                , lineSelectedMaterial:     this._defaultMaterials.lineSelectedMaterial
+                  defaultMeshMaterial:      this._defaultMaterials.defaultMeshMaterial
+                , defaultLineMaterial:      this._defaultMaterials.defaultLineMaterial
 
                 //, pointsMaskMaterial:       ,
                 , lineMaskMaterial:         HlOverlay.SilhouetteOverlay.lineMaskMaterial
                 , meshMaskMaterial:         HlOverlay.SilhouetteOverlay.meshMaskMaterial
             };  // context;
         const threeJSGeo = Geometry.make_geometry( geoType  // geo type name string (one of geometry/*.js)
-                , thisSourceMats[geoMaterial].threeJSMaterials  // materials for the item
+                , thisSourceMats.hasOwnProperty(geoMaterial)
+                ? thisSourceMats[geoMaterial].threeJSMaterials
+                : { base: this._defaultMaterials[geoMaterial]
+                  , mask: null
+                  }  // materials for the item
                 , geoDef  // geometry definition object as provided
                 , {geoID: geoName, srcID: thisSourceID}  // userdata to save in the three.js group object, shallow-copied
                 , geometryCreationContext // context
