@@ -1,7 +1,8 @@
 import { createApp } from 'vue'
 import { createStore } from 'vuex'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import './style.css'
+import '@/style.css';
+import "@/viewer-icons.css";
 import App from './App.vue'
 import ThreeViewer from './components/ThreeViewer.vue'
 //import Runs from './components/Runs.vue'

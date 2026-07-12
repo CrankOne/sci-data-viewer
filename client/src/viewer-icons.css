@@ -1,0 +1,31 @@
+@font-face {
+  font-family: "ViewerIcons";
+  src: url("./viewer-icons.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.vi {
+  display: inline-block;
+  font-family: "ViewerIcons";
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  line-height: 1;
+  text-rendering: auto;
+  text-transform: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.vi-cube::before { content: "\e001"; }
+.vi-eye::before { content: "\e003"; }
+.vi-eye-stroked::before { content: "\e002"; }
+.vi-line::before { content: "\e005"; }
+.vi-line-variadic::before { content: "\e004"; }
+.vi-mesh::before { content: "\e006"; }
+.vi-object3d::before { content: "\e007"; }
+.vi-plane::before { content: "\e008"; }
+.vi-space-markers::before { content: "\e009"; }

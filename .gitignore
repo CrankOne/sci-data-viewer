@@ -1,5 +1,6 @@
 __pycache__/*
 venv/*
+icons/build/*
 coc-settings.json
 
 client/node_modules/*

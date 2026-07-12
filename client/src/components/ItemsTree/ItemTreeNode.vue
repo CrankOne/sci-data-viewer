@@ -7,7 +7,7 @@
       @click="expanded = !expanded"
     >
       <span class="disclosure-icon" aria-hidden="true">
-        {{ isOpen ? "▾" : "▸" }}
+        {{ isOpen ? "🗁" : "🗀" }}
       </span>
 
       <span class="group-label">{{ node.label }}</span>
@@ -130,8 +130,8 @@ export default {
   grid-template-columns: 1rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.25rem;
+  margin: 0;
 
-  padding: 0.2rem 0.35rem;
   border: 0;
   background: transparent;
   color: inherit;

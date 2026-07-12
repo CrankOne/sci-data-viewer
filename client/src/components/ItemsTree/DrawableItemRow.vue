@@ -11,11 +11,13 @@
     @mouseleave="$emit('unhover')"
   >
     <span
-      class="geometry-icon"
-      :title="item.geometryType || 'Geometry item'"
+      class="vi"
+      :class="`vi-${geometryIcon}`"
       aria-hidden="true"
-    >
-      {{ geometryIcon }}
+    />
+
+    <span class="item-label">
+      {{ item.label }}
     </span>
 
     <button
@@ -25,12 +27,9 @@
       :aria-label="item.visible ? 'Hide item' : 'Show item'"
       @click.stop="$emit('toggle-visibility')"
     >
-      {{ item.visible ? "◉" : "○" }}
+      <span v-if="item.visible" class="vi vi-eye" aria-hidden="true"></span>
+      <span v-else class="vi vi-eye-stroked" aria-hidden="true"></span>
     </button>
-
-    <span class="item-label">
-      {{ item.label }}
-    </span>
 
     <span class="item-source">
       @{{ item.source }}
@@ -69,20 +68,26 @@ export default {
   computed: {
     geometryIcon() {
       switch (this.item.geometryType) {
-        case "mesh":
-          return "◆";
+        case "Mesh":
+          return "mesh";
 
-        case "points":
-          return "⠿";
+        case "BoxGeometry":
+          return "cube";
 
-        case "line":
-          return "╱";
+        case "PointMarkers":
+          return "space-markers";
 
-        case "volume":
-          return "▣";
+        case "Line":
+          return "line";
+
+        case "ColoredLineSegments":
+          return "line-variadic";
+
+        case "Plane":
+          return "plane";
 
         default:
-          return "◇";
+          return "object3d";
       }
     }
   }
@@ -94,15 +99,14 @@ export default {
   display: grid;
   grid-template-columns:
     1.1rem
-    1.4rem
     minmax(0, 1fr)
+    1.4rem
     auto;
 
   align-items: center;
   gap: 0.25rem;
 
   min-height: 1.7rem;
-  padding: 0.1rem 0.35rem;
   cursor: pointer;
 }
 
@@ -131,6 +135,7 @@ export default {
   background: transparent;
   color: inherit;
   cursor: pointer;
+  margin: 0;
 }
 
 .item-label {

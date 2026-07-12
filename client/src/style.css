@@ -53,7 +53,7 @@
     --clr-supporting-brighten:      color-mix(in srgb, var(--clr-supporting) 65%, white);
     /* - Accent */
     --clr-accent-darken:            color-mix(in srgb, var(--clr-accent) 85%, black);
-    --clr-accent-brighten:          color-mix(in srgb, var(--clr-accent) 70%, white);
+    --clr-accent-brighten:          color-mix(in srgb, var(--clr-accent) 95%, white);
 }
 
 /*                                                ____________________________
