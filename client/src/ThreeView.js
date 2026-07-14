@@ -532,6 +532,7 @@ class ThreeView {
     // materials and drawable objects (point markers, lines, meshes, etc).
     // May dispose materials/remove geometrical entities.
     update_drawables_from_source(sourceName, geoData) {  // {{{
+        console.debug(geoData);  // XXX
         // update source's materials
         var thisSourceMats = this._materials[sourceName] || {};
         // track used material names
@@ -690,7 +691,7 @@ class ThreeView {
 const stateModule = {
     namespaced: true,
     state: () => ({
-        geoDataBySource: {}, //Object.create(null),
+        geoDataBySource: {},
         // Axis-aligned bounding box for objects of interest
         regionOfInterest: [[null, null, null], [null, null, null]],
         // Global axis scales to be applied for geometrical entities as
@@ -715,7 +716,7 @@ const stateModule = {
                     ...state.geoDataBySource,
                     [pl.name]: pl.geoData
                 };
-            console.log(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);  // suceeds
+            console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);  // suceeds
         },
 
         // Updates region of interest with given point r:float[3]
@@ -861,7 +862,9 @@ const stateModule = {
     },
     getters: {
         // See CAVEAT at update_geo_data() mutation; return JSON.stringify(state.geoDataBySource);
-        geoData: state => state.geoDataBySource,
+        geoData: state => Object.fromEntries(
+                Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
+            ),
 
         highlightedGeoItemIDs: state => state.highlightedGeoItemIDs,
         highlightedMarkers: state => state.highlightedMarkers,

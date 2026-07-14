@@ -1,3 +1,8 @@
+/*
+ * Defines various procedures to implement a dithering-based masks for
+ * highlighting selected objects and objects under cursor.
+ */
+
 import * as THREE from 'three';
 import * as Shaders from './shaders';
 import * as Utils from './utils';

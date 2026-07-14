@@ -6,7 +6,7 @@ WUI for Scientific Applications
     its current focus now is 3D visualization only.
 
 The goal of this project is to provide a generalized data viewer for
-non-trivial scientific applications, residing in the web browser and able to
+scientific applications, residing in the web browser and able to
 communicate with (local or remote) server application by the means of HTTP
 protocol.
 
@@ -18,8 +18,9 @@ visualization and allows decomposition of its data to collections. Common
 examples are:
 
 * tracking in high-energy physics
-* finite-difference differential-equations
-* frame-based data analysis (video streaming apps)
+* spatial field visualizations
+* non-stationary finite-difference differential-equations
+* frame-based data analysis
 
 The Project does not provide feature-rich sophisticated visualization tools by
 itself, instead letting user to create their own representation layers and
@@ -48,7 +49,7 @@ Having these restriction in mind, the *server* application exposes certain
 HTTP enpoint(s) which client app can communicate.
 
 Project provides a boilerplate code for Vue-based *client* single-page
-application and some utility code for server-side Python (Flask) and C++
+application and some utility code for server-side Python (Flask) and/or C++
 applications.
 
 By customizing client SPA code user can extend presentation layer. Coping with
@@ -59,10 +60,27 @@ Client SPA
 ==========
 
 A client-side single page application uses Vue for components, Vuex for state
-management and Vue-Router for state tracking.
+management and Vue-Router for state tracking. Coping with three.js a certain
+degree of reactivity is reached.
 
 Server Implementations
 ======================
+
+Currently, two main options are available for extending the viewer application.
+Both the Python and C++ servers shall expose the same externally visible
+routes.
+
+For static content
+
+- ``GET /``
+- ``GET /assets/{path}``
+- ``GET /cdn/{path}``
+- ``GET /{spa-route}``
+
+REST resources:
+
+- ``GET /scene``
+- ...
 
 C++ Server
 ~~~~~~~~~~
@@ -70,16 +88,14 @@ C++ Server
 Project brings custom implementation of extremely lightweight *synchroneous*
 HTTP server. This server is meant to be embedded in the user's iterative
 algorithm and steer (in a single thread) or monitor (in a forked or threaded
-mode) its execution. See examples in the ``./server-cpp`` directory.
+mode) its execution. See examples in the ``server-cpp/`` directory.
 
 Python (Flask) Server
 ~~~~~~~~~~~~~~~~~~~~~
 
 For more complex scenarios with persistent storages (e.g. fetching data from
 DB, distributed or delegated calculus) consider using a Python scripts within
-the Python Flask server (see ``app.py``).
-
-
+the Python Flask server (see ``setver_py/``).
 
 Misc Notes
 ----------
@@ -92,13 +108,14 @@ Misc Notes
 Development snippets
 ====================
 
-To run ``yarn`` it is better to use container environment, so build the image,
-run it and keep the terminal for subsequent (re)builds.
+To run ``yarn`` it is sometimes better to use container environment (if you are
+not intending to reguralry work with JS stuff), so build the image, run it and
+keep the terminal for subsequent (re)builds:
 
 .. code-block:: shell
 
    $ docker build . -t sciviewer
-   $ docker run -v $(pwd):/var/src -ti sciviewer /bin/s
+   $ docker run -v $(pwd):/var/src -ti sciviewer /bin/sh
    container $ cd /var/src/client
    container $ yarn run build
 
@@ -107,9 +124,17 @@ need virtualenv with Flask, flask-restful from ``requirements.txt``, etc) with:
 
 .. code-block:: shell
 
-    $ python3 app.py
+    $ source venv/bin/activate
+    $ python3 -m pip install -e server_py
+    $ sci-viewer-server --debug
 
-Then you should able to see something at ``http://127.0.0.1:5000/``.
+The Flask-native launcher also works:
+
+.. code-block:: shell
+
+    $ flask --app sci_viewer_server:create_app run --debug
+
+Then you should able to see the viewer running at ``http://127.0.0.1:5000/``.
 
 Data Source Specification
 =========================
@@ -117,10 +142,6 @@ Data Source Specification
 Data source identified by its endpoint URI is expected to provide data in a
 JSON format. Enpoint can be either a static view or iterable collection (finite,
 infinite, with or without pagination).
-
-Decision is made based on presense of following items in response object:
-
-Has ``total``
 
 Static Views
 ~~~~~~~~~~~~

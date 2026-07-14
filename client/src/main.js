@@ -1,72 +1,85 @@
 import { createApp } from 'vue'
 import { createStore } from 'vuex'
-import { createRouter, createWebHashHistory } from 'vue-router'
 import '@/style.css';
 import "@/viewer-icons.css";
 import App from './App.vue'
-import ThreeViewer from './components/ThreeViewer.vue'
-//import Runs from './components/Runs.vue'
-//import Run from './components/Run.vue'
-//import Spill from './components/Spill.vue'
 import { stateModule as view3D } from './ThreeView'  // viewer state module
 import { stateModule as connection } from './connection'  // data source state module
-// application state module
-const appCommon = {
-    namespaced: true,
-    state: () => ({
-        theme: localStorage.getItem("theme") ?? "dark"
-    }),
-    mutations: {
-        set_theme(state, theme) {
-            state.theme = theme;
-            document.documentElement.dataset.theme = theme;
-            localStorage.setItem("theme", theme);
-        }
-    }
-};
+import create_router from './router';
 
-let defaultDataEndpoint = import.meta.env.VITE_DEFAULT_BACKEND_URL;
-if(!defaultDataEndpoint)
-    defaultDataEndpoint = 'http://' + location.host + '/scene';
-
-// Compose app's store as concatenation of viewer store module (view3D) and
-// API connection state model (`connection'):
-const store = createStore({
-    modules : { connection, view3D, appCommon },
-});
-
-const routes = [
-    // redirect root to ThreeViewer's component
-    {path: '/', redirect: '/three-view/' /*+ encodeURIComponent(defaultDataEndpoint)*/},
-    {path: '/three-view/'
-        , component: ThreeViewer
-        , props: {
-                defaultDataSources: {
-                    'default': defaultDataEndpoint
-                }
-            }
-        , name: 'three-view'
+async function fetch_plugin_manifest() {
+    const response = await fetch("/api/plugins", {
+        headers: {
+            Accept: "application/json",
         },
-    //{path: '/', redirect: '/runs/' + encodeURIComponent(defaultBackendHost)},
-    //{path: '/runs/:backendProvider', component: Runs, props: true, name: 'runs'},
-    //{path: '/run/:backendProvider/run/:runNo', component: Run, props: true, name: 'run' },
-    //{path: '/run/:backendProvider/run/:runNo/spill/:spillNo', component: Spill, props: true, name: 'spill' },
-]
+    })
+    if (!response.ok) {
+        throw new Error(
+            `Could not retrieve viewer plugins: HTTP ${response.status}`
+        )
+    }
+    return await response.json()
+}
 
-const router = createRouter({
-  history: createWebHashHistory(),
-  routes,
+// returns list of data sources enabled by default
+function collect_default_data_sources(manifest) {
+    return Object.fromEntries(
+        manifest.dataSources
+            .filter(source => {
+                return source.enabledByDefault;
+            })
+            .map(source => [
+                source.id,
+                source.url,
+            ])
+    )
+}
+
+async function main() {
+    const pluginManifest = await fetch_plugin_manifest();
+    const defaultDataSources = collect_default_data_sources(pluginManifest);
+    const router = create_router();
+    const app = createApp(App);
+
+    // common application state module
+    const appCommon = {
+        namespaced: true,
+        state: () => ({
+            theme: localStorage.getItem("theme") ?? "dark"
+        }),
+        mutations: {
+            set_theme(state, theme) {
+                state.theme = theme;
+                document.documentElement.dataset.theme = theme;
+                localStorage.setItem("theme", theme);
+            }
+        }
+    };
+
+    // Compose app's store as concatenation of viewer store module (view3D) and
+    // API connection state model (`connection'):
+    const store = createStore({
+        modules : { connection, view3D, appCommon },
+    });
+
+    app.use(store);  // BEFORE app.mount()!
+    app.use(router);
+    app.mount('#app');
+
+    const savedTheme = localStorage.getItem("theme") ?? "dark";
+    document.documentElement.dataset.theme = savedTheme;
+
+    for(const [srcName, srcURL] of Object.entries(defaultDataSources)) {
+        store.dispatch('connection/add_resource', {
+                name: srcName,
+                endpoint: srcURL,
+                load: true
+            });
+    }
+}
+
+main().catch(error => {
+    console.error("Viewer initialization failed:", error)
+    document.body.textContent =
+        `Viewer initialization failed: ${error.message}`
 })
-
-//createApp(App).mount('#app')
-const app = createApp(App);
-app.use(store);  // BEFORE app.mount()!
-app.use(router);
-app.mount('#app');
-
-const savedTheme = localStorage.getItem("theme") ?? "dark";
-document.documentElement.dataset.theme = savedTheme;
-
-// add; xxx, gets triggered before watchers are bound within three viewers
-//store.dispatch('connection/add_data_source', {name:'Test Source', endpoint:'http://foo.bar'});
-

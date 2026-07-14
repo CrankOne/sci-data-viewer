@@ -1,7 +1,13 @@
-__pycache__/*
+**/__pycache__/*
+**/*.egg-info/*
 venv/*
 icons/build/*
 coc-settings.json
 
 client/node_modules/*
 client/app.js
+
+compile_flags.txt
+**/*.old/*
+**/*.bck*
+**/*xxx

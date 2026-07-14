@@ -156,7 +156,7 @@ class MarkerAssets {
             vertexShader: Shaders.markers.markerPointVertexShader,
             fragmentShader: Shaders.markers.markerPointFragmentShader,
 
-            blending: THREE.AdditiveBlending,
+            //blending: THREE.AdditiveBlending,
             depthTest: true,
             transparent: true,
 

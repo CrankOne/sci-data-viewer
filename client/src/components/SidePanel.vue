@@ -1,6 +1,6 @@
 <template>
     <div id="container">
-        <source-list />
+        <source-list :defaultOpenedState="true" />
         <!--<ev-nav-bar eventID="null"/>-->
         <items-tree :defaultOpenedState="true" />
         <scene-helpers />
@@ -33,7 +33,7 @@ export default {
 <style scoped>
 div#container {
     max-height: 100%;
-    padding: 5pt 3pt;
+    padding: 0 3pt;
 }
 </style>
 

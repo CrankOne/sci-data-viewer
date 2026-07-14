@@ -108,6 +108,7 @@ export default {
 
   min-height: 1.7rem;
   cursor: pointer;
+  padding: 0 5pt;
 }
 
 .item-row:hover,

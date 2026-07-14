@@ -1,40 +1,13 @@
-from flask import Flask, send_from_directory
-from flask_cors import CORS, cross_origin
-from flask_restful import Api
+from __future__ import annotations
 
-import mimetypes
-from flask import Flask
+from flask_restful import Resource
 
-# Force the correct MIME type mapping before initializing Flask
-mimetypes.add_type('application/javascript', '.js')
-mimetypes.add_type('text/css', '.css')
-
-import resources
-
-app = Flask(__name__
-        , static_url_path='/assets'
-        , static_folder='client/dist/assets'
-        )
-cors = CORS(app)
-app.config['CORS_HEADERS'] = 'Content-Type'
-api = Api(app)
-
-@app.route("/")
-def index_view():
-    with open('client/dist/index.html', 'r') as f:
-        return f.read()
-
-@app.route("/cdn/<path:filename>")
-def misc_static(filename):
-    return send_from_directory('misc-static/', filename)
-    # TODO: use smt like app.config['CUSTOM_STATIC_PATH']
-
-#
-# Static scene showing all the available objects, a showroom
-@app.route("/scene")
-@cross_origin()
-def default_scene():
-    return {
+class SceneResource(Resource):
+    """
+    Development showroom objects.
+    """
+    def get(self):
+        return {
             "iterable": True,
             "expiresIn": None,
 
@@ -206,32 +179,4 @@ def default_scene():
                 ]
             }
         }
-
-#
-# Sparse collection with pagination
-# Pretty much like real RESTful application should look like
-#@app.route("/example-items")
-#@cross_origin()
-#def example_items():
-#    """
-#    This view must should not provide geometrical data by its own, but instead
-#    it returns description of collection that can be browsed.
-#    """
-#    return {
-#            'iterable': True,
-#            'total': 100,
-#            'items': [1, 2, 3, 5],
-#            'pages': [
-#                    {}
-#                ]
-#        }
-
-#@app.route("/static/<str:path>")
-#def get_static_file(path):
-#    send_from_directory(path)
-
-#api.add_resource(resources.Events, '/events')
-
-if __name__ == '__main__':
-    app.run(debug=True)
 

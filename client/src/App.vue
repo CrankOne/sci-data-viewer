@@ -3,8 +3,6 @@
 </template>
 
 <script setup>
-//const name = 'App';
-//const components = {};
 </script>
 
 <style>

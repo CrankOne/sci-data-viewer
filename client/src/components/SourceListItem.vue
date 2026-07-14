@@ -1,104 +1,169 @@
 <template>
-  <li class="dataSourceItem">
-      <div id="source-header">
-        <div id="btn-remove" v-if="!noRemove" v-on:click="remove_source"></div>
-        <span id="reload">{{name}}<span v-if="reload_enabled" v-on:click="reload_data" id="btn-reload"></span></span>
-      </div>
-    <p class="data-source-endpoint">{{definition.endpoint}}, {{definition.dataSize}}</p>
-    <component :is="concreteSourceItemComponent" :definition="definition"/>
-  </li>
+<div class="frame">
+  <div class="frame__bar">
+    <h2 class="frame__title">
+        {{name}}
+    </h2>
+
+    <div class="frame__actions">
+      <button
+            type="button"
+            title="Reload manifest"
+            v-if="!noRefreshManifest"
+            @click="reload_manifest">🗘</button>
+      <button
+            type="button"
+            title="Remove source"
+            v-if="!noRemove"
+            @click="remove_resource">🗑</button>
+    </div>
+  </div>
+
+  <div class="frame__content">
+    <component :is="concreteSourceItemComponent" v-bind="definition"/>
+  </div>
+</div>
 </template>
 
 <script>
-import SourceListItemFwIterable from './sourceListItems/fwIterable.vue'
+import WaitingSourceListItem from './sourceListItems/waiting.vue'
+import StaticSourceListItem from './sourceListItems/static.vue'
 // import ... (other source list items)
 
 export default {
   name: 'SourceListItem',
-  components: {SourceListItemFwIterable},
+  components: {
+      WaitingSourceListItem,
+      StaticSourceListItem,
+      // ...
+  },
   props: {
     name: String,
     noRemove: false,
+    noRefreshManifest: false,
     definition: Object,
   },
   methods: {
-    remove_source(event) {
-      console.log("TODO: remove source");
+    reload_manifest() {
+        return this.$store.dispatch(
+            'connection/retry_resource_manifest',
+            {
+                name: this.name,
+                load: true,
+            }
+        );
     },
-    reload_data(event) {
-      console.log("TODO: reload data");
+
+    cancel_manifest_fetch() {
+        return this.$store.dispatch(
+            'connection/cancel_resource_manifest_fetch',
+            this.name
+        );
+    },
+
+    remove_resource() {
+        return this.$store.dispatch(
+            'connection/remove_resource',
+            this.name
+        );
     },
   },
+    
   computed: {
-    reload_enabled() {
-      // TODO: false must be returned for static view, when expiration
-      //    time is passed
-      return true;
-    },
     concreteSourceItemComponent() {
-      if(this.definition.accessModel == 'staticView') {
+      if(this.definition.manifest === null) {
+        return 'waiting-source-list-item';
+      }
+      if(this.definition.manifest.accessModel == 'staticView') {
         return 'static-source-list-item';
       }
-      if(this.definition.accessModel == 'staticViewWithPeriodicUpdates') {
+      if(this.definition.manifest.accessModel == 'staticViewWithPeriodicUpdates') {
         return 'static-source-list-item-with-periodic-updates';
       }
-      if(this.definition.accessModel == 'fwIterableCollection') {
+      if(this.definition.manifest.accessModel == 'fwIterableCollection') {
         return 'source-list-item-fw-iterable';
       }
-      if(this.definition.accessModel == 'sparseCollection') {
+      if(this.definition.manifest.accessModel == 'sparseCollection') {
         return 'static-source-list-item-sparse-collection';
       }
-      if(this.definition.accessModel == 'sparseCollectionWithPagination') {
+      if(this.definition.manifest.accessModel == 'sparseCollectionWithPagination') {
         return 'static-source-list-item-sparse-collection-with-pagination';
       }
-      throw new Error(`Unknown access model type "${this.definition.accessModel}"`)
+      throw new Error(`Unknown access model type "${this.definition.manifest.accessModel}"`)
     }
-    //navigation_enabled() {
-    //  return !( this.definition.accessModel == 'staticViewWithPeriodicUpdates'
-    //         || this.definition.accessModel == 'staticView'
-    //         );
-    //},
-    //backward_navigation_enabled() {
-    //  // backward iteration is not supported for static views and fw-iterable
-    //  // collection
-    //  return  ( this.definition.accessModel == 'denseCollection'
-    //         || this.definition.accessModel == 'sparseCollection'
-    //         || this.definition.accessModel == 'sparseCollectionWithPagination'
-    //         );
-    //},
-    //forward_navigation_enabled() {
-    //  return this.definition.accessModel != 'staticView'
-    //}
   },
 }
 </script>
 
 <style scoped>
-div#source-header {
-  font-size: 12pt;
-  margin: -1.2em -1pt;
-  background-color: var(--clr-bg-panel);
-  padding: 7pt 7pt;
+.frame {
+  --frame-padding-x: 1rem;
+  --frame-border-color: var(--clr-border-inactive);
+  --frame-background: var(--clr-bg-panel);
+
+  position: relative;
+  min-width: 0;
+
+  margin-top: 1rem;
+  padding:
+    1.5rem
+    var(--frame-padding-x)
+    1rem;
+
+  border: 1px solid var(--frame-border-color);
+  border-radius: 0.4rem;
+  background: var(--frame-background);
 }
 
-div#btn-remove:after {
-  content: '\274C ';
-  float: right;
-  cursor: pointer;
-  padding: 2pt 3pt;
-  background-color: var(--clr-bg-button);
-  color: var(--clr-bg-main);
-  border: solid 1px var(--clr-border-inactive);
+.frame__bar {
+  position: absolute;
+  top: 0;
+  left: var(--frame-padding-x);
+  right: var(--frame-padding-x);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+
+  /*
+   * Move the bar vertically so that its centre coincides with the border.
+   */
+  transform: translateY(-50%);
 }
 
-span#btn-reload:after {
-  content: '\21BB ';
-  cursor: pointer;
-  margin-left: 5pt;
-  padding: 1pt 5pt;
-  background-color: var(--clr-bg-button);
-  color: var(--clr-bg-main);
-  border: solid 1px var(--clr-border-inactive);
+.frame__title {
+  min-width: 0;
+  margin: 0;
+  padding-inline: 0.35rem;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  background: var(--frame-background);
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.frame__actions {
+  display: flex;
+  flex: none;
+  gap: 0.4rem;
+
+  /*
+   * Masks the frame border behind and between the buttons.
+   */
+  padding-inline: 0.35rem;
+  background: var(--frame-background);
+}
+
+.frame__actions button {
+  white-space: nowrap;
+}
+
+.frame__content {
+  min-width: 0;
 }
 </style>
 

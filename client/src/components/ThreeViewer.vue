@@ -29,8 +29,11 @@ export default {
       return {};
     },
     mounted() {
+        console.debug(this.defaultDataSources);  // XXX
+        // iterate over defined data sources and add them one by one, just as
+        // if they are added manually.
         for(const [name, endpoint] of Object.entries(this.defaultDataSources)) {
-            //console.log(`Adding default data source: "${name}" -> "${endpoint}"`);
+            console.debug(`Adding default data source: "${name}" -> "${endpoint}"`);
             this.$store.dispatch('connection/add_data_source', {name, endpoint});
         }
     }

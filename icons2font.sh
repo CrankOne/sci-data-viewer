@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#
+# Updates icons font `client/src/viwer-icons.*` and corresponding .js and .css
+# assets based on the content of icons/src/*.svgz files. Is NOT a part of
+# standard building process, a dev tool.
+#
+# Requires inkscape and fontforge with Python bindings.
 
 set -euo pipefail
 shopt -s nullglob
