@@ -212,7 +212,7 @@ class DemoViewerPlugin:
                 # ^^^ url_for(__name__ + '.source_descriptor') won't work
                 #     outside of app ctx, so resolution is postponed
                 label="Testing geometry showroom",
-                enabledByDefault=True,
+                enabledByDefault=False,  # TODO: enable for dev/debug?
             ),
         )
     def resolvers(self):

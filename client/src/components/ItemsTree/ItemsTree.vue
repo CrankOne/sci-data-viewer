@@ -35,6 +35,42 @@
       <p v-if="tree.length === 0" class="empty-message">
         No matching items.
       </p>
+
+      <div class="tree-actions">
+        <button
+          type="button"
+          title="Collapse all"
+          @click="collapseAll"
+        >
+          🗀
+        </button>
+
+        <button
+          type="button"
+          title="Expand all"
+          @click="expandAll"
+        >
+          🗁
+        </button>
+
+        <span class="tree-actions-separator" />
+
+        <button
+          type="button"
+          title="Select all (filtered) items"
+          @click="selectAll"
+        >
+          <span class="vi vi-select-all" aria-hidden="true" />
+        </button>
+
+        <button
+          type="button"
+          title="Invert selection of (filtered) items"
+          @click="invertSelection"
+        >
+          <span class="vi vi-invert-selection" aria-hidden="true" />
+        </button>
+      </div>
     </template>
   </NavBarEntity>
 </template>

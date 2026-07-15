@@ -21,11 +21,14 @@
 }
 
 .vi-cube::before { content: "\e001"; }
-.vi-eye::before { content: "\e003"; }
-.vi-eye-stroked::before { content: "\e002"; }
-.vi-line::before { content: "\e005"; }
-.vi-line-variadic::before { content: "\e004"; }
-.vi-mesh::before { content: "\e006"; }
-.vi-object3d::before { content: "\e007"; }
-.vi-plane::before { content: "\e008"; }
-.vi-space-markers::before { content: "\e009"; }
+.vi-eye::before { content: "\e004"; }
+.vi-eye-semis-stroked::before { content: "\e002"; }
+.vi-eye-stroked::before { content: "\e003"; }
+.vi-invert-selection::before { content: "\e005"; }
+.vi-line::before { content: "\e007"; }
+.vi-line-variadic::before { content: "\e006"; }
+.vi-mesh::before { content: "\e008"; }
+.vi-object3d::before { content: "\e009"; }
+.vi-plane::before { content: "\e00a"; }
+.vi-select-all::before { content: "\e00b"; }
+.vi-space-markers::before { content: "\e00c"; }
