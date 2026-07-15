@@ -37,14 +37,14 @@ const viewportSettings = reactive({
                 , cuts: [ 0.01, 70000 ]
                 //
                 , up: [0, -1, 0]
-                , lookAt: [0, 0, 5500]
-                , position: [0, 0, -10]
+                , lookAt: [0, 0, 70000]
+                , position: [0, 0, -10000]
                 //, aspect: 1  // TODO?
             },
             persp1: { type: "persp"
-                , fov: 10
-                , position: [150, 150, 150]
-                , cuts: [0.1, 7000]  // near, far
+                , fov: 65
+                , position: [5000, 5000, -10000]
+                , cuts: [0.1, 700000]  // near, far
                 , lookAt: [0, 0, 0]
                 , aspect: 1
                 //, up: [0, 1, 0]  // TODO?

@@ -167,6 +167,12 @@ export default {
       ]?.facets ?? [];
     },
 
+    sceneHoveredGeoItemIDs() {
+      return this.$store.getters[
+        "view3D/sceneHoveredGeoItemIDs"
+      ];
+    },
+
     availableItems() {
       return Object.entries(this.geoData).flatMap(
         ([sourceID, source]) =>
@@ -201,6 +207,15 @@ export default {
     },
 
     filteredItems() {
+      if (this.sceneHoveredGeoItemIDs.size === 0)
+        return this.textFilteredItems;
+
+      return this.textFilteredItems.filter(item =>
+        this.sceneHoveredGeoItemIDs.has(item.id)
+      );
+    },
+
+    textFilteredItems() {
       const query = this.query.trim().toLowerCase();
 
       if (!query)
@@ -238,9 +253,8 @@ export default {
 
     effectiveExpandedGroupKeys() {
       const result = new Set(this.expandedGroupKeys);
-
       // Temporarily reveal the complete path to every highlighted item.
-      for (const key of this.transientExpandedGroupKeys)
+      for (const key of this.sceneHoverExpandedGroupKeys)
         result.add(key);
       // Search similarly expands all currently matching branches, without
       // altering the persistent expansion state.
@@ -252,10 +266,10 @@ export default {
       return result;
     },
 
-    transientExpandedGroupKeys() {
+    sceneHoverExpandedGroupKeys() {
       return collectHighlightedGroupKeys(
         this.tree,
-        this.highlightedGeoItemIDs
+        this.sceneHoveredGeoItemIDs
       );
     },
   },  // computed
@@ -343,14 +357,14 @@ export default {
 
     hoverItem(ids) {
       this.$store.commit(
-        "view3D/set_highlight_geo_items",
+        "view3D/set_tree_hover_geo_items",
         ids
       );
     },
 
     unhoverItem() {
       this.$store.commit(
-        "view3D/clear_geo_items_highlight"
+        "view3D/clear_tree_hover_geo_items"
       );
     },
 

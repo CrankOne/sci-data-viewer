@@ -372,7 +372,7 @@ class ThreeView {
         if(items2highlight && items2highlight.length) {
             const ids2highlight = items2highlight.map(item => Utils.full_geo_id(
                     item.object.userData.srcID, item.object.userData.geoID));
-            this._vuexStore.commit('view3D/set_highlight_geo_items', ids2highlight);
+            this._vuexStore.commit('view3D/set_scene_hover_geo_items', ids2highlight);
             hasSome = true;
         }
         if(markers2highlight && markers2highlight.length) {
@@ -390,7 +390,7 @@ class ThreeView {
             hasSome = true;
         }
         if(!hasSome) {
-            this._vuexStore.commit('view3D/clear_geo_items_highlight');
+            this._vuexStore.commit('view3D/clear_scene_hover_geo_items');
         }
     }  // }}}
     get_cam() {  // {{{
@@ -725,7 +725,10 @@ const stateModule = {
         // multiplication factors, f_i, r_shown = f_i * r_original.
         axesScales: [1., 1., 1.],  // x, y, z
 
-        highlightedGeoItemIDs: new Set(),  // highlighted item IDs
+        //highlightedGeoItemIDs: new Set(),  // highlighted item IDs
+        treeHoveredGeoItemIDs: new Set(),  // hovered in tree vwr
+        sceneHoveredGeoItemIDs: new Set(),  // hovered on scene
+
         highlightedMarkers: new Map(), // geoID -> Set(point indeces)
         selectedGeoItemIDs: new Set(),  // selected item IDs
         selectedMarkers: new Map(), // geoID -> Set(point indeces)
@@ -781,36 +784,22 @@ const stateModule = {
         //
         // Highlight
 
-        highlight_geo_items(state, ids) {
-            const next = new Set(state.highlightedGeoItemIDs);
-            if (typeof ids === "string") {
-                next.add(ids);
-            } else {
-                for (const id of ids)
-                    next.add(id);
-            }
-            state.highlightedGeoItemIDs = next;
+        set_tree_hover_geo_items(state, ids) {
+          state.treeHoveredGeoItemIDs =
+            new Set(normalizeIDs(ids));
         },
 
-        set_highlight_geo_items(state, ids) {
-            let next = new Set(state.highlightedGeoItemIDs);
-            if (typeof ids === "string") {
-                next = new Set([ids]);
-            } else {
-                next = new Set(ids);
-            }
-            state.highlightedGeoItemIDs = next;
+        clear_tree_hover_geo_items(state) {
+          state.treeHoveredGeoItemIDs = new Set();
         },
 
-        unhighlight_geo_items(state, ids) {
-            const next = new Set(state.highlightedGeoItemIDs);
-            if (typeof ids === "string") {
-                next.delete(ids);
-            } else {
-                for (const id of ids)
-                    next.delete(id);
-            }
-            state.highlightedGeoItemIDs = next;
+        set_scene_hover_geo_items(state, ids) {
+          state.sceneHoveredGeoItemIDs =
+            new Set(normalizeIDs(ids));
+        },
+
+        clear_scene_hover_geo_items(state) {
+          state.sceneHoveredGeoItemIDs = new Set();
         },
 
         highlight_markers(state, { geoID, indices }) {
@@ -835,11 +824,6 @@ const stateModule = {
             else
                 next.delete(geoID);
             state.highlightedMarkers = next;
-        },
-
-        clear_geo_items_highlight(state) {
-            state.highlightedGeoItemIDs = new Set();
-            state.highlightedMarkers = new Map();
         },
 
         //
@@ -1013,7 +997,16 @@ const stateModule = {
                 Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
             ),
 
-        highlightedGeoItemIDs: state => state.highlightedGeoItemIDs,
+        treeHoveredGeoItemIDs: state => state.treeHoveredGeoItemIDs,
+
+        sceneHoveredGeoItemIDs: state => state.sceneHoveredGeoItemIDs,
+
+        highlightedGeoItemIDs: state =>
+          new Set([
+            ...state.treeHoveredGeoItemIDs,
+            ...state.sceneHoveredGeoItemIDs
+          ]),
+
         highlightedMarkers: state => state.highlightedMarkers,
 
         selectedGeoItemIDs: state => state.selectedGeoItemIDs,
