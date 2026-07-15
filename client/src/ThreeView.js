@@ -267,6 +267,10 @@ class ThreeView {
         watch( () => this._vuexStore.getters['view3D/highlightedMarkers']
             , (hlMarkers) => this.update_highlighted_markers(hlMarkers)
             );
+        // Visibility
+        watch( () => this._vuexStore.getters['view3D/hiddenGeoItemIDs']
+            , (itemIDs) => this.toggle_hidden_items(itemIDs)
+            );
     }  // _bind_watchers() }}}
     // Called on camera switch; see explaination for _prevCam in ctr
     _switch_cam( newCam ) {  // {{{
@@ -683,6 +687,17 @@ class ThreeView {
         if(!this._geometries[srcID].hasOwnProperty(geoItemID)) return;
         return this._geometries[srcID][geoItemID];
     }  // }}}
+    
+    toggle_hidden_items(itemIDs) {  // {{{
+        Object.entries(this._geometries).forEach(([srcID, srcGeoData]) => {
+            Object.entries(srcGeoData).forEach(([itemID, geoData]) => {
+                if(itemIDs.has(Utils.full_geo_id(srcID, itemID)))
+                    geoData.threeJSGeo.userData.handles.base.visible = false;
+                else
+                    geoData.threeJSGeo.userData.handles.base.visible = true;
+            })
+        });
+    }  // }}}
 }  // class ThreeView
 
 //                  * * *   * * *   * * *
@@ -881,15 +896,14 @@ const stateModule = {
             visible
           }
         ) {
+            console.debug(ids);  // XXX
           const next = new Set(state.hiddenGeoItemIDs);
-
           for (const id of normalizeIDs(ids)) {
             if (visible)
               next.delete(id);
             else
               next.add(id);
           }
-
           state.hiddenGeoItemIDs = next;
         },
 
@@ -909,9 +923,7 @@ const stateModule = {
               ? presets
               : DEFAULT_FACET_PRESETS
           );
-
           state.facetPresets = normalized;
-
           if (
             activePresetName &&
             Object.hasOwn(normalized, activePresetName)

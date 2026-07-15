@@ -59,6 +59,35 @@
             >
               <span class="vi vi-invert-selection" aria-hidden="true" />
             </button>
+
+            <button
+              type="button"
+              title="Clear selection"
+              :disabled="selectedGeoItemIDs.size === 0"
+              @click="clearSelection"
+            >
+              <span class="vi vi-clear-selection" aria-hidden="true" />
+            </button>
+
+            <span class="toolbar-separator" />
+
+            <button
+              type="button"
+              title="Show selected items"
+              :disabled="selectedGeoItemIDs.size === 0"
+              @click="showSelected"
+            >
+              <span class="vi vi-eye" aria-hidden="true"/>
+            </button>
+
+            <button
+              type="button"
+              title="Hide selected items"
+              :disabled="selectedGeoItemIDs.size === 0"
+              @click="hideSelected"
+            >
+              <span class="vi vi-eye-stroked" aria-hidden="true"/>
+            </button>
           </div>
         </div>
 
@@ -69,19 +98,22 @@
             role="tree"
           >
             <ItemTreeNode
-              v-for="node in tree"
-              :key="node.key"
-              :node="node"
-              :expanded-group-keys="effectiveExpandedGroupKeys"
-              :selected-ids="selectedGeoItemIDs"
-              :highlighted-ids="highlightedGeoItemIDs"
-              :hidden-ids="hiddenGeoItemIDs"
-              @toggle-group="toggleGroup"
-              @toggle-selection="toggleItemSelection"
-              @hover="hoverItem"
-              @unhover="unhoverItem"
-              @set-visibility="setVisibility"
-            />
+                  v-for="node in tree"
+                  :key="node.key"
+                  :node="node"
+                  :expanded-group-keys="effectiveExpandedGroupKeys"
+                  :selected-ids="selectedGeoItemIDs"
+                  :highlighted-ids="highlightedGeoItemIDs"
+                  :hidden-ids="hiddenGeoItemIDs"
+                  @toggle-group="toggleGroup"
+                  @toggle-selection="toggleItemSelection"
+                  @select-items="selectItems"
+                  @clear-selection="clearItemsSelection"
+                  @invert-selection="invertItemsSelection"
+                  @hover="hoverItem"
+                  @unhover="unhoverItem"
+                  @set-visibility="setVisibility"
+                />
           </ul>
 
           <p v-else class="empty-message">
@@ -323,36 +355,11 @@ export default {
     },
 
     selectAll() {
-      this.$store.commit(
-        "view3D/select_geo_items",
-        this.filteredItemIDs
-      );
+      this.selectItems(this.filteredItemIDs);
     },
 
     invertSelection() {
-      const toSelect = [];
-      const toUnselect = [];
-
-      for (const id of this.filteredItemIDs) {
-        if (this.selectedGeoItemIDs.has(id))
-          toUnselect.push(id);
-        else
-          toSelect.push(id);
-      }
-
-      if (toUnselect.length) {
-        this.$store.commit(
-          "view3D/unselect_geo_items",
-          toUnselect
-        );
-      }
-
-      if (toSelect.length) {
-        this.$store.commit(
-          "view3D/select_geo_items",
-          toSelect
-        );
-      }
+      this.invertItemsSelection(this.filteredItemIDs);
     },
 
     hoverItem(ids) {
@@ -417,8 +424,70 @@ export default {
         "view3D/delete_facet_preset",
         name
       );
-    }
-  }
+    },
+
+    selectItems(ids) {
+      this.$store.commit(
+        "view3D/select_geo_items",
+        ids
+      );
+    },
+
+    invertItemsSelection(ids) {
+      const toSelect = [];
+      const toUnselect = [];
+
+      for (const id of ids) {
+        if (this.selectedGeoItemIDs.has(id))
+          toUnselect.push(id);
+        else
+          toSelect.push(id);
+      }
+
+      if (toUnselect.length) {
+        this.$store.commit(
+          "view3D/unselect_geo_items",
+          toUnselect
+        );
+      }
+
+      if (toSelect.length) {
+        this.$store.commit(
+          "view3D/select_geo_items",
+          toSelect
+        );
+      }
+    },
+
+    clearSelection() {
+      this.$store.commit(
+        "view3D/unselect_geo_items",
+        [...this.selectedGeoItemIDs]
+      );
+    },
+
+    clearItemsSelection(ids) {
+      this.$store.commit("view3D/unselect_geo_items", ids);
+    },
+
+    showSelected() {
+        if(this.selectedGeoItemIDs.size === 0)
+            return;
+        this.setVisibility({
+            ids: [...this.selectedGeoItemIDs],
+            visible: true
+        });
+    },
+
+    hideSelected() {
+        if(this.selectedGeoItemIDs.size === 0)
+            return;
+        this.setVisibility({
+            ids: [...this.selectedGeoItemIDs],
+            visible: false
+        });
+    },
+  }  // methods
 };
 </script>
 
@@ -500,5 +569,11 @@ export default {
   padding: 0.75rem;
   color: var(--clr-fg-main-muted);
   font-style: italic;
+}
+
+.group-action-button:disabled,
+.tree-actions button:disabled {
+    opacity: .35;
+    cursor: default;
 }
 </style>

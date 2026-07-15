@@ -1,6 +1,6 @@
 <template>
   <section class="preset-editor">
-    <div class="preset-row">
+    <div class="preset-header">
       <label for="facet-preset">
         View
       </label>
@@ -21,85 +21,133 @@
 
       <button
         type="button"
-        title="Update preset"
-        @click="$emit('update-preset')"
+        class="editor-toggle"
+        :title="editorExpanded
+          ? 'Hide view editor'
+          : 'Edit view preset'"
+        :aria-expanded="editorExpanded"
+        aria-controls="facet-preset-editor-body"
+        @click="editorExpanded = !editorExpanded"
       >
-        <span class="vi vi-update-saved" aria-hidden="true" />
-      </button>
-
-      <button
-        type="button"
-        title="Save as a new preset"
-        @click="saveAs"
-      >
-        <span class="vi vi-save" aria-hidden="true" />
-      </button>
-
-      <button
-        type="button"
-        title="Delete preset"
-        :disabled="presetNames.length <= 1"
-        @click="$emit('delete-preset', activePresetName)"
-      >
-        <span class="vi vi-trash-bin" aria-hidden="true" />
-      </button>
-    </div>
-
-    <div class="facet-zone-row">
-      <span class="zone-label">Group by</span>
-
-      <div
-        class="facet-zone"
-        @dragover.prevent
-        @drop="dropAtEnd('active')"
-      >
-        <button
-          v-for="(facet, index) in activeFacets"
-          :key="facet"
-          type="button"
-          class="facet-chip active"
-          draggable="true"
-          @dragstart="startDrag(facet, 'active', index, $event)"
-          @dragend="finishDrag"
-          @dragover.prevent
-          @drop.stop="dropBefore(index)"
-          @dblclick="deactivate(facet)"
-        >
-          <span class="vi vi-drag" aria-hidden="true" />
-          <span>{{ facet }}</span>
-          <span class="facet-level">{{ index + 1 }}</span>
-        </button>
-
         <span
-          v-if="activeFacets.length === 0"
-          class="zone-placeholder"
-        >
-          No grouping
-        </span>
-      </div>
+          class="vi"
+          :class="editorExpanded
+            ? 'vi-plus-framed'
+            : 'vi-minus-framed'"
+          aria-hidden="true"
+        />
+      </button>
     </div>
 
-    <div class="facet-zone-row">
-      <span class="zone-label">Available</span>
-
-      <div
-        class="facet-zone"
-        @dragover.prevent
-        @drop="dropAtEnd('inactive')"
-      >
+    <div
+      v-show="editorExpanded"
+      id="facet-preset-editor-body"
+      class="preset-editor-body"
+    >
+      <div class="preset-actions">
         <button
-          v-for="(facet, index) in inactiveFacets"
-          :key="facet"
           type="button"
-          class="facet-chip"
-          draggable="true"
-          @dragstart="startDrag(facet, 'inactive', index, $event)"
-          @dragend="finishDrag"
-          @dblclick="activate(facet)"
+          title="Update preset"
+          @click="$emit('update-preset')"
         >
-          <span class="vi vi-drag" aria-hidden="true" />
-          <span>{{ facet }}</span>
+          <span class="vi vi-update-saved" aria-hidden="true" />
+          <span class="action-label">Update</span>
         </button>
+
+        <button
+          type="button"
+          title="Save as a new preset"
+          @click="saveAs"
+        >
+          <span class="vi vi-save" aria-hidden="true" />
+          <span class="action-label">Save as</span>
+        </button>
+
+        <button
+          type="button"
+          title="Delete preset"
+          :disabled="presetNames.length <= 1"
+          @click="$emit('delete-preset', activePresetName)"
+        >
+          <span class="vi vi-trash-bin" aria-hidden="true" />
+          <span class="action-label">Delete</span>
+        </button>
+      </div>
+
+      <div class="facet-zone-row">
+        <span class="zone-label">
+          Group by
+        </span>
+
+        <div
+          class="facet-zone"
+          @dragover.prevent
+          @drop="dropAtEnd('active')"
+        >
+          <button
+            v-for="(facet, index) in activeFacets"
+            :key="facet"
+            type="button"
+            class="facet-chip active"
+            draggable="true"
+            :title="`Grouping level ${index + 1}`"
+            @dragstart="
+              startDrag(facet, 'active', index, $event)
+            "
+            @dragend="finishDrag"
+            @dragover.prevent
+            @drop.stop="dropBefore(index)"
+            @dblclick="deactivate(facet)"
+          >
+            <span class="vi vi-drag" aria-hidden="true" />
+            <span>{{ facet }}</span>
+            <span class="facet-level">
+              {{ index + 1 }}
+            </span>
+          </button>
+
+          <span
+            v-if="activeFacets.length === 0"
+            class="zone-placeholder"
+          >
+            No grouping
+          </span>
+        </div>
+      </div>
+
+      <div class="facet-zone-row">
+        <span class="zone-label">
+          Available
+        </span>
+
+        <div
+          class="facet-zone"
+          @dragover.prevent
+          @drop="dropAtEnd('inactive')"
+        >
+          <button
+            v-for="(facet, index) in inactiveFacets"
+            :key="facet"
+            type="button"
+            class="facet-chip"
+            draggable="true"
+            @dragstart="
+              startDrag(facet, 'inactive', index, $event)
+            "
+            @dragend="finishDrag"
+            @dblclick="activate(facet)"
+          >
+            <span class="vi vi-drag" aria-hidden="true" />
+            <span>{{ facet }}</span>
+          </button>
+
+          <span
+            v-if="inactiveFacets.length === 0"
+            class="zone-placeholder"
+          >
+            No additional facets
+          </span>
+        </div>
       </div>
     </div>
   </section>
@@ -141,6 +189,7 @@ export default {
 
   data() {
     return {
+      editorExpanded: false,
       dragged: null
     };
   },
@@ -174,7 +223,9 @@ export default {
     deactivate(facet) {
       this.$emit(
         "set-active-facets",
-        this.activeFacets.filter(name => name !== facet)
+        this.activeFacets.filter(
+          name => name !== facet
+        )
       );
     },
 
@@ -182,11 +233,10 @@ export default {
       if (!this.dragged)
         return;
 
-      if (zone === "inactive") {
+      if (zone === "inactive")
         this.deactivate(this.dragged.facet);
-      } else {
+      else
         this.moveToActive(this.activeFacets.length);
-      }
 
       this.finishDrag();
     },
@@ -201,7 +251,9 @@ export default {
 
     moveToActive(targetIndex) {
       const facet = this.dragged.facet;
-      const next = this.activeFacets.filter(name => name !== facet);
+      const next = this.activeFacets.filter(
+        name => name !== facet
+      );
 
       if (
         this.dragged.zone === "active" &&
@@ -236,24 +288,90 @@ export default {
 .preset-editor {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
 }
 
-.preset-row {
+.preset-header {
   display: grid;
   grid-template-columns:
     auto
     minmax(0, 1fr)
-    repeat(3, 1.8rem);
+    1.8rem;
 
   align-items: center;
+  gap: 0.3rem;
+}
+
+.preset-header label {
+  color: var(--clr-fg-main-muted);
+  font-size: 0.85rem;
+}
+
+.preset-header select {
+  min-width: 0;
+  width: 100%;
+}
+
+.editor-toggle {
+  display: inline-grid;
+  place-items: center;
+
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+
+  border: 1px solid var(--clr-border-inactive);
+  background: var(--clr-bg-options);
+  color: var(--clr-fg-options);
+  cursor: pointer;
+}
+
+.editor-toggle:hover {
+  background: var(--clr-bg-highlight2);
+  color: var(--clr-fg-highlight2);
+}
+
+.preset-editor-body {
+  display: grid;
+  gap: 0.35rem;
+
+  padding: 0.4rem;
+  border: 1px solid var(--clr-border-inactive);
+  background: var(--clr-bg-options);
+}
+
+.preset-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
-.preset-row button {
-  display: inline-grid;
-  place-items: center;
-  height: 1.8rem;
-  padding: 0;
+.preset-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  min-height: 1.8rem;
+  padding: 0.15rem 0.45rem;
+
+  border: 1px solid var(--clr-border-inactive);
+  background: var(--clr-bg-main);
+  color: var(--clr-fg-main);
+  cursor: pointer;
+}
+
+.preset-actions button:hover:not(:disabled) {
+  background: var(--clr-bg-highlight2);
+  color: var(--clr-fg-highlight2);
+}
+
+.preset-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.action-label {
+  font-size: 0.8rem;
 }
 
 .facet-zone-row {
@@ -278,7 +396,7 @@ export default {
   padding: 0.25rem;
 
   border: 1px solid var(--clr-border-inactive);
-  background: var(--clr-bg-options);
+  background: var(--clr-bg-main);
 }
 
 .facet-chip {
@@ -290,15 +408,14 @@ export default {
   padding: 0.12rem 0.35rem;
 
   border: 1px solid var(--clr-border-inactive);
-  background: var(--clr-bg-main);
-  color: var(--clr-fg-main);
+  background: var(--clr-bg-options);
+  color: var(--clr-fg-options);
 
   cursor: grab;
 }
 
 .facet-chip.active {
   grid-template-columns: auto auto auto;
-
   background: var(--clr-bg-highlight1);
   color: var(--clr-fg-highlight1);
 }
@@ -312,7 +429,9 @@ export default {
 }
 
 .zone-placeholder {
+  padding: 0.1rem 0.2rem;
   color: var(--clr-fg-main-muted);
+  font-size: 0.8rem;
   font-style: italic;
 }
 </style>

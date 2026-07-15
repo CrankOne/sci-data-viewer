@@ -6,7 +6,11 @@
     :aria-expanded="isExpanded"
   >
     <div class="group-row"
-        :class="{ highlighted: containsHighlightedItem }"
+        :class="{
+           highlighted: containsHighlightedItem,
+           selected: groupSelectionState === 'all',
+           'partially-selected': groupSelectionState === 'partial'
+         }"
         @mouseenter="hoverGroup"
         @mouseleave="$emit('unhover')">
       <button
@@ -31,8 +35,39 @@
       </span>
 
       <span class="group-count">
-        {{ descendantItemIDs.length }}
+        {{ selectedCount }}/{{ descendantItemIDs.length }}
       </span>
+
+      <button
+        type="button"
+        class="group-action-button"
+        title="Select all items in this group"
+        aria-label="Select all items in this group"
+        @click.stop="selectGroup"
+      >
+        <span class="vi vi-select-all" aria-hidden="true" />
+      </button>
+
+      <button
+        type="button"
+        class="group-action-button"
+        title="Invert selection in this group"
+        aria-label="Invert selection in this group"
+        @click.stop="invertGroupSelection"
+      >
+        <span class="vi vi-invert-selection" aria-hidden="true" />
+      </button>
+
+      <button
+        type="button"
+        class="group-action-button"
+        title="Clear selection in this group"
+        aria-label="Clear selection in this group"
+        :disabled="selectedCount === 0"
+        @click.stop="clearGroupSelection"
+      >
+        <span class="vi vi-clear-selection" aria-hidden="true" />
+      </button>
 
       <button
         type="button"
@@ -55,18 +90,21 @@
       role="group"
     >
       <ItemTreeNode
-        v-for="child in node.children"
-        :key="child.key"
-        :node="child"
-        :expanded-group-keys="expandedGroupKeys"
-        :selected-ids="selectedIds"
-        :highlighted-ids="highlightedIds"
-        :hidden-ids="hiddenIds"
-        @toggle-group="$emit('toggle-group', $event)"
-        @toggle-selection="$emit('toggle-selection', $event)"
-        @hover="$emit('hover', $event)"
-        @unhover="$emit('unhover')"
-        @set-visibility="$emit('set-visibility', $event)"
+          v-for="child in node.children"
+          :key="child.key"
+          :node="child"
+          :expanded-group-keys="expandedGroupKeys"
+          :selected-ids="selectedIds"
+          :highlighted-ids="highlightedIds"
+          :hidden-ids="hiddenIds"
+          @toggle-group="$emit('toggle-group', $event)"
+          @toggle-selection="$emit('toggle-selection', $event)"
+          @select-items="$emit('select-items', $event)"
+          @clear-selection="$emit('clear-selection', $event)"
+          @invert-selection="$emit('invert-selection', $event)"
+          @hover="$emit('hover', $event)"
+          @unhover="$emit('unhover')"
+          @set-visibility="$emit('set-visibility', $event)"
       />
     </ul>
   </li>
@@ -128,6 +166,9 @@ export default {
   emits: [
     "toggle-group",
     "toggle-selection",
+    "select-items",
+    "clear-selection",
+    "invert-selection",
     "hover",
     "unhover",
     "set-visibility"
@@ -190,6 +231,23 @@ export default {
         this.highlightedIds.has(id)
       );
     },
+
+    selectedCount() {
+      return this.descendantItemIDs.reduce(
+        (count, id) => count + (this.selectedIds.has(id) ? 1 : 0),
+        0
+      );
+    },
+
+    groupSelectionState() {
+      if (this.selectedCount === 0)
+        return "none";
+
+      if (this.selectedCount === this.descendantItemIDs.length)
+        return "all";
+
+      return "partial";
+    },
   },  // computed
 
   methods: {
@@ -202,6 +260,21 @@ export default {
     hoverGroup() {
       this.$emit(
         "hover",
+        this.descendantItemIDs
+      );
+    },
+
+    selectGroup() {
+      this.$emit("select-items", this.descendantItemIDs);
+    },
+
+    invertGroupSelection() {
+      this.$emit("invert-selection", this.descendantItemIDs);
+    },
+
+    clearGroupSelection() {
+      this.$emit(
+        "clear-selection",
         this.descendantItemIDs
       );
     },
@@ -228,10 +301,13 @@ export default {
     minmax(0, 1fr)
     auto
     auto
+    1.5rem
+    1.5rem
+    1.5rem
     1.75rem;
 
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.1rem;
 
   min-height: 1.8rem;
   padding: 0.08rem 0.25rem;
@@ -244,6 +320,7 @@ export default {
 }
 
 .group-toggle,
+.group-action-button,
 .visibility-button {
   display: inline-grid;
   place-items: center;
@@ -280,6 +357,28 @@ export default {
   text-align: right;
 }
 
+.group-row.highlighted {
+  background-color: var(--clr-bg-highlight2);
+  color: var(--clr-fg-highlight2);
+}
+
+.group-row.selected {
+  background-color: var(--clr-bg-highlight1);
+  color: var(--clr-fg-highlight1);
+}
+
+.group-row.partially-selected {
+  background-color:
+    color-mix(
+      in srgb,
+      var(--clr-bg-highlight1) 45%,
+      var(--clr-bg-options)
+    );
+
+  color: var(--clr-fg-options);
+}
+
+.group-row:hover,
 .group-row.highlighted {
   background-color: var(--clr-bg-highlight2);
   color: var(--clr-fg-highlight2);
