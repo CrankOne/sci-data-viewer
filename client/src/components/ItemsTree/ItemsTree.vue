@@ -1,312 +1,489 @@
 <template>
   <NavBarEntity>
-    <template #header>Items</template>
+    <template #header>
+      Items
+    </template>
+
     <template #content>
-      <div class="tree-toolbar">
-
-        <input
-          type="search"
-          v-model="query"
-          placeholder="Filter..."
+      <div class="items-tree-widget">
+        <FacetPresetEditor
+          :preset-names="facetPresetNames"
+          :active-preset-name="activeFacetPresetName"
+          :active-facets="activeFacets"
+          :inactive-facets="inactiveFacets"
+          @activate-preset="activatePreset"
+          @set-active-facets="setActiveFacets"
+          @save-preset="savePreset"
+          @update-preset="updatePreset"
+          @delete-preset="deletePreset"
         />
 
-        <select v-model="groupBy" aria-label="Group by">
-          <option value="category">Category</option>
-          <option value="source">Data source</option>
-          <option value="prefix">Name prefix</option>
-          <option value="tgroup">Transf.group</option>
-        </select>
-      </div>
+        <div class="tree-toolbar">
+          <input
+            v-model="query"
+            type="search"
+            placeholder="Filter geometry..."
+          />
 
-      <ul class="items-tree" role="tree">
-        <ItemTreeNode
-          v-for="node in tree"
-          :key="node.key"
-          :node="node"
-          :force-open="queryIsActive"
-          :selected-ids="selectedGeoItemIDs"
-          :highlighted-ids="highlightedGeoItemIDs"
-          @toggle-selection="toggle_item_selection"
-          @hover="hover_item"
-          @unhover="unhover_item"
-          @toggle-visibility="toggle_item_visibility"
-        />
-      </ul>
-      <p v-if="tree.length === 0" class="empty-message">
-        No matching items.
-      </p>
+          <div class="tree-actions">
+            <button
+              type="button"
+              title="Collapse all groups"
+              @click="collapseAll"
+            >
+              <span class="vi vi-minus-framed" aria-hidden="true" />
+            </button>
 
-      <div class="tree-actions">
-        <button
-          type="button"
-          title="Collapse all"
-          @click="collapseAll"
-        >
-          🗀
-        </button>
+            <button
+              type="button"
+              title="Expand all groups"
+              @click="expandAll"
+            >
+              <span class="vi vi-plus-framed" aria-hidden="true" />
+            </button>
 
-        <button
-          type="button"
-          title="Expand all"
-          @click="expandAll"
-        >
-          🗁
-        </button>
+            <span class="toolbar-separator" />
 
-        <span class="tree-actions-separator" />
+            <button
+              type="button"
+              title="Select all filtered items"
+              @click="selectAll"
+            >
+              <span class="vi vi-select-all" aria-hidden="true" />
+            </button>
 
-        <button
-          type="button"
-          title="Select all (filtered) items"
-          @click="selectAll"
-        >
-          <span class="vi vi-select-all" aria-hidden="true" />
-        </button>
+            <button
+              type="button"
+              title="Invert selection of filtered items"
+              @click="invertSelection"
+            >
+              <span class="vi vi-invert-selection" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          title="Invert selection of (filtered) items"
-          @click="invertSelection"
-        >
-          <span class="vi vi-invert-selection" aria-hidden="true" />
-        </button>
+        <div class="tree-scroll-area">
+          <ul
+            v-if="tree.length"
+            class="items-tree"
+            role="tree"
+          >
+            <ItemTreeNode
+              v-for="node in tree"
+              :key="node.key"
+              :node="node"
+              :expanded-group-keys="effectiveExpandedGroupKeys"
+              :selected-ids="selectedGeoItemIDs"
+              :highlighted-ids="highlightedGeoItemIDs"
+              :hidden-ids="hiddenGeoItemIDs"
+              @toggle-group="toggleGroup"
+              @toggle-selection="toggleItemSelection"
+              @hover="hoverItem"
+              @unhover="unhoverItem"
+              @set-visibility="setVisibility"
+            />
+          </ul>
+
+          <p v-else class="empty-message">
+            No matching items
+          </p>
+        </div>
       </div>
     </template>
   </NavBarEntity>
 </template>
 
 <script>
-import {mapState} from 'vuex'
-import NavBarEntity from '@/components/NavBarEntity.vue'
+import NavBarEntity from "../NavBarEntity.vue";
+import FacetPresetEditor from "./FacetPresetEditor.vue";
 import ItemTreeNode from "./ItemTreeNode.vue";
-//import Treeselect from "@zanmato/vue3-treeselect";
-//import "@zanmato/vue3-treeselect/dist/vue3-treeselect.min.css";
 
-/*                                                           _________________
- * ________________________________________________________/ Utility functions
- */
-
-function make_group(label, key) {
-  return {
-    kind: "group",
-    key,
-    label,
-    children: []
-  };
-}
-
-function extract_name_prefix(name) {
-  /*
-   * GM01       -> GM
-   * GEM12      -> GEM
-   * MB01ub     -> MB
-   * ECAL       -> ECAL
-   * gm01-hits  -> gm
-   *
-   * Adjust this rule if detector names follow a stricter grammar.
-   */
-  return name.match(/^[^\d_-]+/)?.[0] || name;
-}
-
-function grouping_path(item, groupBy) {
-  switch (groupBy) {
-    case "category":
-      return item.category.length
-        ? item.category
-        : ["Uncategorized"];
-
-    case "source":
-      return [item.source || "Unknown source"];
-
-    case "prefix":
-      return [extract_name_prefix(item.label)];
-
-    default:
-      return ["Items"];
-  }
-}
-
-function insert_into_tree(roots, groupMap, item, path, groupBy) {
-  let children = roots;
-  let parentKey = groupBy;
-
-  for (const part of path) {
-    parentKey = `${parentKey}/${part}`;
-
-    let group = groupMap.get(parentKey);
-
-    if (!group) {
-      group = make_group(part, `group/${parentKey}`);
-      groupMap.set(parentKey, group);
-      children.push(group);
-    }
-
-    children = group.children;
-  }
-
-  children.push({
-    kind: "item",
-    key: `item/${item.id}`,
-    item
-  });
-}
-
-function sort_tree(nodes) {
-  nodes.sort((a, b) => {
-    if (a.kind !== b.kind)
-      return a.kind === "group" ? -1 : 1;
-
-    const aLabel = a.kind === "group" ? a.label : a.item.label;
-    const bLabel = b.kind === "group" ? b.label : b.item.label;
-
-    return aLabel.localeCompare(bLabel, undefined, {
-      numeric: true,
-      sensitivity: "base"
-    });
-  });
-
-  for (const node of nodes) {
-    if (node.kind === "group")
-      sort_tree(node.children);
-  }
-
-  return nodes;
-}
-
-
-/*                                                                   _________
- * ________________________________________________________________/ Component
- */
+import {
+  buildFacetTree,
+  collectGroupKeys,
+  collectHighlightedGroupKeys,
+} from "./tree.js";
 
 export default {
-  name: 'ItemsTree',
+  name: "ItemsTree",
 
-  components: {NavBarEntity, ItemTreeNode},
+  components: {
+    NavBarEntity,
+    FacetPresetEditor,
+    ItemTreeNode
+  },
 
   data() {
     return {
       query: "",
-      groupBy: "category",
+      expandedGroupKeys: new Set()
     };
   },
 
   computed: {
-    // shortcuts, returns corresponding objects from store
     geoData() {
-        return this.$store.getters['view3D/geoData'];
+      return this.$store.getters["view3D/geoData"];
     },
+
     selectedGeoItemIDs() {
-        return this.$store.getters['view3D/selectedGeoItemIDs'];
+      return this.$store.getters[
+        "view3D/selectedGeoItemIDs"
+      ];
     },
+
     highlightedGeoItemIDs() {
-        return this.$store.getters['view3D/highlightedGeoItemIDs'];
+      return this.$store.getters[
+        "view3D/highlightedGeoItemIDs"
+      ];
     },
-    queryIsActive() {
-      return this.query.trim().length !== 0;
+
+    hiddenGeoItemIDs() {
+      return this.$store.getters[
+        "view3D/hiddenGeoItemIDs"
+      ];
     },
-    // available items with their id, label and category
-    availableItems() {
-      return Object.entries(this.geoData).flatMap(([sourceID, source]) =>
-        source.geometry.map(geometry => ({
-          id: `${geometry._name}@${sourceID}`,
-          label: geometry._name,
-          source: sourceID,
-          category: geometry._category ?? [],
-          tags: geometry._tags ?? [],
-          // These fields may initially be absent. Kept them for future use
-          geometryType: geometry._type ?? null,
-          visible: geometry._visible ?? true
-        }))
+
+    facetPresets() {
+      return this.$store.getters[
+        "view3D/facetPresets"
+      ];
+    },
+
+    facetPresetNames() {
+      return Object.keys(this.facetPresets).sort(
+        (lhs, rhs) => lhs.localeCompare(rhs)
       );
     },
 
-    // when query is empty, returns full list of available items, otherwise
-    // applies query to filter only the selected ones
+    activeFacetPresetName() {
+      return this.$store.getters[
+        "view3D/activeFacetPresetName"
+      ];
+    },
+
+    activeFacets() {
+      return this.$store.getters[
+        "view3D/activeFacetPreset"
+      ]?.facets ?? [];
+    },
+
+    availableItems() {
+      return Object.entries(this.geoData).flatMap(
+        ([sourceID, source]) =>
+          (source.geometry ?? []).map(geometry => ({
+            id: `${geometry._name}@${sourceID}`,
+            label: geometry._name,
+            source: sourceID,
+            facets: geometry._facets ??
+                    geometry._classifiers ??
+                    {},
+            geometryType: geometry._type ?? "unknown"
+          }))
+      );
+    },
+
+    allFacetNames() {
+      return [
+        ...new Set(
+          this.availableItems.flatMap(item =>
+            Object.keys(item.facets)
+          )
+        )
+      ].sort();
+    },
+
+    inactiveFacets() {
+      const active = new Set(this.activeFacets);
+
+      return this.allFacetNames.filter(
+        facet => !active.has(facet)
+      );
+    },
+
     filteredItems() {
       const query = this.query.trim().toLowerCase();
 
       if (!query)
         return this.availableItems;
 
-      return this.availableItems.filter(item =>
-        item.label.toLowerCase().includes(query) ||
-        item.source.toLowerCase().includes(query) ||
-        item.category.some(part =>
-          part.toLowerCase().includes(query)
-        ) ||
-        item.tags.some(tag =>
-          tag.toLowerCase().includes(query)
-        )
-      );
+      return this.availableItems.filter(item => {
+        if (item.label.toLowerCase().includes(query))
+          return true;
+
+        if (item.source.toLowerCase().includes(query))
+          return true;
+
+        return Object.entries(item.facets).some(
+          ([name, value]) =>
+            name.toLowerCase().includes(query) ||
+            String(value).toLowerCase().includes(query)
+        );
+      });
+    },
+
+    filteredItemIDs() {
+      return this.filteredItems.map(item => item.id);
     },
 
     tree() {
-      const roots = [];
-      const groupMap = new Map();
+      return buildFacetTree(
+        this.filteredItems,
+        this.activeFacets
+      );
+    },
 
-      for (const item of this.filteredItems) {
-        insert_into_tree(
-          roots,
-          groupMap,
-          item,
-          grouping_path(item, this.groupBy),
-          this.groupBy
+    allGroupKeys() {
+      return collectGroupKeys(this.tree);
+    },
+
+    effectiveExpandedGroupKeys() {
+      const result = new Set(this.expandedGroupKeys);
+
+      // Temporarily reveal the complete path to every highlighted item.
+      for (const key of this.transientExpandedGroupKeys)
+        result.add(key);
+      // Search similarly expands all currently matching branches, without
+      // altering the persistent expansion state.
+      if (this.query.trim()) {
+        for (const key of this.allGroupKeys)
+          result.add(key);
+      }
+
+      return result;
+    },
+
+    transientExpandedGroupKeys() {
+      return collectHighlightedGroupKeys(
+        this.tree,
+        this.highlightedGeoItemIDs
+      );
+    },
+  },  // computed
+
+  watch: {
+    activeFacetPresetName() {
+      /*
+       * Group keys depend on the active hierarchy.
+       */
+      this.expandAll();
+    }
+  },
+
+  mounted() {
+    this.expandAll();
+  },
+
+  methods: {
+    toggleGroup(key) {
+      const next = new Set(this.expandedGroupKeys);
+
+      if (next.has(key))
+        next.delete(key);
+      else
+        next.add(key);
+
+      this.expandedGroupKeys = next;
+    },
+
+    expandAll() {
+      this.expandedGroupKeys =
+        new Set(this.allGroupKeys);
+    },
+
+    collapseAll() {
+      this.expandedGroupKeys = new Set();
+    },
+
+    toggleItemSelection(id) {
+      if (this.selectedGeoItemIDs.has(id)) {
+        this.$store.commit(
+          "view3D/unselect_geo_items",
+          [id]
+        );
+      } else {
+        this.$store.commit(
+          "view3D/select_geo_items",
+          [id]
+        );
+      }
+    },
+
+    selectAll() {
+      this.$store.commit(
+        "view3D/select_geo_items",
+        this.filteredItemIDs
+      );
+    },
+
+    invertSelection() {
+      const toSelect = [];
+      const toUnselect = [];
+
+      for (const id of this.filteredItemIDs) {
+        if (this.selectedGeoItemIDs.has(id))
+          toUnselect.push(id);
+        else
+          toSelect.push(id);
+      }
+
+      if (toUnselect.length) {
+        this.$store.commit(
+          "view3D/unselect_geo_items",
+          toUnselect
         );
       }
 
-      return sort_tree(roots);
+      if (toSelect.length) {
+        this.$store.commit(
+          "view3D/select_geo_items",
+          toSelect
+        );
+      }
+    },
+
+    hoverItem(ids) {
+      this.$store.commit(
+        "view3D/set_highlight_geo_items",
+        ids
+      );
+    },
+
+    unhoverItem() {
+      this.$store.commit(
+        "view3D/clear_geo_items_highlight"
+      );
+    },
+
+    setVisibility({ ids, visible }) {
+      this.$store.commit(
+        "view3D/set_geo_items_visibility",
+        {
+          ids,
+          visible
+        }
+      );
+    },
+
+    activatePreset(name) {
+      this.$store.commit(
+        "view3D/activate_facet_preset",
+        name
+      );
+    },
+
+    setActiveFacets(facets) {
+      this.$store.commit(
+        "view3D/set_active_facet_preset_facets",
+        facets
+      );
+    },
+
+    savePreset(name) {
+      this.$store.commit(
+        "view3D/save_facet_preset",
+        {
+          name,
+          facets: this.activeFacets
+        }
+      );
+    },
+
+    updatePreset() {
+      this.$store.commit(
+        "view3D/save_facet_preset",
+        {
+          name: this.activeFacetPresetName,
+          facets: this.activeFacets
+        }
+      );
+    },
+
+    deletePreset(name) {
+      this.$store.commit(
+        "view3D/delete_facet_preset",
+        name
+      );
     }
-  },  // computed
-  methods: {
-    toggle_item_selection(id) {
-      console.debug(`Toggle item selection for geo item with ID "${id}"`);
-      if(this.selectedGeoItemIDs.has(id))
-        this.$store.commit('view3D/unselect_geo_items', id);
-      else
-        this.$store.commit('view3D/select_geo_items', id);
-    },
-    hover_item(id) {
-        this.$store.commit('view3D/set_highlight_geo_items', id);
-    },
-    unhover_item(id) {
-        this.$store.commit('view3D/clear_geo_items_highlight');
-    },
-    toggleItemVisibility(id) {
-      /* This mutation is to be introduced later. Keeping visibility interaction
-       * separate from selection prevents clicks on the icon from selecting
-       * the row.
-       */
-      this.$store.commit("view3D/toggle_geo_item_visibility", id);
-    }
-  }  // methods
-}
+  }
+};
 </script>
 
 <style scoped>
+.items-tree-widget {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .tree-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.4rem;
 }
 
-.tree-toolbar input,
-.tree-toolbar select {
+.tree-toolbar input {
   min-width: 0;
+}
+
+.tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.tree-actions button {
+  display: inline-grid;
+  place-items: center;
+
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+
+  border: 1px solid var(--clr-border-inactive);
+  background: var(--clr-bg-options);
+  color: var(--clr-fg-options);
+  cursor: pointer;
+}
+
+.tree-actions button:hover {
+  background: var(--clr-bg-highlight2);
+  color: var(--clr-fg-highlight2);
+}
+
+.toolbar-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: 0 0.15rem;
+  background: var(--clr-border-inactive);
+}
+
+/*
+ * The tree occupies no more than 50 viewport-height units, but remains useful
+ * in short windows. Adjust these values to match the surrounding navigation
+ * panel.
+ */
+.tree-scroll-area {
+  min-height: 6rem;
+  max-height: min(50vh, 32rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  border: 1px solid var(--clr-border-inactive);
+  background: var(--clr-bg-options);
+
+  scrollbar-gutter: stable;
 }
 
 .items-tree {
   margin: 0;
   padding: 0.25rem 0;
   list-style: none;
-
-  background-color: var(--clr-bg-options);
-  color: var(--clr-fg-options);
-  border: 1px solid var(--clr-border-inactive);
 }
 
 .empty-message {
-  padding: 0.5rem;
+  margin: 0;
+  padding: 0.75rem;
   color: var(--clr-fg-main-muted);
   font-style: italic;
 }

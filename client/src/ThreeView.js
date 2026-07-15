@@ -687,6 +687,33 @@ class ThreeView {
 
 //                  * * *   * * *   * * *
 
+const gDefaultFacetPresets = {
+  "Source and transf.groups": {
+    facets: [
+      "source",
+      "transf.group",
+    ]
+  },
+  // ... other default grouping?
+};
+
+function normalizeIDs(ids) {
+  if (ids === undefined || ids === null)
+    return [];
+  return Array.isArray(ids) ? ids : [ids];
+}
+
+function clonePresets(presets) {
+  return Object.fromEntries(
+    Object.entries(presets).map(([name, preset]) => [
+      name,
+      {
+        facets: [...(preset.facets ?? [])]
+      }
+    ])
+  );
+}
+
 // Vuex state module
 const stateModule = {
     namespaced: true,
@@ -699,9 +726,13 @@ const stateModule = {
         axesScales: [1., 1., 1.],  // x, y, z
 
         highlightedGeoItemIDs: new Set(),  // highlighted item IDs
-        highlightedMarkers: new Map(), // goeID -> Set(point indeces)
+        highlightedMarkers: new Map(), // geoID -> Set(point indeces)
         selectedGeoItemIDs: new Set(),  // selected item IDs
-        selectedMarkers: new Map(), // goeID -> Set(point indeces)
+        selectedMarkers: new Map(), // geoID -> Set(point indeces)
+        hiddenGeoItemIDs: new Set(),  // ... TODO?
+
+        facetPresets: clonePresets(gDefaultFacetPresets),
+        activeFacetPresetName: "Source and transf.groups"
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -855,8 +886,124 @@ const stateModule = {
             state.selectedGeoItemIDs = new Set();
             state.selectedMarkers = new Map();
         },
-        // TODO: invert selection?
-    },
+
+        //
+        // Visibility
+
+        set_geo_items_visibility(
+          state,
+          {
+            ids,
+            visible
+          }
+        ) {
+          const next = new Set(state.hiddenGeoItemIDs);
+
+          for (const id of normalizeIDs(ids)) {
+            if (visible)
+              next.delete(id);
+            else
+              next.add(id);
+          }
+
+          state.hiddenGeoItemIDs = next;
+        },
+
+        //
+        // Facets
+
+        initialize_facet_presets(
+          state,
+          {
+            presets,
+            activePresetName
+          }
+        ) {
+          const normalized = clonePresets(
+            presets &&
+            Object.keys(presets).length
+              ? presets
+              : DEFAULT_FACET_PRESETS
+          );
+
+          state.facetPresets = normalized;
+
+          if (
+            activePresetName &&
+            Object.hasOwn(normalized, activePresetName)
+          ) {
+            state.activeFacetPresetName = activePresetName;
+          } else {
+            state.activeFacetPresetName =
+              Object.keys(normalized)[0];
+          }
+        },
+
+        activate_facet_preset(state, name) {
+          if (Object.hasOwn(state.facetPresets, name))
+            state.activeFacetPresetName = name;
+        },
+
+        set_active_facet_preset_facets(state, facets) {
+          const name = state.activeFacetPresetName;
+
+          if (!name)
+            return;
+
+          state.facetPresets = {
+            ...state.facetPresets,
+
+            [name]: {
+              facets: [...new Set(facets)]
+            }
+          };
+        },
+
+        save_facet_preset(
+          state,
+          {
+            name,
+            facets
+          }
+        ) {
+          const trimmedName = name.trim();
+
+          if (!trimmedName)
+            return;
+
+          state.facetPresets = {
+            ...state.facetPresets,
+
+            [trimmedName]: {
+              facets: [...new Set(facets)]
+            }
+          };
+
+          state.activeFacetPresetName = trimmedName;
+        },
+
+        delete_facet_preset(state, name) {
+          const names = Object.keys(state.facetPresets);
+
+          if (
+            names.length <= 1 ||
+            !Object.hasOwn(state.facetPresets, name)
+          ) {
+            return;
+          }
+
+          const next = {
+            ...state.facetPresets
+          };
+
+          delete next[name];
+
+          state.facetPresets = next;
+
+          if (state.activeFacetPresetName === name)
+            state.activeFacetPresetName = Object.keys(next)[0];
+        }
+    },  // mutations
     actions: {
         // ...
     },
@@ -871,6 +1018,17 @@ const stateModule = {
 
         selectedGeoItemIDs: state => state.selectedGeoItemIDs,
         selectedMarkers: state => state.selectedMarkers,
+
+        hiddenGeoItemIDs: state => state.hiddenGeoItemIDs,
+        facetPresets: state => state.facetPresets,
+
+        activeFacetPresetName: state => state.activeFacetPresetName,
+
+        activeFacetPreset: state =>
+            state.facetPresets[state.activeFacetPresetName] ??
+        {
+          facets: []
+        },
 
         // Returns current global transformation (for viewing objects)
         transformationMatrix( state ) {
@@ -898,6 +1056,8 @@ const stateModule = {
             c.add(maxs).divideScalar(2.);
             return [mins, maxs, c];
         },
+
+
 
         //highlightedMarkersList: state =>
         //    [...state.highlightedMarkers.entries()].map(([geoID, indices]) => ({

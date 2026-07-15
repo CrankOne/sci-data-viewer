@@ -6,13 +6,15 @@
       highlighted,
       hidden: !item.visible
     }"
-    @click="$emit('toggle-selection')"
-    @mouseenter="$emit('hover')"
+    role="treeitem"
+    @click="$emit('toggle-selection', item.id)"
+    @mouseenter="$emit('hover', item.id)"
     @mouseleave="$emit('unhover')"
   >
     <span
       class="vi"
-      :class="`vi-${geometryIcon}`"
+      :class="`vi-${geometryIconClass}`"
+      :title="item.geometryType || 'Geometry item'"
       aria-hidden="true"
     />
 
@@ -20,20 +22,26 @@
       {{ item.label }}
     </span>
 
-    <button
-      class="visibility-button"
-      type="button"
-      :title="item.visible ? 'Hide item' : 'Show item'"
-      :aria-label="item.visible ? 'Hide item' : 'Show item'"
-      @click.stop="$emit('toggle-visibility')"
-    >
-      <span v-if="item.visible" class="vi vi-eye" aria-hidden="true"></span>
-      <span v-else class="vi vi-eye-stroked" aria-hidden="true"></span>
-    </button>
-
     <span class="item-source">
       @{{ item.source }}
     </span>
+
+    <button
+      type="button"
+      class="visibility-button"
+      :title="item.visible ? 'Hide item' : 'Show item'"
+      :aria-label="item.visible ? 'Hide item' : 'Show item'"
+      @click.stop="$emit('set-visibility', {
+        ids: [item.id],
+        visible: !item.visible
+      })"
+    >
+      <span
+        class="vi"
+        :class="item.visible ? 'vi-eye' : 'vi-eye-stroked'"
+        aria-hidden="true"
+      />
+    </button>
   </div>
 </template>
 
@@ -62,11 +70,11 @@ export default {
     "toggle-selection",
     "hover",
     "unhover",
-    "toggle-visibility"
+    "set-visibility"
   ],
 
   computed: {
-    geometryIcon() {
+    geometryIconClass() {
       switch (this.item.geometryType) {
         case "Mesh":
           return "mesh";
@@ -98,17 +106,18 @@ export default {
 .item-row {
   display: grid;
   grid-template-columns:
-    1.1rem
+    1.25rem
     minmax(0, 1fr)
-    1.4rem
-    auto;
+    auto
+    1.75rem;
 
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.3rem;
 
-  min-height: 1.7rem;
+  min-height: 1.8rem;
+  padding: 0.08rem 0.25rem 0.08rem 0.4rem;
+
   cursor: pointer;
-  padding: 0 5pt;
 }
 
 .item-row:hover,
@@ -127,16 +136,8 @@ export default {
 }
 
 .geometry-icon {
+  width: 1.25rem;
   text-align: center;
-}
-
-.visibility-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  margin: 0;
 }
 
 .item-label {
@@ -148,7 +149,25 @@ export default {
 
 .item-source {
   color: var(--clr-fg-main-muted);
-  font-size: 0.85em;
+  font-size: 0.8em;
   white-space: nowrap;
+}
+
+.visibility-button {
+  display: inline-grid;
+  place-items: center;
+
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.visibility-button:hover {
+  background: rgb(127 127 127 / 15%);
 }
 </style>

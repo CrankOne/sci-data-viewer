@@ -6,6 +6,9 @@ import App from './App.vue'
 import { stateModule as view3D } from './ThreeView'  // viewer state module
 import { stateModule as connection } from './connection'  // data source state module
 import create_router from './router';
+import {
+  installFacetPresetPersistence
+} from "@/store/facetPresetPersistence.js";
 
 async function fetch_plugin_manifest() {
     const response = await fetch("/api/plugins", {
@@ -61,6 +64,7 @@ async function main() {
     const store = createStore({
         modules : { connection, view3D, appCommon },
     });
+    installFacetPresetPersistence(store);
 
     app.use(store);  // BEFORE app.mount()!
     app.use(router);
