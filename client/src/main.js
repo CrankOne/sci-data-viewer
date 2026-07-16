@@ -1,7 +1,10 @@
 import { createApp } from 'vue'
 import { createStore } from 'vuex'
+
 import '@/style.css';
 import "@/viewer-icons.css";
+import "@/framed-disclosure.css";
+
 import App from './App.vue'
 import { stateModule as view3D } from './ThreeView'  // viewer state module
 import { stateModule as connection } from './connection'  // data source state module

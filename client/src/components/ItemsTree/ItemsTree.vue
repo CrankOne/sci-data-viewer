@@ -10,6 +10,7 @@
           :preset-names="facetPresetNames"
           :active-preset-name="activeFacetPresetName"
           :active-facets="activeFacets"
+          :saved-facets="savedActivePresetFacets"
           :inactive-facets="inactiveFacets"
           @activate-preset="activatePreset"
           @set-active-facets="setActiveFacets"
@@ -354,6 +355,12 @@ export default {
 
       return count;
     },
+
+    savedActivePresetFacets() {
+      return this.facetPresets[
+        this.activeFacetPresetName
+      ]?.facets ?? [];
+    },
   },  // computed
 
   watch: {
@@ -582,6 +589,7 @@ export default {
   display: grid;
   gap: 0.5rem;
   min-width: 0;
+  padding-top: 8pt;
 }
 
 .tree-toolbar {
