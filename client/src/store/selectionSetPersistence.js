@@ -33,8 +33,7 @@ function writeSelectionSets(state) {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        sets: state.selectionSets,
-        activeSetName: state.activeSelectionSetName
+        sets: state.selectionSets
       })
     );
   } catch (error) {

@@ -27,32 +27,10 @@
             {{ name }}
           </option>
         </select>
-
-        <span
-          v-if="hasUnsavedChanges"
-          class="unsaved-marker"
-          title="This view preset has unsaved changes"
-          aria-label="Unsaved changes"
-        >
-          •
-        </span>
       </div>
     </template>
 
     <template #actions>
-      <button
-        type="button"
-        class="header-action"
-        title="Save changes to the current preset (update)"
-        aria-label="Save changes to the current preset"
-        :disabled="!hasUnsavedChanges"
-        @click="$emit('update-preset')"
-      >
-        <span
-          class="vi vi-update-saved"
-          aria-hidden="true"
-        />
-      </button>
 
       <button
         type="button"
@@ -258,17 +236,6 @@ export default {
 
       dragTargetZone: null
     };
-  },
-
-  computed: {
-    hasUnsavedChanges() {
-      if (this.activeFacets.length !== this.savedFacets.length)
-        return true;
-
-      return this.activeFacets.some(
-        (facet, index) => facet !== this.savedFacets[index]
-      );
-    }
   },
 
   methods: {

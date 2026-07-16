@@ -17,13 +17,22 @@
         class="selection-set-select"
         :value="activeSetName ?? ''"
         :disabled="setNames.length === 0"
-        @change="$emit('activate-set', $event.target.value)"
+        :title="expanded
+            ? 'Choose a saved selection set'
+            : 'Choose and apply a saved selection set'"
+        @change="activateSelectedSet"
       >
         <option
           v-if="setNames.length === 0"
           value=""
         >
           No saved sets
+        </option>
+        <option
+          v-else
+          value=""
+        >
+          (no set)
         </option>
 
         <option
@@ -34,6 +43,13 @@
           {{ name }}
         </option>
       </select>
+      <span
+        v-if="hasUnsavedChanges"
+        class="unsaved-marker"
+        title="Current selection differs from the saved set"
+      >
+        •
+      </span>
     </template>
 
     <div class="selection-toolbar">
@@ -97,7 +113,7 @@
 
       <button
         type="button"
-        title="Saved set minus current selection"
+        title="Select from set that are not selected now"
         :disabled="!activeSetName"
         @click="apply('saved-minus-current')"
       >
@@ -129,13 +145,17 @@ export default {
     activeSetName: {
       type: String,
       default: null
+    },
+
+    hasUnsavedChanges: {
+      type: Boolean,
+      default: false
     }
   },
 
   emits: [
     "activate-set",
     "save-set",
-    "update-set",
     "delete-set",
     "apply-set"
   ],
@@ -148,15 +168,20 @@ export default {
 
   methods: {
     save() {
-      if (this.activeSetName) {
-        this.$emit("update-set");
+      const suggestedName =
+        this.activeSetName && this.hasUnsavedChanges
+          ? `${this.activeSetName} copy`
+          : "";
+
+      const name = window.prompt(
+        "Selection-set name:",
+        suggestedName
+      )?.trim();
+
+      if (!name)
         return;
-      }
 
-      const name = window.prompt("Selection-set name:");
-
-      if (name?.trim())
-        this.$emit("save-set", name.trim());
+      this.$emit("save-set", name);
     },
 
     apply(operation) {
@@ -164,8 +189,22 @@ export default {
         name: this.activeSetName,
         operation
       });
-    }
-  }
+    },
+
+    activateSelectedSet(event) {
+      const name = event.target.value || null;
+
+      this.$emit( "activate-set", name);
+      // In collapsed mode, choosing a saved set acts as the compact
+      // "replace current selection" operation.
+      if (!this.expanded && name) {
+        this.$emit("apply-set", {
+          name,
+          operation: "replace"
+        });
+      }
+    },
+  }  // methods
 };
 </script>
 

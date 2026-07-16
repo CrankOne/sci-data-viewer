@@ -10,7 +10,6 @@
           :preset-names="facetPresetNames"
           :active-preset-name="activeFacetPresetName"
           :active-facets="activeFacets"
-          :saved-facets="savedActivePresetFacets"
           :inactive-facets="inactiveFacets"
           @activate-preset="activatePreset"
           @set-active-facets="setActiveFacets"
@@ -24,9 +23,9 @@
           :active-set-name="activeSelectionSetName"
           :selected-item-count="selectedGeoItemIDs.size"
           :selected-marker-count="selectedMarkerCount"
+          :has-unsaved-changes="selectionHasUnsavedChanges"
           @activate-set="activateSelectionSet"
           @save-set="saveSelectionSet"
-          @update-set="updateSelectionSet"
           @delete-set="deleteSelectionSet"
           @apply-set="applySelectionSet"
         />
@@ -356,18 +355,28 @@ export default {
       return count;
     },
 
-    savedActivePresetFacets() {
-      return this.facetPresets[
-        this.activeFacetPresetName
-      ]?.facets ?? [];
+    activeSelectionSet() {
+      return this.$store.getters[
+        "view3D/activeSelectionSet"
+      ];
     },
+
+    selectionHasUnsavedChanges() {
+      if (!this.activeSelectionSetName)
+        return (
+          this.selectedGeoItemIDs.size !== 0 ||
+          this.selectedMarkerCount !== 0
+        );
+
+      return !this.selectionEqualsSavedSet(
+        this.activeSelectionSet
+      );
+    }
   },  // computed
 
   watch: {
     activeFacetPresetName() {
-      /*
-       * Group keys depend on the active hierarchy.
-       */
+      // Group keys depend on the active hierarchy.
       this.expandAll();
     }
   },
@@ -579,6 +588,52 @@ export default {
         "view3D/apply_selection_set",
         payload
       );
+    },
+
+    selectionEqualsSavedSet(saved) {
+      if (!saved)
+        return false;
+
+      const savedGeoIDs = new Set(saved.geoItemIDs ?? []);
+
+      if (savedGeoIDs.size !== this.selectedGeoItemIDs.size)
+        return false;
+
+      for (const id of this.selectedGeoItemIDs) {
+        if (!savedGeoIDs.has(id))
+          return false;
+      }
+
+      const savedMarkers = saved.markers ?? {};
+
+      const currentMarkerGeoIDs = [
+        ...this.selectedMarkers.entries()
+      ]
+        .filter(([, indices]) => indices.size !== 0)
+        .map(([geoID]) => geoID);
+
+      const savedMarkerGeoIDs = Object.keys(savedMarkers)
+        .filter(geoID => savedMarkers[geoID].length !== 0);
+
+      if (currentMarkerGeoIDs.length !== savedMarkerGeoIDs.length)
+        return false;
+
+      for (const [geoID, indices] of this.selectedMarkers) {
+        if (indices.size === 0)
+          continue;
+
+        const savedIndices = new Set(savedMarkers[geoID] ?? []);
+
+        if (savedIndices.size !== indices.size)
+          return false;
+
+        for (const index of indices) {
+          if (!savedIndices.has(index))
+            return false;
+        }
+      }
+
+      return true;
     },
   }  // methods
 };

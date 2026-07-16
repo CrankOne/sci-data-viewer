@@ -980,13 +980,9 @@ const stateModule = {
 
         set_active_facet_preset_facets(state, facets) {
           const name = state.activeFacetPresetName;
-
-          if (!name)
-            return;
-
+          if(!name) return;
           state.facetPresets = {
             ...state.facetPresets,
-
             [name]: {
               facets: [...new Set(facets)]
             }
@@ -1051,10 +1047,14 @@ const stateModule = {
             activeSetName &&
             Object.hasOwn(state.selectionSets, activeSetName)
               ? activeSetName
-              : Object.keys(state.selectionSets)[0] ?? null;
+              : null;
         },
 
         activate_selection_set(state, name) {
+          if (name === null || name === "") {
+            state.activeSelectionSetName = null;
+            return;
+          }
           if (Object.hasOwn(state.selectionSets, name))
             state.activeSelectionSetName = name;
         },
@@ -1093,8 +1093,7 @@ const stateModule = {
           state.selectionSets = next;
 
           if (state.activeSelectionSetName === name) {
-            state.activeSelectionSetName =
-              Object.keys(next)[0] ?? null;
+            state.activeSelectionSetName = null;
           }
         },
 
