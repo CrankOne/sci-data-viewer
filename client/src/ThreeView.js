@@ -10,6 +10,13 @@ import { watch } from 'vue';
 import * as Utils from './utils';
 import * as HlOverlay from './hl-overlay';
 //import { getGPUTier } from "detect-gpu";
+import {
+      normalizeSelectionAsset,
+      serializeSelection,
+      unionSelections,
+      subtractSelections,
+      intersectSelections
+    } from "./store/selectionSets.js";
 
 //                  * * *   * * *   * * *
 
@@ -701,6 +708,8 @@ class ThreeView {
 }  // class ThreeView
 
 //                  * * *   * * *   * * *
+// Additional helpers (not state getters -- not computed or cached by
+// themselves)
 
 const gDefaultFacetPresets = {
   "Source and transf.groups": {
@@ -729,6 +738,29 @@ function clonePresets(presets) {
   );
 }
 
+function currentSelection(state) {
+  return {
+    geoItemIDs: state.selectedGeoItemIDs,
+    markers: state.selectedMarkers
+  };
+}
+
+function assignSelection(state, selection) {
+  state.selectedGeoItemIDs =
+    new Set(selection.geoItemIDs);
+
+  state.selectedMarkers =
+    new Map(
+      [...selection.markers].map(
+        ([geoID, indices]) => [
+          geoID,
+          new Set(indices)
+        ]
+      )
+    );
+}
+
+//                  * * *   * * *   * * *
 // Vuex state module
 const stateModule = {
     namespaced: true,
@@ -750,7 +782,10 @@ const stateModule = {
         hiddenGeoItemIDs: new Set(),  // ... TODO?
 
         facetPresets: clonePresets(gDefaultFacetPresets),
-        activeFacetPresetName: "Source and transf.groups"
+        activeFacetPresetName: "Source and transf.groups",
+
+        selectionSets: {},
+        activeSelectionSetName: null,
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -797,7 +832,7 @@ const stateModule = {
         },
 
         //
-        // Highlight
+        // Highlighting {{{
 
         set_tree_hover_geo_items(state, ids) {
           state.treeHoveredGeoItemIDs =
@@ -840,9 +875,10 @@ const stateModule = {
                 next.delete(geoID);
             state.highlightedMarkers = next;
         },
+        // }}}
 
         //
-        // Selection
+        // Selection (basic) {{{
 
         select_geo_items(state, ids) {
             const next = new Set(state.selectedGeoItemIDs);
@@ -885,9 +921,10 @@ const stateModule = {
             state.selectedGeoItemIDs = new Set();
             state.selectedMarkers = new Map();
         },
+        // }}}
 
         //
-        // Visibility
+        // Visibility {{{
 
         set_geo_items_visibility(
           state,
@@ -906,9 +943,10 @@ const stateModule = {
           }
           state.hiddenGeoItemIDs = next;
         },
+        // }}}
 
         //
-        // Facets
+        // Facets  {{{
 
         initialize_facet_presets(
           state,
@@ -998,7 +1036,99 @@ const stateModule = {
 
           if (state.activeFacetPresetName === name)
             state.activeFacetPresetName = Object.keys(next)[0];
+        },
+        // }}}
+    
+        //
+        // Selection sets {{{
+        initialize_selection_sets(state, {sets, activeSetName}) {
+          state.selectionSets =
+            sets && typeof sets === "object"
+              ? structuredClone(sets)
+              : {};
+
+          state.activeSelectionSetName =
+            activeSetName &&
+            Object.hasOwn(state.selectionSets, activeSetName)
+              ? activeSetName
+              : Object.keys(state.selectionSets)[0] ?? null;
+        },
+
+        activate_selection_set(state, name) {
+          if (Object.hasOwn(state.selectionSets, name))
+            state.activeSelectionSetName = name;
+        },
+
+        save_selection_set(state, name) {
+          const trimmedName = name.trim();
+          if (!trimmedName) return;
+          state.selectionSets = {
+            ...state.selectionSets,
+            [trimmedName]: serializeSelection(
+              currentSelection(state)
+            )
+          };
+          state.activeSelectionSetName = trimmedName;
+        },
+
+        update_active_selection_set(state) {
+          const name = state.activeSelectionSetName;
+          if (!name)
+            return;
+          state.selectionSets = {
+            ...state.selectionSets,
+            [name]: serializeSelection(
+              currentSelection(state)
+            )
+          };
+        },
+
+        delete_selection_set(state, name) {
+          if (!Object.hasOwn(state.selectionSets, name))
+            return;
+          const next = {
+            ...state.selectionSets
+          };
+          delete next[name];
+          state.selectionSets = next;
+
+          if (state.activeSelectionSetName === name) {
+            state.activeSelectionSetName =
+              Object.keys(next)[0] ?? null;
+          }
+        },
+
+        apply_selection_set(state, {name, operation}) {
+          const serialized = state.selectionSets[name];
+          if (!serialized) return;
+          const current = currentSelection(state);
+          const saved = normalizeSelectionAsset(serialized);
+          let result;
+          switch (operation) {
+            case "replace":
+              result = saved;
+              break;
+            case "union":
+              result = unionSelections(current, saved);
+              break;
+            case "subtract-saved":
+              result = subtractSelections(current, saved);
+              break;
+            case "intersection":
+              result = intersectSelections(current, saved);
+              break;
+            case "saved-minus-current":
+              result = subtractSelections(saved, current);
+              break;
+            default:
+              console.warn(
+                `Unknown selection-set operation "${operation}"`
+              );
+              return;
+          }
+          assignSelection(state, result);
         }
+        // }}}
     },  // mutations
     actions: {
         // ...
@@ -1062,14 +1192,25 @@ const stateModule = {
             return [mins, maxs, c];
         },
 
-
-
         //highlightedMarkersList: state =>
         //    [...state.highlightedMarkers.entries()].map(([geoID, indices]) => ({
         //        geoID,
         //        indices: [...indices],
         //        })),
-    }
+
+        //
+        // Selection sets
+        selectionSets: state => state.selectionSets,
+        activeSelectionSetName: state => state.activeSelectionSetName,
+
+        activeSelectionSet: state => {
+          const name = state.activeSelectionSetName;
+          return name
+            ? state.selectionSets[name] ?? null
+            : null;
+        }
+
+    }  // getters
 }  // stateModel
 
 export { ThreeView, stateModule };

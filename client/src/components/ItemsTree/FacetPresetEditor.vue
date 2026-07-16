@@ -32,8 +32,8 @@
         <span
           class="vi"
           :class="editorExpanded
-            ? 'vi-plus-framed'
-            : 'vi-minus-framed'"
+            ? 'vi-minus-framed'
+            : 'vi-plus-framed'"
           aria-hidden="true"
         />
       </button>

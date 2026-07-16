@@ -18,6 +18,18 @@
           @delete-preset="deletePreset"
         />
 
+        <SelectionSetEditor
+          :set-names="selectionSetNames"
+          :active-set-name="activeSelectionSetName"
+          :selected-item-count="selectedGeoItemIDs.size"
+          :selected-marker-count="selectedMarkerCount"
+          @activate-set="activateSelectionSet"
+          @save-set="saveSelectionSet"
+          @update-set="updateSelectionSet"
+          @delete-set="deleteSelectionSet"
+          @apply-set="applySelectionSet"
+        />
+
         <div class="tree-toolbar">
           <input
             v-model="query"
@@ -129,6 +141,7 @@
 import NavBarEntity from "../NavBarEntity.vue";
 import FacetPresetEditor from "./FacetPresetEditor.vue";
 import ItemTreeNode from "./ItemTreeNode.vue";
+import SelectionSetEditor from "./SelectionSetEditor.vue";
 
 import {
   buildFacetTree,
@@ -142,6 +155,7 @@ export default {
   components: {
     NavBarEntity,
     FacetPresetEditor,
+    SelectionSetEditor,
     ItemTreeNode
   },
 
@@ -303,6 +317,42 @@ export default {
         this.tree,
         this.sceneHoveredGeoItemIDs
       );
+    },
+
+    //
+    // Selection sets
+
+    selectionSets() {
+      return this.$store.getters[
+        "view3D/selectionSets"
+      ];
+    },
+
+    selectionSetNames() {
+      return Object.keys(this.selectionSets).sort(
+        (lhs, rhs) => lhs.localeCompare(rhs)
+      );
+    },
+
+    activeSelectionSetName() {
+      return this.$store.getters[
+        "view3D/activeSelectionSetName"
+      ];
+    },
+
+    selectedMarkers() {
+      return this.$store.getters[
+        "view3D/selectedMarkers"
+      ];
+    },
+
+    selectedMarkerCount() {
+      let count = 0;
+
+      for (const indices of this.selectedMarkers.values())
+        count += indices.size;
+
+      return count;
     },
   },  // computed
 
@@ -486,6 +536,42 @@ export default {
             ids: [...this.selectedGeoItemIDs],
             visible: false
         });
+    },
+
+    //
+    // Selection sets
+    activateSelectionSet(name) {
+      this.$store.commit(
+        "view3D/activate_selection_set",
+        name
+      );
+    },
+
+    saveSelectionSet(name) {
+      this.$store.commit(
+        "view3D/save_selection_set",
+        name
+      );
+    },
+
+    updateSelectionSet() {
+      this.$store.commit(
+        "view3D/update_active_selection_set"
+      );
+    },
+
+    deleteSelectionSet(name) {
+      this.$store.commit(
+        "view3D/delete_selection_set",
+        name
+      );
+    },
+
+    applySelectionSet(payload) {
+      this.$store.commit(
+        "view3D/apply_selection_set",
+        payload
+      );
     },
   }  // methods
 };
