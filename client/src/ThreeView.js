@@ -120,7 +120,6 @@ class ThreeView {
         return [cam, controls];
     }  // }}}
     _create_lights() {  // {{{
-        // TODO: themed?
         const mainLight = new THREE.DirectionalLight(0xffffff, 5);
         mainLight.position.set(10, 10, 10);
 
@@ -260,23 +259,42 @@ class ThreeView {
         watch( [ () => this._vuexStore.getters['view3D/geoData']
                , () => this._vuexStore.getters['view3D/transformationMatrix']
                ]
-            , this.update_drawables.bind(this) );  // end of watcher
+            , this.update_drawables.bind(this) );
 
         // Highlighted items updater
         watch( () => this._vuexStore.getters['view3D/highlightedGeoItemIDs']
-            , (hlItems, hlItemsOld) => this.update_highlighted_graphics(hlItems, hlItemsOld)
+            , (hlItems, hlItemsOld) => {
+                    this.update_highlighted_graphics(hlItems, hlItemsOld);
+                    this._render();
+                }
             );
         // Selected items updater
         watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
-            , (hlItems, hlItemsOld) => this.update_selected_graphics(hlItems, hlItemsOld)
+            , (hlItems, hlItemsOld) => {
+                    this.update_selected_graphics(hlItems, hlItemsOld);
+                    this._render();
+                }
             );
         // Highlighted markers
         watch( () => this._vuexStore.getters['view3D/highlightedMarkers']
-            , (hlMarkers) => this.update_highlighted_markers(hlMarkers)
+            , (hlMarkers) => {
+                    this.update_highlighted_markers(hlMarkers);
+                    this._render();
+                }
             );
         // Visibility
         watch( () => this._vuexStore.getters['view3D/hiddenGeoItemIDs']
-            , (itemIDs) => this.toggle_hidden_items(itemIDs)
+            , () => {
+                    this.sync_hidden_items();
+                    this._render();
+                }
+            );
+        
+        watch( () => this._vuexStore.getters['view3D/highlightHiddenSelection']
+            , () => {
+                    this.sync_hidden_items_highlight();
+                    this._render();
+                }
             );
     }  // _bind_watchers() }}}
     // Called on camera switch; see explaination for _prevCam in ctr
@@ -375,7 +393,11 @@ class ThreeView {
         // update picking ray with camera and pointer position
         this._raycaster.setFromCamera(this._pointer, this.get_cam());
         // get the intersecting objects
-        const intersects = this._raycaster.intersectObjects( this._scene.children, true );
+        let intersects = this._raycaster.intersectObjects( this._scene.children, true );
+        console.debug(this._vuexStore.state.view3D.highlightHiddenSelection);  // XXX
+        if(!this._vuexStore.state.view3D.highlightHiddenSelection) {
+            intersects = intersects.filter(item => item.object.userData?.handles?.base.visible);
+        }
         const items2highlight = intersects.filter(item => item.object.userData?.pickable );
         const markers2highlight = intersects.filter(item => (item.object.userData?.pickable
                     && item.object.userData?.isPointCloud));
@@ -666,28 +688,47 @@ class ThreeView {
         // Get items to un-highlight
         removed.forEach((itemID) => {
                 const item = this.get_geometry_item(itemID);
-                if(!item) return;
-                if(!item.threeJSGeo) return;
-                if(!item.threeJSGeo.isGroup) return;
-                // disabele visibility for selected handle,
-                item.threeJSGeo.userData.handles.selected.visible = false;
+                if(!(item.threeJSGeo.userData?.handles?.base)) return;  // omit ones without base handle
                 // enable visibility for base handle unless item is in the
                 // selection -- in this case enable selected
-                //item.threeJSGeo.userData.handles.base.visible = true;
+                item.threeJSGeo.userData.handles.selected.visible = false;
             });
         // Items to highlight
         added.forEach((itemID) => {
                 const item = this.get_geometry_item(itemID);
-                if(!item) return;
-                if(!item.threeJSGeo) return;
-                if(!item.threeJSGeo.isGroup) return;
                 // enable visibility for highlighted handle, disable for others
-                //item.threeJSGeo.userData.handles.highlight.visible = true; 
                 item.threeJSGeo.userData.handles.selected.visible = true;
-                //item.threeJSGeo.userData.handles.base.visible = false;
             });
-        this._render();
+        // Override hidden (invisible) items, unless "highlight invisible" is
+        // enabled
+        this.sync_hidden_items_highlight();
     }  // }}}
+
+    sync_hidden_items_highlight() {  // {{{
+        const hiddenAreVisible = this._vuexStore.state.view3D.highlightHiddenSelection;
+        // iterate over all threeJS geometry instances that have
+        // userData.handles.base
+        this.for_each_geometry_entry((srcID, geoID, item) => {
+            if(item.threeJSGeo.userData.handles.selected) {
+                const fullGeoID = Utils.full_geo_id(srcID, geoID);
+                if(this._vuexStore.state.view3D.selectedGeoItemIDs.has(fullGeoID)) {
+                    if(this._vuexStore.state.view3D.hiddenGeoItemIDs.has(fullGeoID)) {
+                        item.threeJSGeo.userData.handles.selected.visible = hiddenAreVisible;
+                    }
+                }
+            }
+        });
+    }  // }}}
+
+    for_each_geometry_entry(func) {  /// {{{
+        if(!this._geometries) return;
+        Object.entries(this._geometries).forEach(([srcID, geometries]) => {
+            Object.entries(geometries).forEach(([geoID, item]) => {
+                func(srcID, geoID, item);
+            });
+        });
+    } // }}}
+
     get_geometry_item(itemID) {  // {{{
         const [srcID, geoItemID] = Utils.destruct_geo_id(itemID);
         if(!this._geometries.hasOwnProperty(srcID)) return;
@@ -695,15 +736,15 @@ class ThreeView {
         return this._geometries[srcID][geoItemID];
     }  // }}}
     
-    toggle_hidden_items(itemIDs) {  // {{{
-        Object.entries(this._geometries).forEach(([srcID, srcGeoData]) => {
-            Object.entries(srcGeoData).forEach(([itemID, geoData]) => {
-                if(itemIDs.has(Utils.full_geo_id(srcID, itemID)))
-                    geoData.threeJSGeo.userData.handles.base.visible = false;
-                else
-                    geoData.threeJSGeo.userData.handles.base.visible = true;
-            })
+    sync_hidden_items() {  // {{{
+        this.for_each_geometry_entry((srcID, geoID, item) => {
+            const itemID = Utils.full_geo_id(srcID, geoID);
+            if(this._vuexStore.state.view3D.hiddenGeoItemIDs.has(itemID))
+                item.threeJSGeo.userData.handles.base.visible = false;
+            else
+                item.threeJSGeo.userData.handles.base.visible = true;
         });
+        this.sync_hidden_items_highlight();
     }  // }}}
 }  // class ThreeView
 
@@ -766,6 +807,18 @@ const stateModule = {
     namespaced: true,
     state: () => ({
         geoDataBySource: {},
+
+        // Behavior controls
+        highlightHiddenSelection: true,
+        // "Broad" distance for raycasting in perspective camera for hover
+        // detection, natural units. Items with larger distance will not be
+        // consider on hover, even if within onMouseHoverRaycastSizePx.
+        // Setting this value to large values will cause performance issues.
+        onMouseHoverRaycastDist: 10,
+        // Max radius for on-mouse hover in pixels. Considered after initial
+        // hover is gathered with `onMouseHoverRaycastDist'.
+        onMouseHoverRaycastSizePx: 1,
+
         // Axis-aligned bounding box for objects of interest
         regionOfInterest: [[null, null, null], [null, null, null]],
         // Global axis scales to be applied for geometrical entities as
@@ -801,6 +854,18 @@ const stateModule = {
                     [pl.name]: pl.geoData
                 };
             console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);  // suceeds
+        },
+
+        toggle_highlight_hidden(state, value) {
+            state.highlightHiddenSelection = value;
+        },
+
+        set_on_hover_broadening(state, value) {
+            state.onMouseHoverRaycastDist = value;
+        },
+
+        set_on_hover_highlight_size_px(state, value) {
+            state.onMouseHoverRaycastSizePx = value;
         },
 
         // Updates region of interest with given point r:float[3]
@@ -933,7 +998,6 @@ const stateModule = {
             visible
           }
         ) {
-            console.debug(ids);  // XXX
           const next = new Set(state.hiddenGeoItemIDs);
           for (const id of normalizeIDs(ids)) {
             if (visible)
@@ -1137,6 +1201,8 @@ const stateModule = {
         geoData: state => Object.fromEntries(
                 Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
             ),
+
+        highlightHiddenSelection: state => state.highlightHiddenSelection,
 
         treeHoveredGeoItemIDs: state => state.treeHoveredGeoItemIDs,
 
