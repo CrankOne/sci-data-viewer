@@ -16,7 +16,8 @@ const DEFAULT_PERSPECTIVE_CAMERA = Object.freeze({
     fov: 65,
 
     picking: {
-        maxDistance: 1000
+        maxDistance: 1000,
+        radiusPx: 6
     }
 });
 
@@ -68,7 +69,10 @@ function copy_persp_cam(camera) {
         fov: Number(camera.fov),
         picking: {
             maxDistance: Number(
-                camera.picking?.maxDistance
+                camera.picking?.maxDistance ?? DEFAULT_PERSPECTIVE_CAMERA.picking.maxDistance
+            ),
+            radiusPx: Number(
+                camera.picking?.radiusPx ?? DEFAULT_PERSPECTIVE_CAMERA.picking.radiusPx
             )
         }
     };
@@ -95,7 +99,7 @@ function copy_ortho_cam(camera) {
         zoom: Number(camera.zoom ?? 1),
         picking: {
             radiusPx: Number(
-                camera.picking?.radiusPx
+                camera.picking?.radiusPx ?? DEFAULT_ORTHOGRAPHIC_CAMERA.picking.radiusPx
             )
         }
     };

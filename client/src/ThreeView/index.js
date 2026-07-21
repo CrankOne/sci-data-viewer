@@ -164,12 +164,37 @@ class ThreeView {
     }  // }}}
     // Raycasting pointer
     update_pointer(event) {  // {{{
-        this._pointer.x = ( event.clientX / this._container.clientWidth ) * 2 - 1;
-	    this._pointer.y = - ( event.clientY / this._container.clientHeight ) * 2 + 1;
+        // NOTE: `event' is (deliberately) a stripped-down {clientX, clientY}
+        // -- viewport-relative coordinates from the raw DOM event -- not
+        // relative to the container, which sits inside a splitpane layout.
+        const rect = this._container.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        this._pointer.x = ( x / rect.width ) * 2 - 1;
+        this._pointer.y = - ( y / rect.height ) * 2 + 1;
+
+        const camera = this.get_cam();
+        const settings = this._cameraManager.cameraSettings;
+        this._configure_picking_threshold(camera, settings, rect.height);
+
         // update picking ray with camera and pointer position
-        this._raycaster.setFromCamera(this._pointer, this.get_cam());
+        this._raycaster.setFromCamera(this._pointer, camera);
         // get the intersecting objects
         let intersects = this._raycaster.intersectObjects( this._scene.children, true );
+        // The raycaster's world-space threshold set above is exact for
+        // orthographic cameras, but only a conservative (over-inclusive
+        // near the camera) estimate for perspective ones -- see
+        // _configure_picking_threshold(). Re-check point/line hits against
+        // the actual on-screen pixel radius; mesh hits are exact regardless
+        // (the ray either intersects the surface or it doesn't).
+        const radiusPx = settings?.picking?.radiusPx ?? 0;
+        intersects = intersects.filter(item => {
+            if(!(item.object.isPoints || item.object.isLine)) return true;
+            const projected = item.point.clone().project(camera);
+            const hitX = (projected.x + 1) / 2 * rect.width;
+            const hitY = (1 - projected.y) / 2 * rect.height;
+            return Math.hypot(hitX - x, hitY - y) <= radiusPx;
+        });
         if(!this._vuexStore.state.view3D.highlightHiddenSelection) {
             intersects = intersects.filter(item => item.object.userData?.handles?.base.visible);
         }
@@ -205,6 +230,40 @@ class ThreeView {
         this._vuexStore.commit('view3D/clear_scene_hover_geo_items');
         this._vuexStore.commit('view3D/clear_highlighted_markers');
     }  // }}}
+
+    // Configures the raycaster's pick range/threshold from the active
+    // camera preset's `picking' settings (see PerspCamCtrls.vue /
+    // OrthoCamCtrls.vue). Only THREE.Points and THREE.Line objects consult
+    // `params.Points.threshold' / `params.Line.threshold' (world-space
+    // units); meshes are always picked by exact ray/surface intersection.
+    _configure_picking_threshold(camera, settings, viewportHeightPx) {  // {{{
+        const radiusPx = settings?.picking?.radiusPx ?? 0;
+        let threshold;
+        if(camera.isPerspectiveCamera) {
+            this._raycaster.far = settings?.picking?.maxDistance ?? Infinity;
+            // Pixel-to-world scale grows with distance from the camera
+            // (perspective foreshortening), so there is no single exact
+            // conversion. Evaluate it at the configured max pick distance --
+            // the farthest a candidate can be and still count -- as a
+            // conservative upper bound: nearer candidates, which need a
+            // smaller threshold, are never missed by this coarse pass.
+            // update_pointer() re-checks the actual on-screen distance per
+            // intersection afterwards to correct for the over-estimate.
+            const vFov = THREE.MathUtils.degToRad(camera.fov);
+            const worldHeight = 2 * this._raycaster.far * Math.tan(vFov / 2);
+            threshold = (radiusPx * worldHeight) / viewportHeightPx;
+        } else {
+            this._raycaster.far = Infinity;
+            // Orthographic projection has no foreshortening, so pixel-to-
+            // world scale is constant across the whole scene -- this is
+            // exact, not just a conservative estimate.
+            const worldHeight = (camera.top - camera.bottom) / camera.zoom;
+            threshold = (radiusPx * worldHeight) / viewportHeightPx;
+        }
+        this._raycaster.params.Points.threshold = threshold;
+        this._raycaster.params.Line.threshold = threshold;
+    }  // }}}
+
     // clear highlight on mouse leave
     get_cam() { return this._cameraManager.camera; }
 

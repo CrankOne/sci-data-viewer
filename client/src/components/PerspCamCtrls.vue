@@ -57,6 +57,21 @@
         "
       />
 
+      <NumericField
+        label="Pick radius, px"
+        :model-value="camera.picking.radiusPx"
+        :min="0"
+        :step="0.5"
+        @update:model-value="
+          patch({
+            picking: {
+              ...camera.picking,
+              radiusPx: $event
+            }
+          })
+        "
+      />
+
       <div class="readonly-value">
         <span>Aspect</span>
         <output>{{ formattedAspect }}</output>
