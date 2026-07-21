@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import _ from 'lodash';
 import * as Geometry from '../geometry';
 import * as Utils from '../utils';
@@ -288,6 +289,41 @@ class GeometryManager {
                 item.threeJSGeo.userData.handles.base.visible = true;
         });
         this.sync_hidden_items_highlight();
+    }  // }}}
+
+    // Expands `box' (a THREE.Box3) to enclose the base representation of
+    // each of the given full geo item IDs. Returns `box' for chaining.
+    expand_box_by_items(box, itemIDs) {  // {{{
+        for(const itemID of itemIDs) {
+            const item = this.get_geometry_item(itemID);
+            const base = item?.threeJSGeo?.userData?.handles?.base;
+            if(base) box.expandByObject(base);
+        }
+        return box;
+    }  // }}}
+
+    // Expands `box' to enclose the base representation of every item that
+    // isn't currently hidden. Returns `box' for chaining.
+    expand_box_by_visible_items(box) {  // {{{
+        const hiddenIDs = this._vuexStore.state.view3D.hiddenGeoItemIDs;
+        this.for_each_geometry_entry((srcID, geoID, item) => {
+            const itemID = Utils.full_geo_id(srcID, geoID);
+            if(hiddenIDs.has(itemID)) return;
+            const base = item.threeJSGeo?.userData?.handles?.base;
+            if(base) box.expandByObject(base);
+        });
+        return box;
+    }  // }}}
+
+    // Returns the world-space position of a single point-marker index
+    // within item `itemID', or null if it can't be resolved. Relies on the
+    // scene's world matrices being up to date (see ThreeView.frame_selected_or_visible).
+    get_marker_position(itemID, index) {  // {{{
+        const item = this.get_geometry_item(itemID);
+        const base = item?.threeJSGeo?.userData?.handles?.base;
+        const posAttr = base?.geometry?.getAttribute('position');
+        if(!posAttr || index >= posAttr.count) return null;
+        return base.localToWorld(new THREE.Vector3().fromBufferAttribute(posAttr, index));
     }  // }}}
 }
 

@@ -118,6 +118,7 @@ class CameraManager {
             this._camera.right = halfWidth;
             this._camera.top = halfHeight;
             this._camera.bottom = -halfHeight;
+            this._camera.zoom = settings.zoom ?? 1;
         }
         this._camera.near = settings.near;
         this._camera.far = settings.far;
@@ -191,6 +192,53 @@ class CameraManager {
             viewportID: this._viewportID,
             patch
         });
+    }
+
+    // Re-centers the camera on `target' (a THREE.Vector3), preserving the
+    // current view direction and distance. Used for degenerate selections
+    // (e.g. a single point marker) whose aabb has no meaningful size to
+    // frame -- there is nothing to adjust distance/zoom to.
+    center_on(target) {
+        if(!this._camera || !this._controls) return;
+        const offset = this._camera.position.clone().sub(this._controls.target);
+        this._controls.target.copy(target);
+        this._camera.position.copy(target).add(offset);
+        this._controls.update();
+        this._store_runtime_camera_state();
+    }
+
+    // Frames the camera on `box' (a THREE.Box3), preserving the current view
+    // direction but adjusting distance (perspective) or zoom (orthographic)
+    // so the box is fully visible. `margin' pads the box slightly so framed
+    // objects aren't flush against the viewport edges.
+    frame_box(box, margin = 1.15) {
+        if(!this._camera || !this._controls || box.isEmpty()) return;
+        const center = box.getCenter(new THREE.Vector3());
+        const radius = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1e-6) * margin;
+
+        const direction = this._camera.position.clone().sub(this._controls.target);
+        if(direction.lengthSq() < 1e-20) direction.set(0, 0, 1);
+        direction.normalize();
+
+        let distance;
+        if(this._camera.isPerspectiveCamera) {
+            const halfFov = THREE.MathUtils.degToRad(this._camera.fov) / 2;
+            distance = radius / (Math.tan(halfFov) * Math.min(1, this._camera.aspect));
+        } else {
+            // Apparent size in an orthographic view is governed by zoom, not
+            // distance -- so distance is kept as-is (it only matters for
+            // near/far clipping), and zoom is set to fit the box within the
+            // camera's (unzoomed) frustum extents.
+            const halfWidth = (this._camera.right - this._camera.left) / 2;
+            const halfHeight = (this._camera.top - this._camera.bottom) / 2;
+            this._camera.zoom = Math.min(halfWidth, halfHeight) / radius;
+            distance = this._camera.position.distanceTo(this._controls.target) || 1;
+        }
+
+        this._controls.target.copy(center);
+        this._camera.position.copy(center).addScaledVector(direction, distance);
+        this._controls.update();
+        this._store_runtime_camera_state();
     }
 
     // Called after the renderer/viewport has been resized; the camera's

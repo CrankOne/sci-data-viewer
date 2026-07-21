@@ -30,7 +30,6 @@ class ThreeView {
         this._container.appendChild(this._renderer.domElement);
     }  // }}}
     _render(maskUpdate=true) {  // {{{
-        if(!this._cameraManager) return;
         this._renderer.setRenderTarget(null);
         this._renderer.render(this._scene, this.get_cam());
         if(maskUpdate && (this._hoverHL || this._selectHL)) {
@@ -121,10 +120,20 @@ class ThreeView {
         // TODO: add error handlers to this object; useful for debugging
         this._textureLoader = new THREE.TextureLoader();
 
+        // Managers below can synchronously trigger a render as a side effect
+        // of their own setup (e.g. CameraManager wiring up OrbitControls,
+        // whose `change' event fires as soon as the initial camera state is
+        // applied) -- well before construction finishes and every manager
+        // field is assigned. Gate the render callback itself so none of
+        // those early triggers reach `_render()' before this constructor
+        // performs the real first render, below.
+        let ready = false;
+        const render = () => { if(ready) this._render(); };
+
         this._cameraManager = new CameraManager({
                 viewportID, store,
                 renderer: this._renderer,
-                render: () => this._render()
+                render
             });
         this._materialManager = new MaterialManager({
                 textureLoader: this._textureLoader
@@ -133,7 +142,7 @@ class ThreeView {
                 scene: this._scene,
                 store,
                 materialManager: this._materialManager,
-                render: () => this._render()
+                render
             });
 
         this._bind_watchers();
@@ -150,6 +159,7 @@ class ThreeView {
                     , w, h, Utils.get_theme().selected
                     , null  // enables debug quad; possible options: 'mask', 'dilate'
                     );
+        ready = true;
         this._render();
     }  // }}}
     // Raycasting pointer
@@ -196,14 +206,44 @@ class ThreeView {
         this._vuexStore.commit('view3D/clear_highlighted_markers');
     }  // }}}
     // clear highlight on mouse leave
-    get_cam() { return this._cameraManager?.camera; }
+    get_cam() { return this._cameraManager.camera; }
 
-    // Frames the camera on the current selection, or on all visible objects
-    // if nothing is selected.
-    // TODO: implement (compute a bounding box via GeometryManager and adjust
-    // the camera/controls target and distance to fit it).
+    // Frames the camera on the current selection (selected items and/or
+    // selected point markers), or on all visible objects if nothing is
+    // selected. A lone selected point marker is a special case: its aabb has
+    // no meaningful size, so the camera is re-centered on it without
+    // touching distance/zoom.
     frame_selected_or_visible() {  // {{{
-        console.warn('frame_selected_or_visible() is not implemented yet');
+        this._scene.updateMatrixWorld(true);
+
+        const selectedGeoItemIDs = this._vuexStore.getters['view3D/selectedGeoItemIDs'];
+        const selectedMarkers = this._vuexStore.getters['view3D/selectedMarkers'];
+        const selectedMarkerCount = [...selectedMarkers.values()]
+            .reduce((n, indices) => n + indices.size, 0);
+
+        if(selectedGeoItemIDs.size === 0 && selectedMarkerCount === 1) {
+            const [itemID, indices] = [...selectedMarkers.entries()][0];
+            const index = [...indices][0];
+            const point = this._geometryManager.get_marker_position(itemID, index);
+            if(point) this._cameraManager.center_on(point);
+            return;
+        }
+
+        const box = new THREE.Box3();
+        if(selectedGeoItemIDs.size > 0 || selectedMarkerCount > 0) {
+            this._geometryManager.expand_box_by_items(box, selectedGeoItemIDs);
+            for(const [itemID, indices] of selectedMarkers) {
+                for(const index of indices) {
+                    const point = this._geometryManager.get_marker_position(itemID, index);
+                    if(point) box.expandByPoint(point);
+                }
+            }
+        } else {
+            this._geometryManager.expand_box_by_visible_items(box);
+        }
+
+        if(box.isEmpty()) return;
+        this._cameraManager.frame_box(box);
     }  // }}}
 
     resize(width, height) {
