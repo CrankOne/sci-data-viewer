@@ -263,6 +263,46 @@ export default {
             delete state.presets[name];
         },
 
+        // (Re)initializes presets and per-viewport current-preset selection
+        // from persisted data (see cameraPresetPersistence.js). Invalid
+        // entries are dropped rather than rejecting the whole payload, since
+        // this may be untrusted data coming from local storage.
+        initialize_presets(state, {presets, currentPresetByViewport}) {
+            const sanitized = {};
+            if(presets && typeof presets === 'object') {
+                for(const [name, settings] of Object.entries(presets)) {
+                    const trimmedName = name?.trim();
+                    if(!trimmedName) continue;
+                    try {
+                        sanitized[trimmedName] = copy_camera_preset(settings);
+                    } catch(error) {
+                        console.warn(`Ignoring invalid stored camera preset "${name}":`, error);
+                    }
+                }
+            }
+            if(Object.keys(sanitized).length)
+                state.presets = sanitized;
+
+            if(currentPresetByViewport && typeof currentPresetByViewport === 'object') {
+                for(const [viewportID, name] of Object.entries(currentPresetByViewport)) {
+                    const viewport = state.viewports[viewportID];
+                    if(viewport && Object.hasOwn(state.presets, name))
+                        viewport.currentPreset = name;
+                }
+            }
+
+            // The stored data may be stale or partial (e.g. it doesn't
+            // mention every viewport, or presets were replaced wholesale
+            // above) -- make sure no viewport is left pointing at a preset
+            // that no longer exists, or camera (re)creation would silently
+            // stall on it.
+            const fallbackName = Object.keys(state.presets)[0];
+            for(const viewport of Object.values(state.viewports)) {
+                if(!Object.hasOwn(state.presets, viewport.currentPreset))
+                    viewport.currentPreset = fallbackName;
+            }
+        },
+
         // Viewports
         //
 

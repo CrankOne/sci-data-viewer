@@ -13,6 +13,7 @@ import create_router from './router';
 
 import { installFacetPresetPersistence } from "@/store/facetPresetPersistence.js";
 import { installSelectionSetPersistence } from "@/store/selectionSetPersistence.js";
+import { installCameraPresetPersistence } from "@/store/cameraPresetPersistence.js";
 
 async function fetch_plugin_manifest() {
     const response = await fetch("/api/plugins", {
@@ -71,6 +72,7 @@ async function main() {
 
     installFacetPresetPersistence(store);
     installSelectionSetPersistence(store);
+    installCameraPresetPersistence(store);
 
     app.use(store);  // BEFORE app.mount()!
     app.use(router);
