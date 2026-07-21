@@ -12,7 +12,6 @@
   font-style: normal;
   font-weight: normal;
   font-variant: normal;
-  font-size: 1.2em;
   line-height: 1;
   text-rendering: auto;
   text-transform: none;
@@ -21,39 +20,47 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.vi-boolean-intersection::before { content: "\e001"; }
-.vi-boolean-intersestion::before { content: "\e002"; }
-.vi-boolean-subtraction::before { content: "\e004"; }
-.vi-boolean-subtraction-inverted::before { content: "\e003"; }
-.vi-boolean-union::before { content: "\e005"; }
-.vi-clear-selection::before { content: "\e006"; }
-.vi-cube::before { content: "\e007"; }
-.vi-eye::before { content: "\e00b"; }
-.vi-eye-semis-stroked::before { content: "\e008"; }
-.vi-eye-semistroked::before { content: "\e009"; }
-.vi-eye-stroked::before { content: "\e00a"; }
-.vi-file::before { content: "\e00c"; }
-.vi-files::before { content: "\e00d"; }
-.vi-folder::before { content: "\e010"; }
-.vi-folder-empty::before { content: "\e00e"; }
-.vi-folder-expand::before { content: "\e00f"; }
-.vi-intersection::before { content: "\e011"; }
-.vi-invert-selection::before { content: "\e012"; }
-.vi-line::before { content: "\e014"; }
-.vi-line-variadic::before { content: "\e013"; }
-.vi-load::before { content: "\e015"; }
-.vi-mesh::before { content: "\e016"; }
-.vi-minus-framed::before { content: "\e017"; }
-.vi-object3d::before { content: "\e018"; }
-.vi-plane::before { content: "\e019"; }
-.vi-plus-framed::before { content: "\e01a"; }
-.vi-reload::before { content: "\e01b"; }
-.vi-save::before { content: "\e01c"; }
-.vi-select-all::before { content: "\e01d"; }
-.vi-select-saved::before { content: "\e01e"; }
-.vi-space-markers::before { content: "\e01f"; }
-.vi-subtraction::before { content: "\e021"; }
-.vi-subtraction-inverted::before { content: "\e020"; }
-.vi-trash-bin::before { content: "\e022"; }
-.vi-union::before { content: "\e023"; }
-.vi-update-saved::before { content: "\e024"; }
+.vi-add-orthographic-view::before { content: "\e001"; }
+.vi-add-perspective-view::before { content: "\e002"; }
+.vi-boolean-intersection::before { content: "\e003"; }
+.vi-boolean-intersestion::before { content: "\e004"; }
+.vi-boolean-subtraction::before { content: "\e006"; }
+.vi-boolean-subtraction-inverted::before { content: "\e005"; }
+.vi-boolean-union::before { content: "\e007"; }
+.vi-camera::before { content: "\e009"; }
+.vi-camera-reset::before { content: "\e008"; }
+.vi-clear-selection::before { content: "\e00a"; }
+.vi-cube::before { content: "\e00b"; }
+.vi-eye::before { content: "\e00f"; }
+.vi-eye-semis-stroked::before { content: "\e00c"; }
+.vi-eye-semistroked::before { content: "\e00d"; }
+.vi-eye-stroked::before { content: "\e00e"; }
+.vi-file::before { content: "\e010"; }
+.vi-files::before { content: "\e011"; }
+.vi-folder::before { content: "\e014"; }
+.vi-folder-empty::before { content: "\e012"; }
+.vi-folder-expand::before { content: "\e013"; }
+.vi-frame-selected::before { content: "\e015"; }
+.vi-intersection::before { content: "\e016"; }
+.vi-invert-selection::before { content: "\e017"; }
+.vi-line::before { content: "\e019"; }
+.vi-line-variadic::before { content: "\e018"; }
+.vi-load::before { content: "\e01a"; }
+.vi-mesh::before { content: "\e01b"; }
+.vi-minus-framed::before { content: "\e01c"; }
+.vi-object3d::before { content: "\e01d"; }
+.vi-orthographic-view::before { content: "\e01e"; }
+.vi-perspective-view::before { content: "\e01f"; }
+.vi-plane::before { content: "\e020"; }
+.vi-plus-framed::before { content: "\e021"; }
+.vi-reload::before { content: "\e022"; }
+.vi-reset-camera::before { content: "\e023"; }
+.vi-save::before { content: "\e024"; }
+.vi-select-all::before { content: "\e025"; }
+.vi-select-saved::before { content: "\e026"; }
+.vi-space-markers::before { content: "\e027"; }
+.vi-subtraction::before { content: "\e029"; }
+.vi-subtraction-inverted::before { content: "\e028"; }
+.vi-trash-bin::before { content: "\e02a"; }
+.vi-union::before { content: "\e02b"; }
+.vi-update-saved::before { content: "\e02c"; }

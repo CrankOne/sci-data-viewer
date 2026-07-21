@@ -1,61 +1,87 @@
 <template>
-    <div>
-      <div class="rowEntry">
-        <span>Position</span>
-                <input v-model.number="settings.position[0]" type="number"/>
-                <input v-model.number="settings.position[1]" type="number"/>
-                <input v-model.number="settings.position[2]" type="number"/>
-      </div>
-      <div class="rowEntry">
-        <span>Look at</span>
-                <input v-model.number="settings.lookAt[0]" type="number"/>
-                <input v-model.number="settings.lookAt[1]" type="number"/>
-                <input v-model.number="settings.lookAt[2]" type="number"/>
-      </div>
-      <div class="row">
-        <div class="rowCell13">
-          <span>Width</span>
-                <input v-model.number="settings.width" type="number"/>
-        </div>
-        <div class="rowCell13">
-          <span>near</span>
-                <input v-model.number="settings.cuts[0]" type="number" min="0.00001"/>
-        </div>
-        <div class="rowCell13">
-          <span>far</span>
-                <input v-model.number="settings.cuts[1]" type="number"/>
-        </div>
-      </div>
-      <div class="rowEntry">
-        <span>Up vector</span>
-                <input v-model.number="settings.up[0]" type="number"/>
-                <input v-model.number="settings.up[1]" type="number"/>
-                <input v-model.number="settings.up[2]" type="number"/>
+  <div class="camera-form">
+    <Vector3Field
+      label="Position"
+      :model-value="camera.position"
+      @update:model-value="patch({ position: $event })"
+    />
+
+    <Vector3Field
+      label="Look-at target"
+      :model-value="camera.target"
+      @update:model-value="patch({ target: $event })"
+    />
+
+    <Vector3Field
+      label="Up vector"
+      :model-value="camera.up"
+      :step="0.01"
+      @update:model-value="patch({ up: $event })"
+    />
+
+    <div class="camera-form__grid">
+      <NumericField
+        label="Scene width"
+        :model-value="camera.width"
+        :min="0.000001"
+        @update:model-value="patch({ width: $event })"
+      />
+
+      <NumericField
+        label="Near"
+        :model-value="camera.near"
+        :min="0.000001"
+        @update:model-value="patch({ near: $event })"
+      />
+
+      <NumericField
+        label="Far"
+        :model-value="camera.far"
+        :min="camera.near"
+        @update:model-value="patch({ far: $event })"
+      />
+
+      <NumericField
+        label="Pick radius, px"
+        :model-value="camera.picking.radiusPx"
+        :min="0"
+        :step="0.5"
+        @update:model-value="
+          patch({
+            picking: {
+              ...camera.picking,
+              radiusPx: $event
+            }
+          })
+        "
+      />
+
+      <div class="readonly-value">
+        <span>Aspect</span>
+        <output>{{ aspect.toFixed(4) }}</output>
       </div>
     </div>
+  </div>
 </template>
 
-<script>
-export default {
-    name: 'OrthoCamCtrls',
-    props: {
-      settings: {
-        width: Number,
-        position: Array,
-        lookAt: Array,
-        up: Array
-      }
+<script setup>
+import NumericField from './NumericField.vue';
+import Vector3Field from './Vector3Field.vue';
+
+defineProps({
+    camera: {
+        type: Object,
+        required: true
+    },
+    aspect: {
+        type: Number,
+        required: true
     }
+});
+
+const emit = defineEmits(['patch']);
+
+function patch(value) {
+    emit('patch', value);
 }
 </script>
-
-<style scoped>
-* {
-  font-family: Monospace;
-  font-size: 9pt;
-}
-div.rowEntry > input {
-    width: 15%;
-}
-</style>
-
