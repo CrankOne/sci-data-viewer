@@ -4,6 +4,103 @@ import * as Geometry from '../geometry';
 import * as Utils from '../utils';
 import * as HlOverlay from '../hl-overlay';
 
+//                  * * *   * * *   * * *
+// Transformation groups (see transfGroups.js / TransfGroupsPanel.vue)
+
+// Default composition order for an item's included channels, ascending =
+// innermost (closest to the item) first. Chosen so that an item using every
+// channel at its default reproduces plain three.js T*R*S composition.
+const DEFAULT_CHANNEL_ORDER = { scale: 0, rotation: 10, position: 20 };
+// Deterministic tie-break for channels sharing an explicit order.
+const CHANNEL_TIEBREAK = { scale: 0, rotation: 1, position: 2 };
+
+// Parses a geo item's `_transfGroup' property into {name, channels,
+// ownRotation, ownScale}, or null if the item doesn't reference a group.
+// `channels' is the ascending-sorted (innermost-first) list of
+// {type: 'position'|'rotation'|'scale'} entries the item opts into: a
+// channel is included at its given integer order, included at
+// DEFAULT_CHANNEL_ORDER if omitted, or excluded entirely if explicitly
+// `null'. A bare string is shorthand for {name: <string>} (every channel at
+// its default, `ownRotation'/`ownScale' both true).
+function parse_transf_group_ref(spec) {
+    if(spec === undefined || spec === null) return null;
+
+    let name, raw;
+    if(typeof spec === 'string') {
+        name = spec.trim();
+        raw = {};
+    } else if(typeof spec === 'object') {
+        name = spec.name?.trim();
+        raw = spec;
+    } else {
+        throw new Error('"_transfGroup" must be a string or an object.');
+    }
+    if(!name) throw new Error('"_transfGroup" must have a non-empty "name".');
+
+    const channels = [];
+    for(const type of ['position', 'rotation', 'scale']) {
+        const value = raw[type];
+        if(value === null) continue;  // explicitly excluded
+        const order = value === undefined ? DEFAULT_CHANNEL_ORDER[type] : Number(value);
+        if(!Number.isFinite(order)) {
+            throw new Error(`Invalid order "${value}" for "${type}" in transform group "${name}".`);
+        }
+        channels.push({type, order});
+    }
+    channels.sort((a, b) => a.order - b.order || CHANNEL_TIEBREAK[a.type] - CHANNEL_TIEBREAK[b.type]);
+
+    return {
+        name,
+        channels,
+        ownRotation: raw.ownRotation ?? true,
+        ownScale: raw.ownScale ?? true
+    };
+}
+
+// Composes an item's own (untransformed) position/rotation with the
+// channels it opts into from `group' ({position, rotation (deg), scale}, as
+// stored by the transfGroups module), walking `channels' innermost-first.
+// This is a direct generalization of translate/rotate/scale-a-point chain
+// math: a channel always moves the item's *position* when included, but
+// only also becomes part of the item's *own* orientation/size when
+// `ownRotation'/`ownScale' allow it -- which is what lets e.g. a group's
+// scale pull an item's placement in line with its neighbors without
+// resizing the item itself.
+function compose_transf_group(ownPosition, ownQuaternion, group, ref) {
+    const position = ownPosition.clone();
+    const quaternion = ownQuaternion.clone();
+    const scale = new THREE.Vector3(1, 1, 1);
+
+    for(const { type } of ref.channels) {
+        if(type === 'scale') {
+            const s = new THREE.Vector3(...group.scale);
+            position.multiply(s);
+            if(ref.ownScale) scale.multiply(s);
+        } else if(type === 'rotation') {
+            const q = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(
+                    THREE.MathUtils.degToRad(group.rotation[0]),
+                    THREE.MathUtils.degToRad(group.rotation[1]),
+                    THREE.MathUtils.degToRad(group.rotation[2]),
+                    'XYZ'
+                )
+            );
+            position.applyQuaternion(q);
+            if(ref.ownRotation) quaternion.premultiply(q);
+        } else if(type === 'position') {
+            position.add(new THREE.Vector3(...group.position));
+        }
+    }
+    return { position, quaternion, scale };
+}
+
+function apply_composed_transform(threeJSGeo, composed) {
+    threeJSGeo.position.copy(composed.position);
+    threeJSGeo.quaternion.copy(composed.quaternion);
+    threeJSGeo.scale.copy(composed.scale);
+}
+//                  * * *   * * *   * * *
+
 // Owns the per-source geometry registry (three.js representations of the
 // items provided by data sources), keeps it in sync with the store's
 // `view3D/geoData`, and applies highlight/selection/visibility state to the
@@ -16,8 +113,26 @@ class GeometryManager {
         this._render = render;
         // Geometries, of similar structure to materials:
         //  {<sourceID:str>:Object}, where Object is
-        //      {threeJSGeo, geoDef, geoMaterial, geoType}
+        //      {threeJSGeo, geoDef, geoMaterial, geoType, transfGroupRef,
+        //       ownPosition, ownQuaternion}
         this._geometries = {};
+
+        this._unsubscribe = this._vuexStore.subscribe((mutation) => {
+                if(!mutation.type.startsWith('transfGroups/')) return;
+                // A newly-discovered group starts at identity; nothing
+                // existing needs re-placing on account of it.
+                if(mutation.type === 'transfGroups/ensure_group') return;
+                const name = typeof mutation.payload === 'string'
+                    ? mutation.payload
+                    : mutation.payload?.name;
+                this.sync_transf_groups(name ? new Set([name]) : null);
+                this._render();
+            }
+        );
+    }  // }}}
+
+    dispose() {  // {{{
+        this._unsubscribe?.();
     }  // }}}
 
     update_drawables() {  // {{{
@@ -38,6 +153,7 @@ class GeometryManager {
         const { _name: geoName
               , _type: geoType
               , _material: geoMaterial
+              , _transfGroup: transfGroupSpec
               , ...geoDef } = geoDef_;
         if(geomNamesInUse.has(geoName)) {
             throw new Error(`Geometry name "${geoName}" met`
@@ -62,6 +178,14 @@ class GeometryManager {
             rotationOrder = geoDef.rotationOrder;
             delete geoDef.rotationOrder;
         }
+        // Shared transformation group this item participates in, if any
+        // (see transfGroups.js). Parsed/registered unconditionally, even
+        // along the "unchanged geometry" fast path below, so already-loaded
+        // geometry still registers a newly-referenced group.
+        const transfGroupRef = parse_transf_group_ref(transfGroupSpec);
+        if(transfGroupRef) {
+            this._vuexStore.commit('transfGroups/ensure_group', transfGroupRef.name);
+        }
         // try to get material
         const defaultMaterials = this._materialManager.defaultMaterials;
         if(!( thisSourceMats.hasOwnProperty(geoMaterial)
@@ -83,29 +207,23 @@ class GeometryManager {
                     return;
                 }
                 console.debug(`Geometry "${thisSourceID}/${geoName}" unchanged, updating position and rotation`);
-                // yet, position/rotation may change
-                if(position !== null ) {
-                    if(thisSourceGeo[geoName].threeJSGeo.hasOwnProperty('position'))
-                        thisSourceGeo[geoName].threeJSGeo.position.set(...position);
-                    else
-                        console.warn(`Can not update position for geometry item ${geoName} as it does not expose 'position' property`)
-                }
-                if(thisSourceGeo[geoName].threeJSGeo.hasOwnProperty('rotation')) {
-                    if(rotationOrder != null ) {
-                        thisSourceGeo[geoName].threeJSGeo.rotation.order = rotationOrder;
-                    }
-                    if(rotation !== null) {
-                        thisSourceGeo[geoName].threeJSGeo.rotation.set(...rotation);
-                    }
-                } else {
-                    console.warn(`Can not update position for geometry item ${geoName} as it does not expose 'rotation' property`)
-                }
+                // yet, position/rotation (own or via the transform group)
+                // may change
+                const { ownPosition, ownQuaternion } = this._place_item(
+                        thisSourceGeo[geoName].threeJSGeo, position, rotation, rotationOrder, transfGroupRef);
+                thisSourceGeo[geoName].transfGroupRef = transfGroupRef;
+                thisSourceGeo[geoName].ownPosition = ownPosition;
+                thisSourceGeo[geoName].ownQuaternion = ownQuaternion;
                 return;  // skip geometry construction
             }
             // otherwise, destroy existing eponymous geometry record (to
             // substitute below)
-            thisSourceGeo[geoName].threeJSGeo.dispose(); // TODO: is it correct?
-            // ^^^ https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
+            thisSourceGeo[geoName].threeJSGeo.removeFromParent();
+            // ^^^ threeJSGeo is a plain THREE.Group (see geometry/registry.js),
+            // which has no dispose() -- this only detaches it from the
+            // scene graph. Full GPU-resource disposal (of the child meshes'
+            // own geometries/materials) is not implemented.
+            // https://discourse.threejs.org/t/correctly-remove-mesh-from-scene-and-dispose-material-and-geometry/5448
         }
         console.debug(`Creating geometry item "${geoName}" of type ${geoType}...`);
         const geometryCreationContext = {
@@ -128,19 +246,63 @@ class GeometryManager {
             );
         this._scene.add(threeJSGeo);
 
-        if(position !== null) {
-            console.debug(`Placing new geometry at ${position[0]}x${position[1]}x${position[2]}`);
-            threeJSGeo.position.set(...position);
-        }
-        if(rotationOrder != null) {
-            thisSourceGeo[geoName].rotation.order = rotationOrder;
-        }
-        if(rotation !== null) {
-            console.debug(`Rotating new geometry by ${rotation[0]},${rotation[1]},${rotation[2]}`);
-            threeJSGeo.rotation.set(...rotation);
-        }
+        const { ownPosition, ownQuaternion } = this._place_item(
+                threeJSGeo, position, rotation, rotationOrder, transfGroupRef);
         // Push item to the global collection
-        thisSourceGeo[geoName] = {threeJSGeo, geoDef, geoMaterial, geoType};
+        thisSourceGeo[geoName] = {
+                threeJSGeo, geoDef, geoMaterial, geoType, transfGroupRef, ownPosition, ownQuaternion
+            };
+    }  // }}}
+
+    // Places `threeJSGeo' (an item's own group node) using its own
+    // position/rotation, popped off its geoDef by update_geometry_item()
+    // -- and, if `transfGroupRef' is given, composes them with whichever
+    // channels of that named group the item opts into (see
+    // compose_transf_group() above). Falls back to exactly the historical
+    // behavior (plain `.position.set()' / `.rotation.set()', scale left
+    // untouched) when there's no transform group.
+    //
+    // Returns {ownPosition, ownQuaternion} (THREE.Vector3/Quaternion, or
+    // null when there's no transform group to later resync against) for
+    // the caller to stash on the geometry record.
+    _place_item(threeJSGeo, position, rotation, rotationOrder, transfGroupRef) {  // {{{
+        if(rotationOrder != null) threeJSGeo.rotation.order = rotationOrder;
+
+        if(!transfGroupRef) {
+            if(position !== null) threeJSGeo.position.set(...position);
+            if(rotation !== null) threeJSGeo.rotation.set(...rotation);
+            return { ownPosition: null, ownQuaternion: null };
+        }
+
+        const ownPosition = position !== null
+            ? new THREE.Vector3(...position)
+            : new THREE.Vector3();
+        const ownQuaternion = rotation !== null
+            ? new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(rotation[0], rotation[1], rotation[2], rotationOrder ?? 'XYZ'))
+            : new THREE.Quaternion();
+
+        const group = this._vuexStore.getters['transfGroups/group'](transfGroupRef.name);
+        if(group) {
+            apply_composed_transform(threeJSGeo,
+                    compose_transf_group(ownPosition, ownQuaternion, group, transfGroupRef));
+        }
+        return { ownPosition, ownQuaternion };
+    }  // }}}
+
+    // Recomputes and reapplies placement for every item participating in a
+    // transformation group, following a group edit. `names' restricts this
+    // to the given Set of group names (all groups if omitted/null).
+    sync_transf_groups(names = null) {  // {{{
+        this.for_each_geometry_entry((srcID, geoID, item) => {
+            const ref = item.transfGroupRef;
+            if(!ref) return;
+            if(names && !names.has(ref.name)) return;
+            const group = this._vuexStore.getters['transfGroups/group'](ref.name);
+            if(!group) return;
+            apply_composed_transform(item.threeJSGeo,
+                    compose_transf_group(item.ownPosition, item.ownQuaternion, group, ref));
+        });
     }  // }}}
 
     // (Re)creates geometry items defined by `geoData' parameter including
@@ -232,6 +394,13 @@ class GeometryManager {
         // Get items to un-highlight
         removed.forEach((itemID) => {
                 const item = this.get_geometry_item(itemID);
+                // when one tries to un-select non-existing item, it might
+                // indicate an error/improperly disposed item (except for the
+                // cases of named preset was un-selected)
+                if(!item) {
+                    console.warn(`No item "${itemID}" found on scene to remove selection highlight.`);
+                    return;
+                }
                 if(!(item.threeJSGeo.userData?.handles?.base)) return;  // omit ones without base handle
                 // enable visibility for base handle unless item is in the
                 // selection -- in this case enable selected
@@ -240,6 +409,9 @@ class GeometryManager {
         // Items to highlight
         added.forEach((itemID) => {
                 const item = this.get_geometry_item(itemID);
+                // it's kind of ok when Id is not found on scene since it can
+                // come from saved pre-set.
+                if(!item) return;
                 // enable visibility for highlighted handle, disable for others
                 item.threeJSGeo.userData.handles.selected.visible = true;
             });

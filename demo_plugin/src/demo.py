@@ -89,6 +89,7 @@ def geometry():
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
+                        "_transfGroup": {"name": "main", "scale": None},
                         #
                         "position": [0, 0, -10],
                         "sizes": [7.5, 17.5, 1],
@@ -99,6 +100,7 @@ def geometry():
                     }, {"_name": "det2",
                         "_type": "BoxGeometry",
                         "_material": "defaultMeshMaterial",
+                        "_transfGroup": "main",
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
@@ -112,6 +114,7 @@ def geometry():
                         #
                         "_category": ["detectors", "GEMs"],
                         "_tags": ["solid", "demo"],
+                        "_transfGroup": "main",
                         #
                         "position": [0, 0, 0],
                         "sizes": [14, 14, 0.5],
@@ -121,6 +124,7 @@ def geometry():
                     {   "_name": "reconstructedTrack",
                         "_type": "Line",
                         "_material": "defaultLineMaterial",
+                        "_transfGroup": "main",
                         #
                         "_category": ["tracks"],
                         "_tags": ["lines", "demo"],
@@ -132,6 +136,7 @@ def geometry():
                     }, {"_name": "detXXX",
                         "_type": 'ColoredLineSegments',
                         '_material': "basicWhiteLineMaterial",
+                        "_transfGroup": "main",
                         #
                         "_category": ["detectors"],
                         "_tags": ["lines", "demo"],
@@ -145,6 +150,7 @@ def geometry():
                     }, {"_name": "referenceTrack",
                         "_type": "ColoredLineSegments",
                         "_material": "dashedLineMaterial",
+                        "_transfGroup": "main",
                         #
                         "_category": ["tracks"],
                         "_tags": ["lines", "demo"],
@@ -160,6 +166,7 @@ def geometry():
                         "_name": "hits1",
                         "_type": "PointMarkers",
                         "_material": "markersMat1",
+                        "_transfGroup": "main",
                         "_pickable": True,  # TODO: False breaks state in items list widget (simple issue)
                         #
                         "_category": ["hits"],
@@ -173,6 +180,7 @@ def geometry():
                         "_name": "hits2",
                         "_type": "PointMarkers",
                         "_material": "markersMat2",
+                        "_transfGroup": "main",
                         "_pickable": True,
                         #
                         "_category": ["hits"],
@@ -188,6 +196,7 @@ def geometry():
                         "_name": "plane1",
                         "_type": "Plane",
                         "_material": "texture1",
+                        "_transfGroup": "main",
                         #
                         "_category": ["detectors"],
                         "_tags": ["planes", "demo"],

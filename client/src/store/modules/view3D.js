@@ -68,14 +68,6 @@ export default {
 
         // Behavior controls
         highlightHiddenSelection: true,
-        // "Broad" distance for raycasting in perspective camera for hover
-        // detection, natural units. Items with larger distance will not be
-        // consider on hover, even if within onMouseHoverRaycastSizePx.
-        // Setting this value to large values will cause performance issues.
-        onMouseHoverRaycastDist: 10,
-        // Max radius for on-mouse hover in pixels. Considered after initial
-        // hover is gathered with `onMouseHoverRaycastDist'.
-        onMouseHoverRaycastSizePx: 1,
 
         // Axis-aligned bounding box for objects of interest
         regionOfInterest: [[null, null, null], [null, null, null]],
@@ -116,14 +108,6 @@ export default {
 
         toggle_highlight_hidden(state, value) {
             state.highlightHiddenSelection = value;
-        },
-
-        set_on_hover_broadening(state, value) {
-            state.onMouseHoverRaycastDist = value;
-        },
-
-        set_on_hover_highlight_size_px(state, value) {
-            state.onMouseHoverRaycastSizePx = value;
         },
 
         // Updates region of interest with given point r:float[3]

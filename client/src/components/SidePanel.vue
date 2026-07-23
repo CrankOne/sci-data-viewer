@@ -5,6 +5,7 @@
         <items-tree :defaultOpenedState="true" />
         <scene-helpers />
         <!--<event-tree-on-side-panel :eventNum="0"/>-->
+        <transf-groups-panel :defaultOpenedState="true" />
         <appearance-ctrls :defaultOpenedState="true"/>
     </div>
 </template>
@@ -14,6 +15,7 @@
 import SceneHelpers from './SceneHelpers.vue'
 import SourceList from './SourcesList.vue'
 import ItemsTree from './ItemsTree'
+import TransfGroupsPanel from './TransfGroupsPanel.vue'
 import AppearanceCtrls from './AppearanceCtrls.vue'
 //import EventTreeOnSidePanel from './EventTreeOnSidePanel.vue'
 
@@ -22,6 +24,7 @@ export default {
         SourceList,
         ItemsTree,
         SceneHelpers,
+        TransfGroupsPanel,
         AppearanceCtrls,
     },
     data() {

@@ -8,6 +8,15 @@
     --clr-neutral:      rgb(253, 249, 231);
     --clr-supporting:   #3286cd;
     --clr-accent:       #d99962;
+
+    --clr-legend1: #f96c4a;  /* hue=  35.0°  C=0.180  contrast=2.88 */
+    --clr-legend2: #00a7fe;  /* hue= 243.0°  C=0.169  contrast=2.64 */
+    --clr-legend3: #63b739;  /* hue= 137.0°  C=0.180  contrast=2.52 */
+    --clr-legend4: #ce74e3;  /* hue= 320.0°  C=0.180  contrast=2.90 */
+    --clr-legend5: #c69600;  /* hue=  86.0°  C=0.143  contrast=2.70 */
+    --clr-legend6: #00b6ac;  /* hue= 188.0°  C=0.122  contrast=2.53 */
+    --clr-legend7: #f266a0;  /* hue= 357.0°  C=0.180  contrast=2.92 */
+    --clr-legend8: #908fff;  /* hue= 282.0°  C=0.162  contrast=2.78 */
 }
 
 /* - dark theme */
@@ -15,6 +24,15 @@
     --clr-neutral:   #2a363b;
     --clr-supporting:#99b898;
     --clr-accent:    #e84a5f;
+
+    --clr-legend1: #e06062;  /* hue=  22.0°  C=0.160  contrast=3.56 */
+    --clr-legend2: #0196e8;  /* hue= 244.0°  C=0.160  contrast=3.89 */
+    --clr-legend3: #66a32e;  /* hue= 133.0°  C=0.160  contrast=4.04 */
+    --clr-legend4: #b16ed4;  /* hue= 313.0°  C=0.160  contrast=3.58 */
+    --clr-legend5: #bd8200;  /* hue=  77.0°  C=0.136  contrast=3.77 */
+    --clr-legend6: #00a59c;  /* hue= 188.0°  C=0.113  contrast=4.05 */
+    --clr-legend7: #d361a0;  /* hue= 348.0°  C=0.160  contrast=3.54 */
+    --clr-legend8: #7c81ee;  /* hue= 279.0°  C=0.160  contrast=3.69 */
 }
 
 /*                                                        ____________________

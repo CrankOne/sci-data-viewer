@@ -29,22 +29,6 @@
           <input type="checkbox" v-model="highlightInvisibleOnHover"/>
         </div>
 
-        <!-- Size of the on-hover raycasting (natural units) -->
-        <div>
-          <span>On-hover min ray dist.</span>
-        </div>
-        <div>
-          <input type="number" id="onMouseHover" min="0.01" max="100" v-model="mouseHoverRayDistNU"/>
-        </div>
-
-        <!-- Size of the on-hover raycasting cursor -->
-        <div>
-          <span>On-hover cursor radius (px)</span>
-        </div>
-        <div>
-          <input type="number" id="onMouseHover" min="1" max="100" v-model="mouseHoverRadiusPx"/>
-        </div>
-
       </div>
     </template>
   </NavBarEntity>
@@ -73,18 +57,8 @@ export default {
     },
 
     highlightInvisibleOnHover: {
-      get() { return this.$store.state.view3D.highlightHidden; },
+      get() { return this.$store.state.view3D.highlightHiddenSelection; },
       set(value) { this.$store.commit('view3D/toggle_highlight_hidden', value); }
-    },
-
-    mouseHoverRadiusPx: {
-      get() { return this.$store.state.view3D.onMouseHoverRaycastSizePx; },
-      set(value) { this.$store.commit('view3D/set_on_hover_highlight_size_px', value); }
-    },
-
-    mouseHoverRayDistNU: {
-      get() { return this.$store.state.view3D.onMouseHoverRaycastDist; },
-      set(value) { this.$store.commit('view3D/set_on_hover_broadening', value); }
     },
   },
 };

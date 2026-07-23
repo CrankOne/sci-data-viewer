@@ -9,6 +9,7 @@ import App from './App.vue'
 import view3D from './store/modules/view3D';  // viewer state module
 import { stateModule as connection } from './connection'  // data source state module
 import cameras from './store/modules/cameras';
+import transfGroups from './store/modules/transfGroups';
 import create_router from './router';
 
 import { installFacetPresetPersistence } from "@/store/facetPresetPersistence.js";
@@ -67,7 +68,7 @@ async function main() {
     // Compose app's store as concatenation of viewer store module (view3D) and
     // API connection state model (`connection'):
     const store = createStore({
-        modules : { connection, view3D, appCommon, cameras },
+        modules : { connection, view3D, appCommon, cameras, transfGroups },
     });
 
     installFacetPresetPersistence(store);

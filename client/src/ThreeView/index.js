@@ -196,7 +196,11 @@ class ThreeView {
             return Math.hypot(hitX - x, hitY - y) <= radiusPx;
         });
         if(!this._vuexStore.state.view3D.highlightHiddenSelection) {
-            intersects = intersects.filter(item => item.object.userData?.handles?.base.visible);
+            // `item.object' *is* the base handle for any raycast hit (see
+            // geometry/registry.js) -- `userData.handles' lives one level up,
+            // on the parent group, not on the hit object itself, so check
+            // the hit object's own visibility directly.
+            intersects = intersects.filter(item => item.object.visible);
         }
         const items2highlight = intersects.filter(item => item.object.userData?.pickable );
         const markers2highlight = intersects.filter(item => (item.object.userData?.pickable
@@ -322,6 +326,7 @@ class ThreeView {
 
     dispose() {
         this._cameraManager.dispose();
+        this._geometryManager.dispose();
         this._renderer.dispose();
         this._renderer.domElement.remove();
     }
