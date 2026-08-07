@@ -1,5 +1,5 @@
-import { createRouter, createWebHashHistory } from "vue-router"
-import ThreeViewer from "@/components/ThreeViewer.vue"
+import { createRouter, createWebHashHistory } from "vue-router";
+import ThreeViewer from "@/components/ThreeViewer.vue";
 
 export default function create_router() {
     return createRouter({
@@ -7,7 +7,7 @@ export default function create_router() {
         routes: [
             {
                 path: "/",
-                redirect: { name: "three-view" },
+                redirect: {name: "three-view"}
             },
             {
                 path: "/three-view/",
@@ -15,8 +15,8 @@ export default function create_router() {
                 component: ThreeViewer,
                 props: {
                     // ...
-                },
-            },
-        ],
-    })
+                }
+            }
+        ]
+    });
 }

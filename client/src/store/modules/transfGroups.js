@@ -33,7 +33,7 @@ export default {
     }),
 
     getters: {
-        group_names: state => Object.keys(state.groups),
+        groupNames: state => Object.keys(state.groups),
         group: state => name => state.groups[name] ?? null,
         groups: state => state.groups
     },

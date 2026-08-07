@@ -18,18 +18,18 @@ import SidePanel from './SidePanel.vue'
 export default {
     name: 'ThreeViewer',
     props: {
-        defaultDataSources: {type: Object, default: {}},
+        defaultDataSources: {type: Object, default: {}}
     },
     components: {
         Viewport,
         SidePanel,
         Splitpanes, Pane
     },
-    data () {
-      return {};
+    data() {
+        return {};
     },
     mounted() {
-        console.debug(this.defaultDataSources);  // XXX
+        console.debug(this.defaultDataSources); // XXX
         // iterate over defined data sources and add them one by one, just as
         // if they are added manually.
         for(const [name, endpoint] of Object.entries(this.defaultDataSources)) {

@@ -52,28 +52,15 @@ function copy_vec3(value, fallback) {
 function copy_persp_cam(camera) {
     return {
         type: 'perspective',
-        position: copy_vec3(
-                camera.position,
-                DEFAULT_PERSPECTIVE_CAMERA.position
-            ),
-        target: copy_vec3(
-                camera.target,
-                DEFAULT_PERSPECTIVE_CAMERA.target
-            ),
-        up: copy_vec3(
-                camera.up,
-                DEFAULT_PERSPECTIVE_CAMERA.up
-            ),
+        position: copy_vec3(camera.position, DEFAULT_PERSPECTIVE_CAMERA.position),
+        target: copy_vec3(camera.target, DEFAULT_PERSPECTIVE_CAMERA.target),
+        up: copy_vec3(camera.up, DEFAULT_PERSPECTIVE_CAMERA.up),
         near: Number(camera.near),
         far: Number(camera.far),
         fov: Number(camera.fov),
         picking: {
-            maxDistance: Number(
-                camera.picking?.maxDistance ?? DEFAULT_PERSPECTIVE_CAMERA.picking.maxDistance
-            ),
-            radiusPx: Number(
-                camera.picking?.radiusPx ?? DEFAULT_PERSPECTIVE_CAMERA.picking.radiusPx
-            )
+            maxDistance: Number(camera.picking?.maxDistance ?? DEFAULT_PERSPECTIVE_CAMERA.picking.maxDistance),
+            radiusPx: Number(camera.picking?.radiusPx ?? DEFAULT_PERSPECTIVE_CAMERA.picking.radiusPx)
         }
     };
 }
@@ -81,26 +68,15 @@ function copy_persp_cam(camera) {
 function copy_ortho_cam(camera) {
     return {
         type: 'orthographic',
-        position: copy_vec3(
-                camera.position,
-                DEFAULT_ORTHOGRAPHIC_CAMERA.position
-            ),
-        target: copy_vec3(
-                camera.target,
-                DEFAULT_ORTHOGRAPHIC_CAMERA.target
-            ),
-        up: copy_vec3(
-                camera.up,
-                DEFAULT_ORTHOGRAPHIC_CAMERA.up
-            ),
+        position: copy_vec3(camera.position, DEFAULT_ORTHOGRAPHIC_CAMERA.position),
+        target: copy_vec3(camera.target, DEFAULT_ORTHOGRAPHIC_CAMERA.target),
+        up: copy_vec3(camera.up, DEFAULT_ORTHOGRAPHIC_CAMERA.up),
         near: Number(camera.near),
         far: Number(camera.far),
         width: Number(camera.width),
         zoom: Number(camera.zoom ?? 1),
         picking: {
-            radiusPx: Number(
-                camera.picking?.radiusPx ?? DEFAULT_ORTHOGRAPHIC_CAMERA.picking.radiusPx
-            )
+            radiusPx: Number(camera.picking?.radiusPx ?? DEFAULT_ORTHOGRAPHIC_CAMERA.picking.radiusPx)
         }
     };
 }
@@ -119,20 +95,18 @@ export function copy_camera_preset(camera) {
         case 'orthographic':
             return copy_ortho_cam(camera);
         default:
-            throw new Error(
-                `Unsupported camera type: ${camera.type}`
-            );
+            throw new Error(`Unsupported camera type: ${camera.type}`);
     }
 }
 
 
 export function make_default_persp_cam() {
-    return copy_persp_cam( DEFAULT_PERSPECTIVE_CAMERA );
+    return copy_persp_cam(DEFAULT_PERSPECTIVE_CAMERA);
 }
 
 
 export function make_default_ortho_cam() {
-    return copy_ortho_cam( DEFAULT_ORTHOGRAPHIC_CAMERA );
+    return copy_ortho_cam(DEFAULT_ORTHOGRAPHIC_CAMERA);
 }
 
 
@@ -162,24 +136,18 @@ function _assert_preset(state, name) {
 // Apply a shallow camera patch while preserving detached arrays and nested
 // picking settings.
 function apply_cam_patch(camera, patch) {
-    if(patch.position !== undefined)
-        camera.position = copy_vec3(
-            patch.position,
-            camera.position
-        );
+    if(patch.position !== undefined) camera.position = copy_vec3(patch.position, camera.position);
+    if(patch.target !== undefined)   camera.target   = copy_vec3(patch.target, camera.target);
+    if(patch.up !== undefined)       camera.up       = copy_vec3(patch.up, camera.up);
+    if(patch.near !== undefined)     camera.near     = Number(patch.near);
+    if(patch.far !== undefined)      camera.far      = Number(patch.far);
 
-    if(patch.target !== undefined)  camera.target = copy_vec3(patch.target, camera.target);
-    if(patch.up !== undefined)      camera.up = copy_vec3(patch.up, camera.up);
-    if(patch.near !== undefined)    camera.near = Number(patch.near);
-    if(patch.far !== undefined)     camera.far = Number(patch.far);
-    if( camera.type === 'perspective' &&
-        patch.fov !== undefined ) {
+    if(camera.type === 'perspective' && patch.fov !== undefined)
         camera.fov = Number(patch.fov);
-    }
 
     if(camera.type === 'orthographic') {
-        if(patch.width !== undefined)   camera.width = Number(patch.width);
-        if(patch.zoom !== undefined)    camera.zoom = Number(patch.zoom);
+        if(patch.width !== undefined) camera.width = Number(patch.width);
+        if(patch.zoom !== undefined)  camera.zoom  = Number(patch.zoom);
     }
 
     if(patch.picking !== undefined) {
@@ -214,24 +182,19 @@ export default {
     }),
 
     getters: {
-        // returns camera preset names available at a runtime
-        preset_names: state => Object.keys(state.presets),
+        // camera preset names available at a runtime
+        presetNames: state => Object.keys(state.presets),
         // by-name getter for a preset
-        preset: state => name =>
-            state.presets[name] ?? null,
+        preset: state => name => state.presets[name] ?? null,
         // preset name currently in use
-        current_preset_name: state => viewportID =>
-            state.viewports[viewportID]?.currentPreset ?? null,
+        currentPresetName: state => viewportID => state.viewports[viewportID]?.currentPreset ?? null,
         // by-id getter for a preset relevant for a viewer
-        current_preset: state => viewportID => {
+        currentPreset: state => viewportID => {
             const name = state.viewports[viewportID]?.currentPreset;
-            return name
-                ? state.presets[name] ?? null
-                : null;
+            return name ? state.presets[name] ?? null : null;
         },
         // returns viewport state
-        viewport_state: state => viewportID =>
-            state.viewports[viewportID] ?? null
+        viewportState: state => viewportID => state.viewports[viewportID] ?? null
     },
 
     mutations: {
@@ -240,13 +203,13 @@ export default {
         //
 
         // (re)sets a *current* named cam preset for a viewport
-        set_current_preset(state, {viewportID, name}){
+        set_current_preset(state, {viewportID, name}) {
             const viewport = _assert_viewport(state, viewportID);
             _assert_preset(state, name);
             viewport.currentPreset = name;
         },
         // overrides preset by name (or creates new one)
-        replace_preset(state, {name, settings}){
+        replace_preset(state, {name, settings}) {
             if(!name?.trim()) throw new Error('Camera preset name must not be empty.');
             state.presets[name.trim()] = copy_camera_preset(settings);
         },
@@ -328,8 +291,7 @@ export default {
         },
 
         // creates new perspective view and makes it active for a viewport
-        create_persp_view({state, commit},
-                { viewportID, requestedName = 'perspective' } ) {
+        create_persp_view({state, commit}, {viewportID, requestedName = 'perspective'}) {
             const name = mk_uniq_name(state.presets, requestedName);
             commit('replace_preset', {name, settings: make_default_persp_cam()});
             commit('set_current_preset', {viewportID, name});
@@ -337,18 +299,16 @@ export default {
         },
 
         // creates new orthographic view and makes it active for a viewport
-        create_ortho_view({state, commit},
-                {viewportID, requestedName = 'orthographic'} ) {
+        create_ortho_view({state, commit}, {viewportID, requestedName = 'orthographic'}) {
             const name = mk_uniq_name(state.presets, requestedName);
-            commit('replace_preset',
-                {name, settings: make_default_ortho_cam()});
-            commit('set_current_preset', {viewportID, name });
+            commit('replace_preset', {name, settings: make_default_ortho_cam()});
+            commit('set_current_preset', {viewportID, name});
             return name;
         },
 
         // XXX, not sure we gonna need these... :
 
-        save_current_as({state, commit}, {viewportID, name} ) {
+        save_current_as({state, commit}, {viewportID, name}) {
             const viewport = _assert_viewport(state, viewportID);
             const source = _assert_preset(state, viewport.currentPreset);
             const destinationName = name?.trim();
@@ -357,8 +317,8 @@ export default {
             // copy_camera_preset() accepts Vue proxies and creates a detached
             // plain object. An existing preset with the same name is
             // intentionally overwritten.
-            commit('replace_preset', { name: destinationName, settings: source });
-            commit('set_current_preset', { viewportID, name: destinationName });
+            commit('replace_preset', {name: destinationName, settings: source});
+            commit('set_current_preset', {viewportID, name: destinationName});
             return destinationName;
         },
 
@@ -369,10 +329,7 @@ export default {
                 current.type === 'orthographic'
                     ? make_default_ortho_cam()
                     : make_default_persp_cam();
-            commit('replace_preset', {
-                name: viewport.currentPreset,
-                settings
-            });
+            commit('replace_preset', {name: viewport.currentPreset, settings});
         },
 
         remove_current({state, commit}, {viewportID}) {
@@ -381,11 +338,9 @@ export default {
             if(names.length <= 1) return false;
             const currentName = viewport.currentPreset;
             const currentIndex = names.indexOf(currentName);
-            const replacementName =
-                names[currentIndex + 1] ??
-                names[currentIndex - 1];
+            const replacementName = names[currentIndex + 1] ?? names[currentIndex - 1];
             // Switch first to prevent viewport referring to a missing preset
-            commit('set_current_preset', { viewportID, name: replacementName});
+            commit('set_current_preset', {viewportID, name: replacementName});
             commit('remove_preset', currentName);
             return true;
         }

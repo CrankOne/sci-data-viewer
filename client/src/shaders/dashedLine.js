@@ -1,6 +1,6 @@
 // used to draw dashed/dotted line relative to camera (not the world),
 //      see: https://stackoverflow.com/questions/54516794/three-js-uniform-dashed-line-relative-to-camera
-const startPointVertexShader=`
+const startPointVertexShader = `
 flat out vec3 startPos;
 out vec3 vertPos;
 
@@ -11,7 +11,7 @@ void main() {
     startPos    = vertPos;
 }`;
 // used to draw dashed/dotted line relative to camera (not the world)
-const dashedLineFragmentShader=`
+const dashedLineFragmentShader = `
 precision highp float;
 
 flat in vec3 startPos;

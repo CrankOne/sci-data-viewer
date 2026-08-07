@@ -40,27 +40,27 @@
 
 <script>
 export default {
-  name: "FramedDisclosure",
+    name: "FramedDisclosure",
 
-  props: {
-    modelValue: {
-      type: Boolean,
-      default: false
+    props: {
+        modelValue: {
+            type: Boolean,
+            default: false
+        },
+
+        expandTitle: {
+            type: String,
+            default: "Show details"
+        },
+
+        collapseTitle: {
+            type: String,
+            default: "Hide details"
+        }
     },
 
-    expandTitle: {
-      type: String,
-      default: "Show details"
-    },
-
-    collapseTitle: {
-      type: String,
-      default: "Hide details"
-    }
-  },
-
-  emits: [
-    "update:modelValue"
-  ]
+    emits: [
+        "update:modelValue"
+    ]
 };
 </script>

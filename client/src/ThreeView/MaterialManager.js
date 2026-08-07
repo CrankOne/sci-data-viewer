@@ -26,37 +26,34 @@ class MaterialManager {
         // NOTE: these are not all the default ones used to create geometries,
         // some others are created in the highlighting overlays.
         this._defaultMaterials['defaultMeshMaterial'] = new THREE.MeshBasicMaterial({
-                color: Utils.get_theme().foreground,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.15
-            });
+            color: Utils.get_theme().foreground,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.15
+        });
 
         this._defaultMaterials['defaultLineMaterial'] = new THREE.LineBasicMaterial({
-                color: Utils.get_theme().foreground,
-            });
+            color: Utils.get_theme().foreground
+        });
 
         this._defaultMaterials['defaultFatLineMaterial'] = new LineMaterial({
-                color: Utils.get_theme().foreground,
-                linewidth: 5
-            });
+            color: Utils.get_theme().foreground,
+            linewidth: 5
+        });
     }  // }}}
 
     // (Re)creates/disposes materials for a single data source, given its
     // deserialized material definitions. Returns the source's material
     // registry, keyed by material name.
     sync_source_materials(sourceName, materialDefs) {  // {{{
-        var thisSourceMats = this._materials[sourceName] || {};
+        const thisSourceMats = this._materials[sourceName] || {};
         // track used material names
-        var matNamesInUse = new Set();
-        var materialsToDispose = [];
-        materialDefs.forEach((matDef_) => {
-            const { _name: matName
-                  , _type: matType
-                  , ...matDef } = matDef_;
+        const matNamesInUse = new Set();
+        const materialsToDispose = [];
+        materialDefs.forEach(matDef_ => {
+            const {_name: matName, _type: matType, ...matDef} = matDef_;
             if(matNamesInUse.has(matName)) {
-                throw new Error(`Material name "${matName}" met`
-                    + ` at least twice for source "${sourceName}"`);
+                throw new Error(`Material name "${matName}" met at least twice for source "${sourceName}"`);
             }
             matNamesInUse.add(matName);
             if(thisSourceMats.hasOwnProperty(matName)) {
@@ -69,8 +66,7 @@ class MaterialManager {
                 // delete thisSourceMats[matName];  // ?
             }
             // otherwise, create material
-            const threeJSMaterials = Materials.make_material(matType, matDef
-                , { textureLoader: this._textureLoader });
+            const threeJSMaterials = Materials.make_material(matType, matDef, {textureLoader: this._textureLoader});
             thisSourceMats[matName] = {threeJSMaterials, matDef};
             console.debug(`Created material "${sourceName}/${matName}" of type ${matType}`);
         });
@@ -79,11 +75,10 @@ class MaterialManager {
         // and materials met in this update
         const registeredMatNames = new Set(Object.keys(thisSourceMats));
         const namesToDispose = registeredMatNames.difference(matNamesInUse);
-        namesToDispose.forEach((matName) => {
-                console.debug(`Material "${sourceName}/${matName}"`
-                    + ' is not used anymore -- queued for disposal.');
-                materialsToDispose.push(thisSourceMats[matName].threeJSMaterial);
-            });
+        namesToDispose.forEach(matName => {
+            console.debug(`Material "${sourceName}/${matName}" is not used anymore -- queued for disposal.`);
+            materialsToDispose.push(thisSourceMats[matName].threeJSMaterial);
+        });
         this._materials[sourceName] = thisSourceMats;
         // TODO: treat materialsToDispose
         return thisSourceMats;

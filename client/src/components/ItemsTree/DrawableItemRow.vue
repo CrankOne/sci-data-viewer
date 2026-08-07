@@ -47,58 +47,58 @@
 
 <script>
 export default {
-  name: "DrawableItemRow",
+    name: "DrawableItemRow",
 
-  props: {
-    item: {
-      type: Object,
-      required: true
+    props: {
+        item: {
+            type: Object,
+            required: true
+        },
+
+        selected: {
+            type: Boolean,
+            default: false
+        },
+
+        highlighted: {
+            type: Boolean,
+            default: false
+        }
     },
 
-    selected: {
-      type: Boolean,
-      default: false
-    },
+    emits: [
+        "toggle-selection",
+        "hover",
+        "unhover",
+        "set-visibility"
+    ],
 
-    highlighted: {
-      type: Boolean,
-      default: false
+    computed: {
+        geometryIconClass() {
+            switch (this.item.geometryType) {
+                case "Mesh":
+                    return "mesh";
+
+                case "BoxGeometry":
+                    return "cube";
+
+                case "PointMarkers":
+                    return "space-markers";
+
+                case "Line":
+                    return "line";
+
+                case "ColoredLineSegments":
+                    return "line-variadic";
+
+                case "Plane":
+                    return "plane";
+
+                default:
+                    return "object3d";
+            }
+        }
     }
-  },
-
-  emits: [
-    "toggle-selection",
-    "hover",
-    "unhover",
-    "set-visibility"
-  ],
-
-  computed: {
-    geometryIconClass() {
-      switch (this.item.geometryType) {
-        case "Mesh":
-          return "mesh";
-
-        case "BoxGeometry":
-          return "cube";
-
-        case "PointMarkers":
-          return "space-markers";
-
-        case "Line":
-          return "line";
-
-        case "ColoredLineSegments":
-          return "line-variadic";
-
-        case "Plane":
-          return "plane";
-
-        default:
-          return "object3d";
-      }
-    }
-  }
 };
 </script>
 

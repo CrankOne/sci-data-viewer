@@ -28,14 +28,14 @@ import NavBarEntity from './NavBarEntity.vue'
 import SourceListItem from './SourceListItem.vue'
 
 export default {
-  name: 'SourceList',
-  components: {NavBarEntity, SourceListItem},
-  computed: {
-    dataSources() {
-        console.debug(this.$store.state.connection.resources);  // XXX
-      return this.$store.state.connection.resources;
+    name: 'SourceList',
+    components: {NavBarEntity, SourceListItem},
+    computed: {
+        dataSources() {
+            console.debug(this.$store.state.connection.resources);  // XXX
+            return this.$store.state.connection.resources;
+        }
     }
-  }
 }
 </script>
 

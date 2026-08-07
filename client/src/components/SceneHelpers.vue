@@ -14,21 +14,21 @@ import {mapState} from 'vuex';
 import NavBarEntity from './NavBarEntity.vue'
 
 export default {
-  name: 'SceneHelpers',
-  components: {NavBarEntity},
-  computed: {
-    ...mapState({
-        scaleX: state => state.view3D.axesScales[0],
-        scaleY: state => state.view3D.axesScales[1],
-        scaleZ: state => state.view3D.axesScales[2],
-    }),
-  },
-  methods: {
-    update_scale(e, vn) {
-      this.$store.commit('view3D/reset_region_of_interest');
-      this.$store.commit('view3D/change_axis_scale', {'var': vn, 'v': e.target.value});
+    name: 'SceneHelpers',
+    components: {NavBarEntity},
+    computed: {
+        ...mapState({
+            scaleX: state => state.view3D.axesScales[0],
+            scaleY: state => state.view3D.axesScales[1],
+            scaleZ: state => state.view3D.axesScales[2]
+        })
+    },
+    methods: {
+        update_scale(e, vn) {
+            this.$store.commit('view3D/reset_region_of_interest');
+            this.$store.commit('view3D/change_axis_scale', {'var': vn, 'v': e.target.value});
+        }
     }
-  }
 }
 </script>
 

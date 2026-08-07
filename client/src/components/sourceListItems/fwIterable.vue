@@ -9,18 +9,15 @@
 import {mapState} from 'vuex';
 
 export default {
-  name: 'SourceListItemFwIterable',
-  props: {
-    definition: Object,
-  },
-  methods: {
-    load_next() {
-      // TODO
-      console.log("TODO: load next item in forward-iterable collection");
+    name: 'SourceListItemFwIterable',
+    props: {
+        definition: Object
+    },
+    methods: {
+        load_next() {
+            // TODO
+            console.log("TODO: load next item in forward-iterable collection");
+        }
     }
-  },
 }
-
 </script>
-
-

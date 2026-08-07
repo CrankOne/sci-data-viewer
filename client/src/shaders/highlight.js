@@ -110,4 +110,3 @@ export { maskFragmentShader, maskVertexShader
        , overlayFragmentShader
        };
 
-

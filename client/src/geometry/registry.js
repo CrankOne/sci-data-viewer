@@ -24,7 +24,7 @@ export function register(definition) {
 export function make_geometry(geoType, materials, geoDef, userData, context = {}) {
     const definition = registry.get(geoType);
     if(!definition) throw new Error(`Unknown geometry type: ${geoType}`);
-    
+
     // create group addressing the drawable
     const group = new THREE.Group();
     // this won't work for raycasting as group does not seem to be hit
@@ -52,7 +52,9 @@ export function make_geometry(geoType, materials, geoDef, userData, context = {}
     if(base.userData.pickable) {
         // highlight
         if(typeof definition.make_highlight_overlay_geometry !== "function") {
-            console.warn(`Drawable "${definition.type}" has no make_highlight_overlay_geometry() to indicate hover/highlight`);
+            console.warn(
+                `Drawable "${definition.type}" has no make_highlight_overlay_geometry() to indicate hover/highlight`
+            );
         } else {
             const highlight = definition.make_highlight_overlay_geometry(materials.mask, geoDef, context);
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
@@ -68,7 +70,9 @@ export function make_geometry(geoType, materials, geoDef, userData, context = {}
 
         // selection
         if(typeof definition.make_selected_overlay_geometry !== "function") {
-            console.warn(`Drawable "${definition.type}" has no make_selected_overlay_geometry() to indicate picking/selection`);
+            console.warn(
+                `Drawable "${definition.type}" has no make_selected_overlay_geometry() to indicate picking/selection`
+            );
         } else {
             const selected = definition.make_selected_overlay_geometry(materials.mask, geoDef, context);
             if(userData.hasOwnProperty('srcID') && userData.hasOwnProperty('geoID')) {
@@ -87,7 +91,7 @@ export function make_geometry(geoType, materials, geoDef, userData, context = {}
 
 export function dispose(geoType, material, geoDef, context = {}) {
     const definition = registry.get(geoType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown geometry type: ${geoType}`);
     // ...
 }
@@ -97,14 +101,14 @@ export function dispose(geoType, material, geoDef, context = {}) {
 
 export function set_highlight(geoType, geoDef, context={}) {
     const definition = registry.get(geoType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown geometry type: ${geoType}`);
     // ...
 }
 
 export function remove_highlight(geoType, geoDef, context={}) {
     const definition = registry.get(geoType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown geometry type: ${geoType}`);
     // ...
 }
@@ -114,14 +118,14 @@ export function remove_highlight(geoType, geoDef, context={}) {
 
 export function set_selected(geoType, geoDef, context={}) {
     const definition = registry.get(geoType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown geometry type: ${geoType}`);
     // ...
 }
 
 export function remove_selected(geoType, geoDef, context={}) {
     const definition = registry.get(geoType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown geometry type: ${geoType}`);
     // ...
 }

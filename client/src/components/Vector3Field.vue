@@ -6,19 +6,19 @@
       label="X"
       :model-value="modelValue[0]"
       :step="step"
-      @update:model-value="setComponent(0, $event)"
+      @update:model-value="set_component(0, $event)"
     />
     <NumericField
       label="Y"
       :model-value="modelValue[1]"
       :step="step"
-      @update:model-value="setComponent(1, $event)"
+      @update:model-value="set_component(1, $event)"
     />
     <NumericField
       label="Z"
       :model-value="modelValue[2]"
       :step="step"
-      @update:model-value="setComponent(2, $event)"
+      @update:model-value="set_component(2, $event)"
     />
   </fieldset>
 </template>
@@ -46,7 +46,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
-function setComponent(index, value) {
+function set_component(index, value) {
     const next = [...props.modelValue];
     next[index] = value;
     emit('update:modelValue', next);

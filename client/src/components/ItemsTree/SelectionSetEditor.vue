@@ -20,7 +20,7 @@
         :title="expanded
             ? 'Choose a saved selection set'
             : 'Choose and apply a saved selection set'"
-        @change="activateSelectedSet"
+        @change="activate_selected_set"
       >
         <option
           v-if="setNames.length === 0"
@@ -130,81 +130,78 @@
 import FramedDisclosure from "../FramedDisclosure.vue";
 
 export default {
-  name: "SelectionSetEditor",
+    name: "SelectionSetEditor",
 
-  components: {
-    FramedDisclosure
-  },
-
-  props: {
-    setNames: {
-      type: Array,
-      required: true
+    components: {
+        FramedDisclosure
     },
 
-    activeSetName: {
-      type: String,
-      default: null
+    props: {
+        setNames: {
+            type: Array,
+            required: true
+        },
+
+        activeSetName: {
+            type: String,
+            default: null
+        },
+
+        hasUnsavedChanges: {
+            type: Boolean,
+            default: false
+        }
     },
 
-    hasUnsavedChanges: {
-      type: Boolean,
-      default: false
-    }
-  },
+    emits: [
+        "activate-set",
+        "save-set",
+        "delete-set",
+        "apply-set"
+    ],
 
-  emits: [
-    "activate-set",
-    "save-set",
-    "delete-set",
-    "apply-set"
-  ],
-
-  data() {
-    return {
-      expanded: false
-    };
-  },
-
-  methods: {
-    save() {
-      const suggestedName =
-        this.activeSetName && this.hasUnsavedChanges
-          ? `${this.activeSetName} copy`
-          : "";
-
-      const name = window.prompt(
-        "Selection-set name:",
-        suggestedName
-      )?.trim();
-
-      if (!name)
-        return;
-
-      this.$emit("save-set", name);
+    data() {
+        return {
+            expanded: false
+        };
     },
 
-    apply(operation) {
-      this.$emit("apply-set", {
-        name: this.activeSetName,
-        operation
-      });
-    },
+    methods: {
+        save() {
+            const suggestedName =
+                this.activeSetName && this.hasUnsavedChanges
+                    ? `${this.activeSetName} copy`
+                    : "";
 
-    activateSelectedSet(event) {
-      const name = event.target.value || null;
+            const name = window.prompt("Selection-set name:", suggestedName)?.trim();
 
-      this.$emit( "activate-set", name);
-      // In collapsed mode, choosing a saved set acts as the compact
-      // "replace current selection" operation.
-      if (!this.expanded && name) {
-        this.$emit("apply-set", {
-          name,
-          operation: "replace"
-        });
-      }
-    },
-  }  // methods
+            if (!name)
+                return;
+
+            this.$emit("save-set", name);
+        },
+
+        apply(operation) {
+            this.$emit("apply-set", {
+                name: this.activeSetName,
+                operation
+            });
+        },
+
+        activate_selected_set(event) {
+            const name = event.target.value || null;
+
+            this.$emit("activate-set", name);
+            // In collapsed mode, choosing a saved set acts as the compact
+            // "replace current selection" operation.
+            if (!this.expanded && name) {
+                this.$emit("apply-set", {
+                    name,
+                    operation: "replace"
+                });
+            }
+        },
+    }  // methods
 };
 </script>
 

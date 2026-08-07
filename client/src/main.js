@@ -1,47 +1,37 @@
-import { createApp } from 'vue'
-import { createStore } from 'vuex'
+import { createApp } from 'vue';
+import { createStore } from 'vuex';
 
 import '@/style.css';
 import "@/viewer-icons.css";
 import "@/framed-disclosure.css";
 
-import App from './App.vue'
+import App from './App.vue';
 import view3D from './store/modules/view3D';  // viewer state module
-import { stateModule as connection } from './connection'  // data source state module
+import { stateModule as connection } from './connection';  // data source state module
 import cameras from './store/modules/cameras';
 import transfGroups from './store/modules/transfGroups';
 import create_router from './router';
 
-import { installFacetPresetPersistence } from "@/store/facetPresetPersistence.js";
-import { installSelectionSetPersistence } from "@/store/selectionSetPersistence.js";
-import { installCameraPresetPersistence } from "@/store/cameraPresetPersistence.js";
+import { install_facet_preset_persistence } from "@/store/facetPresetPersistence.js";
+import { install_selection_set_persistence } from "@/store/selectionSetPersistence.js";
+import { install_camera_preset_persistence } from "@/store/cameraPresetPersistence.js";
 
 async function fetch_plugin_manifest() {
     const response = await fetch("/api/plugins", {
-        headers: {
-            Accept: "application/json",
-        },
-    })
-    if (!response.ok) {
-        throw new Error(
-            `Could not retrieve viewer plugins: HTTP ${response.status}`
-        )
-    }
-    return await response.json()
+        headers: {Accept: "application/json"}
+    });
+    if(!response.ok)
+        throw new Error(`Could not retrieve viewer plugins: HTTP ${response.status}`);
+    return await response.json();
 }
 
 // returns list of data sources enabled by default
 function collect_default_data_sources(manifest) {
     return Object.fromEntries(
         manifest.dataSources
-            .filter(source => {
-                return source.enabledByDefault;
-            })
-            .map(source => [
-                source.id,
-                source.url,
-            ])
-    )
+            .filter(source => source.enabledByDefault)
+            .map(source => [source.id, source.url])
+    );
 }
 
 async function main() {
@@ -68,12 +58,12 @@ async function main() {
     // Compose app's store as concatenation of viewer store module (view3D) and
     // API connection state model (`connection'):
     const store = createStore({
-        modules : { connection, view3D, appCommon, cameras, transfGroups },
+        modules: {connection, view3D, appCommon, cameras, transfGroups}
     });
 
-    installFacetPresetPersistence(store);
-    installSelectionSetPersistence(store);
-    installCameraPresetPersistence(store);
+    install_facet_preset_persistence(store);
+    install_selection_set_persistence(store);
+    install_camera_preset_persistence(store);
 
     app.use(store);  // BEFORE app.mount()!
     app.use(router);
@@ -83,16 +73,11 @@ async function main() {
     document.documentElement.dataset.theme = savedTheme;
 
     for(const [srcName, srcURL] of Object.entries(defaultDataSources)) {
-        store.dispatch('connection/add_resource', {
-                name: srcName,
-                endpoint: srcURL,
-                load: true
-            });
+        store.dispatch('connection/add_resource', {name: srcName, endpoint: srcURL, load: true});
     }
 }
 
 main().catch(error => {
-    console.error("Viewer initialization failed:", error)
-    document.body.textContent =
-        `Viewer initialization failed: ${error.message}`
-})
+    console.error("Viewer initialization failed:", error);
+    document.body.textContent = `Viewer initialization failed: ${error.message}`;
+});

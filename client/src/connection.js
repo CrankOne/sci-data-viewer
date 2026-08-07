@@ -14,12 +14,9 @@ const RESOURCE_TYPE_HANDLERS = Object.freeze({
     geo3d: {
         mutation: 'view3D/update_geo_data',
         payload(resource, data) {
-            return {
-                name: resource.name,
-                geoData: data,
-            };
-        },
-    },
+            return {name: resource.name, geoData: data};
+        }
+    }
 
     // Future examples:
     //
@@ -27,8 +24,8 @@ const RESOURCE_TYPE_HANDLERS = Object.freeze({
     //     mutation: 'plots/update_time_series',
     //     payload(resource, data) {
     //         return {name: resource.name, data};
-    //     },
-    // },
+    //     }
+    // }
 });
 
 // Relative data URLs are resolved against the manifest endpoint,
@@ -41,46 +38,29 @@ function resolve_url_rel_to_endpoint(url, baseURL) {
 // Async JSON data fetch (local utility)
 async function fetch_json(url, {signal} = {}) {
     const response = await fetch(url, {
-        headers: {
-            Accept: 'application/json',
-        },
-        signal,
+        headers: {Accept: 'application/json'},
+        signal
     });
     if(!response.ok) {
-        throw new Error(
-            `GET ${url} failed with HTTP ${response.status}`
-        );
+        throw new Error(`GET ${url} failed with HTTP ${response.status}`);
     }
     return response.json();
 }
 
 // validates manifest and resolves data URL wrt endpoint
 function normalize_manifest(manifest, manifestURL) {
-    if( typeof manifest !== 'object'
-        || manifest === null
-        || Array.isArray(manifest)
-    ) {
-        throw new TypeError(
-            `Resource manifest from ${manifestURL} is not an object`
-        );
+    if(typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+        throw new TypeError(`Resource manifest from ${manifestURL} is not an object`);
     }
-    if( typeof manifest['data-url'] !== 'string'
-        || manifest['data-url'].length === 0
-    ) {
-        throw new TypeError(
-            `Resource manifest from ${manifestURL} has no valid "data-url"`
-        );
+    if(typeof manifest['data-url'] !== 'string' || manifest['data-url'].length === 0) {
+        throw new TypeError(`Resource manifest from ${manifestURL} has no valid "data-url"`);
     }
-    if( typeof manifest.type !== 'string'
-        || manifest.type.length === 0
-    ) {
-        throw new TypeError(
-            `Resource manifest from ${manifestURL} has no valid "type"`
-        );
+    if(typeof manifest.type !== 'string' || manifest.type.length === 0) {
+        throw new TypeError(`Resource manifest from ${manifestURL} has no valid "type"`);
     }
     return {
         ...manifest,
-        dataURL: resolve_url_rel_to_endpoint(manifest['data-url'], manifestURL),
+        dataURL: resolve_url_rel_to_endpoint(manifest['data-url'], manifestURL)
     };
 }
 
@@ -89,14 +69,11 @@ function normalize_manifest(manifest, manifestURL) {
 const stateModule = {
     namespaced: true,
     state: () => ({
-        resources: {},
+        resources: {}
     }),
     mutations: {
         new_resource(state, resource) {
-            state.resources = {
-                ...state.resources,
-                [resource.name]: resource,
-            };
+            state.resources = {...state.resources, [resource.name]: resource};
             console.debug(`new resource "${resource.name}" -> "${resource.dataURL}" added`);
         },
         update_resource(state, {name, changes}) {
@@ -106,10 +83,7 @@ const stateModule = {
             }
             state.resources = {
                 ...state.resources,
-                [name]: {
-                    ...resource,
-                    ...changes,
-                },
+                [name]: {...resource, ...changes}
             };
             console.debug(`resource "${name}" updated`);
         },
@@ -119,20 +93,12 @@ const stateModule = {
             delete resources[name];
             state.resources = resources;
             console.debug(`resource "${name}" removed`);
-        },
+        }
     },
     actions: {
         // Add and inspect a resource.
         // `load' controls whether its payload is fetched immediately
-        async add_resource(
-            {commit, dispatch},
-            {
-                name,
-                endpoint,
-                load = true,
-                signal = undefined,
-            }
-        ) {
+        async add_resource({commit, dispatch}, {name, endpoint, load = true, signal = undefined}) {
             commit('new_resource', {
                 name,
                 endpoint,
@@ -141,24 +107,15 @@ const stateModule = {
                 type: null,
                 dataURL: null,
                 dataSize: null,
-                error: null,
+                error: null
             });
 
-            return dispatch('fetch_resource_manifest', {
-                name,
-                load,
-            });
+            return dispatch('fetch_resource_manifest', {name, load});
         },
 
-        async fetch_resource_manifest(
-            {state, commit, dispatch},
-            {
-                name,
-                load = true,
-            }
-        ) {
+        async fetch_resource_manifest({state, commit, dispatch}, {name, load = true}) {
             const resource = state.resources[name];
-            if (!resource) {
+            if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
             }
             // Abort an older request for the same resource.
@@ -166,35 +123,19 @@ const stateModule = {
             const controller = new AbortController();
             // A monotonically increasing generation prevents an obsolete request
             // from updating the store after a retry.
-            const generation =
-                (gManifestRequests.get(name)?.generation ?? 0) + 1;
-            gManifestRequests.set(name, {
-                controller,
-                generation,
-            });
+            const generation = (gManifestRequests.get(name)?.generation ?? 0) + 1;
+            gManifestRequests.set(name, {controller, generation});
             commit('update_resource', {
                 name,
-                changes: {
-                    status: 'loading-manifest',
-                    manifest: null,
-                    error: null,
-                },
+                changes: {status: 'loading-manifest', manifest: null, error: null}
             });
             try {
-                const rawManifest = await fetch_json(
-                    resource.endpoint,
-                    {
-                        signal: controller.signal,
-                    }
-                );
+                const rawManifest = await fetch_json(resource.endpoint, {signal: controller.signal});
                 const activeRequest = gManifestRequests.get(name);
                 if(activeRequest?.generation !== generation) {
                     return null;
                 }
-                const manifest = normalize_manifest(
-                    rawManifest,
-                    resource.endpoint
-                );
+                const manifest = normalize_manifest(rawManifest, resource.endpoint);
                 commit('update_resource', {
                     name,
                     changes: {
@@ -202,61 +143,39 @@ const stateModule = {
                         manifest,
                         type: manifest.type,
                         dataURL: manifest.dataURL,
-                        error: null,
-                    },
+                        error: null
+                    }
                 });
-                if (load) {
+                if(load) {
                     await dispatch('load_resource_data', {name});
                 }
                 return manifest;
-            } catch (error) {
+            } catch(error) {
                 const activeRequest = gManifestRequests.get(name);
-                if (activeRequest?.generation !== generation) {
+                if(activeRequest?.generation !== generation) {
                     return null;
                 }
-                if (error.name === 'AbortError') {
-                    commit('update_resource', {
-                        name,
-                        changes: {
-                            status: 'cancelled',
-                            error: null,
-                        },
-                    });
-
+                if(error.name === 'AbortError') {
+                    commit('update_resource', {name, changes: {status: 'cancelled', error: null}});
                     return null;
                 }
-                commit('update_resource', {
-                    name,
-                    changes: {
-                        status: 'error',
-                        error: error.message,
-                    },
-                });
+                commit('update_resource', {name, changes: {status: 'error', error: error.message}});
                 throw error;
             } finally {
                 const activeRequest = gManifestRequests.get(name);
-                if (activeRequest?.generation === generation) {
+                if(activeRequest?.generation === generation) {
                     gManifestRequests.delete(name);
                 }
             }
         },
 
         cancel_resource_manifest_fetch({state}, name) {
-            if (!state.resources[name]) return;
+            if(!state.resources[name]) return;
             gManifestRequests.get(name)?.controller.abort();
         },
 
-        retry_resource_manifest(
-            {dispatch},
-            {
-                name,
-                load = true,
-            }
-            ) {
-            return dispatch('fetch_resource_manifest', {
-                name,
-                load,
-            });
+        retry_resource_manifest({dispatch}, {name, load = true}) {
+            return dispatch('fetch_resource_manifest', {name, load});
         },
 
         remove_resource({commit}, name) {
@@ -266,14 +185,7 @@ const stateModule = {
         },
 
         // Fetch the payload for an already registered resource.
-        async load_resource_data(
-            {state, commit, dispatch},
-            {
-                name,
-                query = undefined,
-                signal = undefined,
-            }
-        ) {
+        async load_resource_data({state, commit, dispatch}, {name, query = undefined, signal = undefined}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
@@ -283,13 +195,13 @@ const stateModule = {
             }
             console.debug(resource);  // XXX
             const url = new URL(resource.dataURL);
-            if (query) {
-                for (const [key, value] of Object.entries(query)) {
-                    if (value === undefined || value === null) {
+            if(query) {
+                for(const [key, value] of Object.entries(query)) {
+                    if(value === undefined || value === null) {
                         continue;
                     }
-                    if (Array.isArray(value)) {
-                        for (const item of value) {
+                    if(Array.isArray(value)) {
+                        for(const item of value) {
                             url.searchParams.append(key, String(item));
                         }
                     } else {
@@ -298,68 +210,32 @@ const stateModule = {
                 }
             }
 
-            commit('update_resource', {
-                name,
-                changes: {
-                    status: 'loading-data',
-                    error: null,
-                },
-            });
+            commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
 
             try {
                 const data = await fetch_json(url.href, {signal});
-                await dispatch('apply_resource_data', {
-                    resource,
-                    data,
-                });
+                await dispatch('apply_resource_data', {resource, data});
                 commit('update_resource', {
                     name,
-                    changes: {
-                        status: 'loaded',
-                        dataSize: JSON.stringify(data).length,
-                        error: null,
-                    },
+                    changes: {status: 'loaded', dataSize: JSON.stringify(data).length, error: null}
                 });
                 return data;
             } catch(error) {
-                commit('update_resource', {
-                    name,
-                    changes: {
-                        status: 'error',
-                        error: String(error),
-                    },
-                });
-                console.error(
-                    `Failed to load data for resource "${name}" from ${url}:`,
-                    error
-                );
+                commit('update_resource', {name, changes: {status: 'error', error: String(error)}});
+                console.error(`Failed to load data for resource "${name}" from ${url}:`, error);
                 throw error;
             }
         },
 
         // fwd a resource payload to its type-specific consumer.
-        apply_resource_data(
-            {commit},
-            {
-                resource,
-                data,
-            }
-        ) {
+        apply_resource_data({commit}, {resource, data}) {
             const handler = RESOURCE_TYPE_HANDLERS[resource.type];
             if(!handler) {
-                throw new Error(
-                    `Unsupported resource type ${JSON.stringify(resource.type)}`
-                );
+                throw new Error(`Unsupported resource type ${JSON.stringify(resource.type)}`);
             }
-            commit(
-                handler.mutation,
-                handler.payload(resource, data),
-                {root: true}
-            );
-        },
+            commit(handler.mutation, handler.payload(resource, data), {root: true});
+        }
     }
 };
 
-export {stateModule}
-
-
+export {stateModule};

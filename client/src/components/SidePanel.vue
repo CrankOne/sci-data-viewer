@@ -25,7 +25,7 @@ export default {
         ItemsTree,
         SceneHelpers,
         TransfGroupsPanel,
-        AppearanceCtrls,
+        AppearanceCtrls
     },
     data() {
         return {};

@@ -17,4 +17,3 @@ export function make_selected_overlay_geometry(material, geoDef, context={}) {
     const hl = make_geometry(material || context.meshMaskMaterial, geoDef, context);
     return hl;
 }
-

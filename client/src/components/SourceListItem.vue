@@ -31,67 +31,55 @@ import StaticSourceListItem from './sourceListItems/static.vue'
 // import ... (other source list items)
 
 export default {
-  name: 'SourceListItem',
-  components: {
-      WaitingSourceListItem,
-      StaticSourceListItem,
-      // ...
-  },
-  props: {
-    name: String,
-    noRemove: false,
-    noRefreshManifest: false,
-    definition: Object,
-  },
-  methods: {
-    reload_manifest() {
-        return this.$store.dispatch(
-            'connection/retry_resource_manifest',
-            {
-                name: this.name,
-                load: true,
+    name: 'SourceListItem',
+    components: {
+        WaitingSourceListItem,
+        StaticSourceListItem
+        // ...
+    },
+    props: {
+        name: String,
+        noRemove: false,
+        noRefreshManifest: false,
+        definition: Object
+    },
+    methods: {
+        reload_manifest() {
+            return this.$store.dispatch('connection/retry_resource_manifest', {name: this.name, load: true});
+        },
+
+        cancel_manifest_fetch() {
+            return this.$store.dispatch('connection/cancel_resource_manifest_fetch', this.name);
+        },
+
+        remove_resource() {
+            return this.$store.dispatch('connection/remove_resource', this.name);
+        }
+    },
+
+    computed: {
+        concreteSourceItemComponent() {
+            if(this.definition.manifest === null) {
+                return 'waiting-source-list-item';
             }
-        );
-    },
-
-    cancel_manifest_fetch() {
-        return this.$store.dispatch(
-            'connection/cancel_resource_manifest_fetch',
-            this.name
-        );
-    },
-
-    remove_resource() {
-        return this.$store.dispatch(
-            'connection/remove_resource',
-            this.name
-        );
-    },
-  },
-    
-  computed: {
-    concreteSourceItemComponent() {
-      if(this.definition.manifest === null) {
-        return 'waiting-source-list-item';
-      }
-      if(this.definition.manifest.accessModel == 'staticView') {
-        return 'static-source-list-item';
-      }
-      if(this.definition.manifest.accessModel == 'staticViewWithPeriodicUpdates') {
-        return 'static-source-list-item-with-periodic-updates';
-      }
-      if(this.definition.manifest.accessModel == 'fwIterableCollection') {
-        return 'source-list-item-fw-iterable';
-      }
-      if(this.definition.manifest.accessModel == 'sparseCollection') {
-        return 'static-source-list-item-sparse-collection';
-      }
-      if(this.definition.manifest.accessModel == 'sparseCollectionWithPagination') {
-        return 'static-source-list-item-sparse-collection-with-pagination';
-      }
-      throw new Error(`Unknown access model type "${this.definition.manifest.accessModel}"`)
+            if(this.definition.manifest.accessModel == 'staticView') {
+                return 'static-source-list-item';
+            }
+            if(this.definition.manifest.accessModel == 'staticViewWithPeriodicUpdates') {
+                return 'static-source-list-item-with-periodic-updates';
+            }
+            if(this.definition.manifest.accessModel == 'fwIterableCollection') {
+                return 'source-list-item-fw-iterable';
+            }
+            if(this.definition.manifest.accessModel == 'sparseCollection') {
+                return 'static-source-list-item-sparse-collection';
+            }
+            if(this.definition.manifest.accessModel == 'sparseCollectionWithPagination') {
+                return 'static-source-list-item-sparse-collection-with-pagination';
+            }
+            throw new Error(`Unknown access model type "${this.definition.manifest.accessModel}"`)
+        }
     }
-  },
 }
 </script>
 

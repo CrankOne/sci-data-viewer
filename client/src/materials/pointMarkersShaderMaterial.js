@@ -8,10 +8,6 @@ export function make_material(matDef, context={}) {
 }
 
 export function make_mask_material(matDef_, context={}) {
-    const matDef = {
-          flags: 0x3  // always filled
-        , ...matDef_
-        };
+    const matDef = {flags: 0x3, ...matDef_};  // always filled
     return Markers.get_marker_shader_material(matDef);
 }
-

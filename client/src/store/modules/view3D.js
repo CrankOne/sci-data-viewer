@@ -1,61 +1,50 @@
 import * as THREE from 'three';
 import {
-      normalizeSelectionAsset,
-      serializeSelection,
-      unionSelections,
-      subtractSelections,
-      intersectSelections
-    } from "../selectionSets.js";
+    normalize_selection_asset,
+    serialize_selection,
+    union_selections,
+    subtract_selections,
+    intersect_selections
+} from "../selectionSets.js";
 
 //                  * * *   * * *   * * *
 // Helpers (not state getters -- not computed or cached by themselves)
 
 const DEFAULT_FACET_PRESETS = {
-  "Source and transf.groups": {
-    facets: [
-      "source",
-      "transf.group",
-    ]
-  },
-  // ... other default grouping?
+    "Source and transf.groups": {
+        facets: [
+            "source",
+            "transf.group"
+        ]
+    }
+    // ... other default grouping?
 };
 
-function normalizeIDs(ids) {
-  if (ids === undefined || ids === null)
-    return [];
-  return Array.isArray(ids) ? ids : [ids];
+function normalize_ids(ids) {
+    if(ids === undefined || ids === null) return [];
+    return Array.isArray(ids) ? ids : [ids];
 }
 
-function clonePresets(presets) {
-  return Object.fromEntries(
-    Object.entries(presets).map(([name, preset]) => [
-      name,
-      {
-        facets: [...(preset.facets ?? [])]
-      }
-    ])
-  );
+function clone_presets(presets) {
+    return Object.fromEntries(
+        Object.entries(presets).map(([name, preset]) => [
+            name,
+            {facets: [...(preset.facets ?? [])]}
+        ])
+    );
 }
 
-function currentSelection(state) {
-  return {
-    geoItemIDs: state.selectedGeoItemIDs,
-    markers: state.selectedMarkers
-  };
+function current_selection(state) {
+    return {
+        geoItemIDs: state.selectedGeoItemIDs,
+        markers: state.selectedMarkers
+    };
 }
 
-function assignSelection(state, selection) {
-  state.selectedGeoItemIDs =
-    new Set(selection.geoItemIDs);
-
-  state.selectedMarkers =
-    new Map(
-      [...selection.markers].map(
-        ([geoID, indices]) => [
-          geoID,
-          new Set(indices)
-        ]
-      )
+function assign_selection(state, selection) {
+    state.selectedGeoItemIDs = new Set(selection.geoItemIDs);
+    state.selectedMarkers = new Map(
+        [...selection.markers].map(([geoID, indices]) => [geoID, new Set(indices)])
     );
 }
 
@@ -84,11 +73,11 @@ export default {
         selectedMarkers: new Map(), // geoID -> Set(point indeces)
         hiddenGeoItemIDs: new Set(),  // ... TODO?
 
-        facetPresets: clonePresets(DEFAULT_FACET_PRESETS),
+        facetPresets: clone_presets(DEFAULT_FACET_PRESETS),
         activeFacetPresetName: "Source and transf.groups",
 
         selectionSets: {},
-        activeSelectionSetName: null,
+        activeSelectionSetName: null
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -100,10 +89,11 @@ export default {
             // not updated; one way to overcome is to rely on JSON.stringify(pl.geoData)
             // or:
             state.geoDataBySource = {
-                    ...state.geoDataBySource,
-                    [pl.name]: pl.geoData
-                };
-            console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);  // suceeds
+                ...state.geoDataBySource,
+                [pl.name]: pl.geoData
+            };
+            // suceeds
+            console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);
         },
 
         toggle_highlight_hidden(state, value) {
@@ -112,16 +102,12 @@ export default {
 
         // Updates region of interest with given point r:float[3]
         update_region_of_interest(state, rs) {
-            rs.forEach( r => {
+            rs.forEach(r => {
                 for(let j = 0; j < 3; ++j) {
-                    if( state.regionOfInterest[0][j] === null
-                     || state.regionOfInterest[0][j] > r[j] ) {
+                    if(state.regionOfInterest[0][j] === null || state.regionOfInterest[0][j] > r[j])
                         state.regionOfInterest[0][j] = r[j];
-                    }
-                    if( state.regionOfInterest[1][j] === null
-                     || state.regionOfInterest[1][j] < r[j] ) {
+                    if(state.regionOfInterest[1][j] === null || state.regionOfInterest[1][j] < r[j])
                         state.regionOfInterest[1][j] = r[j];
-                    }
                 }
             });
         },
@@ -134,7 +120,7 @@ export default {
         },
         // Change the scales
         change_axis_scale(state, pl) {
-            const nIdx = {'x':0,'y':1,'z':2}[pl['var']];
+            const nIdx = {'x': 0, 'y': 1, 'z': 2}[pl['var']];
             state.axesScales[nIdx] = pl.v;
         },
 
@@ -142,24 +128,22 @@ export default {
         // Highlighting {{{
 
         set_tree_hover_geo_items(state, ids) {
-          state.treeHoveredGeoItemIDs =
-            new Set(normalizeIDs(ids));
+            state.treeHoveredGeoItemIDs = new Set(normalize_ids(ids));
         },
 
         clear_tree_hover_geo_items(state) {
-          state.treeHoveredGeoItemIDs = new Set();
+            state.treeHoveredGeoItemIDs = new Set();
         },
 
         set_scene_hover_geo_items(state, ids) {
-          state.sceneHoveredGeoItemIDs =
-            new Set(normalizeIDs(ids));
+            state.sceneHoveredGeoItemIDs = new Set(normalize_ids(ids));
         },
 
         clear_scene_hover_geo_items(state) {
-          state.sceneHoveredGeoItemIDs = new Set();
+            state.sceneHoveredGeoItemIDs = new Set();
         },
 
-        highlight_markers(state, { geoID, indices }) {
+        highlight_markers(state, {geoID, indices}) {
             const next = new Map(state.highlightedMarkers);
             next.set(geoID, new Set(indices));
             state.highlightedMarkers = next;
@@ -167,19 +151,14 @@ export default {
 
         set_highlighted_markers(state, markersByGeoID) {
             state.highlightedMarkers = new Map(
-                [...markersByGeoID.entries()].map(([geoID, indices]) => [
-                    geoID,
-                    new Set(indices),
-                ])
+                [...markersByGeoID.entries()].map(([geoID, indices]) => [geoID, new Set(indices)])
             );
         },
 
         clear_highlighted_markers(state, geoID = null) {
             const next = new Map(state.highlightedMarkers);
-            if(geoID === null)
-                next.clear();
-            else
-                next.delete(geoID);
+            if(geoID === null) next.clear();
+            else next.delete(geoID);
             state.highlightedMarkers = next;
         },
         // }}}
@@ -189,27 +168,25 @@ export default {
 
         select_geo_items(state, ids) {
             const next = new Set(state.selectedGeoItemIDs);
-            if (typeof ids === "string") {
+            if(typeof ids === "string") {
                 next.add(ids);
             } else {
-                for (const id of ids)
-                    next.add(id);
+                for(const id of ids) next.add(id);
             }
             state.selectedGeoItemIDs = next;
         },
 
         unselect_geo_items(state, ids) {
             const next = new Set(state.selectedGeoItemIDs);
-            if (typeof ids === "string") {
+            if(typeof ids === "string") {
                 next.delete(ids);
             } else {
-                for (const id of ids)
-                    next.delete(id);
+                for(const id of ids) next.delete(id);
             }
             state.selectedGeoItemIDs = next;
         },
 
-        select_markers(state, { geoID, indices }) {
+        select_markers(state, {geoID, indices}) {
             const next = new Map(state.selectedMarkers);
             next.set(geoID, new Set(indices));
             state.selectedMarkers = next;
@@ -217,10 +194,8 @@ export default {
 
         clear_selected_markers(state, geoID = null) {
             const next = new Map(state.selectedMarkers);
-            if(geoID === null)
-                next.clear();
-            else
-                next.delete(geoID);
+            if(geoID === null) next.clear();
+            else next.delete(geoID);
             state.selectedMarkers = next;
         },
 
@@ -233,205 +208,144 @@ export default {
         //
         // Visibility {{{
 
-        set_geo_items_visibility(
-          state,
-          {
-            ids,
-            visible
-          }
-        ) {
-          const next = new Set(state.hiddenGeoItemIDs);
-          for (const id of normalizeIDs(ids)) {
-            if (visible)
-              next.delete(id);
-            else
-              next.add(id);
-          }
-          state.hiddenGeoItemIDs = next;
+        set_geo_items_visibility(state, {ids, visible}) {
+            const next = new Set(state.hiddenGeoItemIDs);
+            for(const id of normalize_ids(ids)) {
+                if(visible) next.delete(id);
+                else next.add(id);
+            }
+            state.hiddenGeoItemIDs = next;
         },
         // }}}
 
         //
         // Facets  {{{
 
-        initialize_facet_presets(
-          state,
-          {
-            presets,
-            activePresetName
-          }
-        ) {
-          const normalized = clonePresets(
-            presets &&
-            Object.keys(presets).length
-              ? presets
-              : DEFAULT_FACET_PRESETS
-          );
-          state.facetPresets = normalized;
-          if (
-            activePresetName &&
-            Object.hasOwn(normalized, activePresetName)
-          ) {
-            state.activeFacetPresetName = activePresetName;
-          } else {
-            state.activeFacetPresetName =
-              Object.keys(normalized)[0];
-          }
+        initialize_facet_presets(state, {presets, activePresetName}) {
+            const normalized = clone_presets(
+                presets && Object.keys(presets).length ? presets : DEFAULT_FACET_PRESETS
+            );
+            state.facetPresets = normalized;
+            if(activePresetName && Object.hasOwn(normalized, activePresetName))
+                state.activeFacetPresetName = activePresetName;
+            else
+                state.activeFacetPresetName = Object.keys(normalized)[0];
         },
 
         activate_facet_preset(state, name) {
-          if (Object.hasOwn(state.facetPresets, name))
-            state.activeFacetPresetName = name;
+            if(Object.hasOwn(state.facetPresets, name))
+                state.activeFacetPresetName = name;
         },
 
         set_active_facet_preset_facets(state, facets) {
-          const name = state.activeFacetPresetName;
-          if(!name) return;
-          state.facetPresets = {
-            ...state.facetPresets,
-            [name]: {
-              facets: [...new Set(facets)]
-            }
-          };
+            const name = state.activeFacetPresetName;
+            if(!name) return;
+            state.facetPresets = {
+                ...state.facetPresets,
+                [name]: {facets: [...new Set(facets)]}
+            };
         },
 
-        save_facet_preset(
-          state,
-          {
-            name,
-            facets
-          }
-        ) {
-          const trimmedName = name.trim();
+        save_facet_preset(state, {name, facets}) {
+            const trimmedName = name.trim();
+            if(!trimmedName) return;
 
-          if (!trimmedName)
-            return;
+            state.facetPresets = {
+                ...state.facetPresets,
+                [trimmedName]: {facets: [...new Set(facets)]}
+            };
 
-          state.facetPresets = {
-            ...state.facetPresets,
-
-            [trimmedName]: {
-              facets: [...new Set(facets)]
-            }
-          };
-
-          state.activeFacetPresetName = trimmedName;
+            state.activeFacetPresetName = trimmedName;
         },
 
         delete_facet_preset(state, name) {
-          const names = Object.keys(state.facetPresets);
+            const names = Object.keys(state.facetPresets);
+            if(names.length <= 1 || !Object.hasOwn(state.facetPresets, name)) return;
 
-          if (
-            names.length <= 1 ||
-            !Object.hasOwn(state.facetPresets, name)
-          ) {
-            return;
-          }
+            const next = {...state.facetPresets};
+            delete next[name];
+            state.facetPresets = next;
 
-          const next = {
-            ...state.facetPresets
-          };
-
-          delete next[name];
-
-          state.facetPresets = next;
-
-          if (state.activeFacetPresetName === name)
-            state.activeFacetPresetName = Object.keys(next)[0];
+            if(state.activeFacetPresetName === name)
+                state.activeFacetPresetName = Object.keys(next)[0];
         },
         // }}}
 
         //
         // Selection sets {{{
         initialize_selection_sets(state, {sets, activeSetName}) {
-          state.selectionSets =
-            sets && typeof sets === "object"
-              ? structuredClone(sets)
-              : {};
-
-          state.activeSelectionSetName =
-            activeSetName &&
-            Object.hasOwn(state.selectionSets, activeSetName)
-              ? activeSetName
-              : null;
+            state.selectionSets = sets && typeof sets === "object" ? structuredClone(sets) : {};
+            state.activeSelectionSetName =
+                activeSetName && Object.hasOwn(state.selectionSets, activeSetName)
+                    ? activeSetName
+                    : null;
         },
 
         activate_selection_set(state, name) {
-          if (name === null || name === "") {
-            state.activeSelectionSetName = null;
-            return;
-          }
-          if (Object.hasOwn(state.selectionSets, name))
-            state.activeSelectionSetName = name;
+            if(name === null || name === "") {
+                state.activeSelectionSetName = null;
+                return;
+            }
+            if(Object.hasOwn(state.selectionSets, name))
+                state.activeSelectionSetName = name;
         },
 
         save_selection_set(state, name) {
-          const trimmedName = name.trim();
-          if (!trimmedName) return;
-          state.selectionSets = {
-            ...state.selectionSets,
-            [trimmedName]: serializeSelection(
-              currentSelection(state)
-            )
-          };
-          state.activeSelectionSetName = trimmedName;
+            const trimmedName = name.trim();
+            if(!trimmedName) return;
+            state.selectionSets = {
+                ...state.selectionSets,
+                [trimmedName]: serialize_selection(current_selection(state))
+            };
+            state.activeSelectionSetName = trimmedName;
         },
 
         update_active_selection_set(state) {
-          const name = state.activeSelectionSetName;
-          if (!name)
-            return;
-          state.selectionSets = {
-            ...state.selectionSets,
-            [name]: serializeSelection(
-              currentSelection(state)
-            )
-          };
+            const name = state.activeSelectionSetName;
+            if(!name) return;
+            state.selectionSets = {
+                ...state.selectionSets,
+                [name]: serialize_selection(current_selection(state))
+            };
         },
 
         delete_selection_set(state, name) {
-          if (!Object.hasOwn(state.selectionSets, name))
-            return;
-          const next = {
-            ...state.selectionSets
-          };
-          delete next[name];
-          state.selectionSets = next;
+            if(!Object.hasOwn(state.selectionSets, name)) return;
+            const next = {...state.selectionSets};
+            delete next[name];
+            state.selectionSets = next;
 
-          if (state.activeSelectionSetName === name) {
-            state.activeSelectionSetName = null;
-          }
+            if(state.activeSelectionSetName === name)
+                state.activeSelectionSetName = null;
         },
 
         apply_selection_set(state, {name, operation}) {
-          const serialized = state.selectionSets[name];
-          if (!serialized) return;
-          const current = currentSelection(state);
-          const saved = normalizeSelectionAsset(serialized);
-          let result;
-          switch (operation) {
-            case "replace":
-              result = saved;
-              break;
-            case "union":
-              result = unionSelections(current, saved);
-              break;
-            case "subtract-saved":
-              result = subtractSelections(current, saved);
-              break;
-            case "intersection":
-              result = intersectSelections(current, saved);
-              break;
-            case "saved-minus-current":
-              result = subtractSelections(saved, current);
-              break;
-            default:
-              console.warn(
-                `Unknown selection-set operation "${operation}"`
-              );
-              return;
-          }
-          assignSelection(state, result);
+            const serialized = state.selectionSets[name];
+            if(!serialized) return;
+            const current = current_selection(state);
+            const saved = normalize_selection_asset(serialized);
+            let result;
+            switch(operation) {
+                case "replace":
+                    result = saved;
+                    break;
+                case "union":
+                    result = union_selections(current, saved);
+                    break;
+                case "subtract-saved":
+                    result = subtract_selections(current, saved);
+                    break;
+                case "intersection":
+                    result = intersect_selections(current, saved);
+                    break;
+                case "saved-minus-current":
+                    result = subtract_selections(saved, current);
+                    break;
+                default:
+                    console.warn(`Unknown selection-set operation "${operation}"`);
+                    return;
+            }
+            assign_selection(state, result);
         }
         // }}}
     },  // mutations
@@ -441,8 +355,8 @@ export default {
     getters: {
         // See CAVEAT at update_geo_data() mutation; return JSON.stringify(state.geoDataBySource);
         geoData: state => Object.fromEntries(
-                Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
-            ),
+            Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
+        ),
 
         highlightHiddenSelection: state => state.highlightHiddenSelection,
 
@@ -451,10 +365,7 @@ export default {
         sceneHoveredGeoItemIDs: state => state.sceneHoveredGeoItemIDs,
 
         highlightedGeoItemIDs: state =>
-          new Set([
-            ...state.treeHoveredGeoItemIDs,
-            ...state.sceneHoveredGeoItemIDs
-          ]),
+            new Set([...state.treeHoveredGeoItemIDs, ...state.sceneHoveredGeoItemIDs]),
 
         highlightedMarkers: state => state.highlightedMarkers,
 
@@ -466,14 +377,10 @@ export default {
 
         activeFacetPresetName: state => state.activeFacetPresetName,
 
-        activeFacetPreset: state =>
-            state.facetPresets[state.activeFacetPresetName] ??
-        {
-          facets: []
-        },
+        activeFacetPreset: state => state.facetPresets[state.activeFacetPresetName] ?? {facets: []},
 
         // Returns current global transformation (for viewing objects)
-        transformationMatrix( state ) {
+        transformationMatrix(state) {
             const m = new THREE.Matrix3();
             m.set( state.axesScales[0], 0, 0
                  , 0, state.axesScales[1], 0
@@ -482,18 +389,18 @@ export default {
             return m;
         },
         // Axis-aligned bounding box for current region of interest
-        aabb(state, getters) {
-            if( state.regionOfInterest.flat().some( v => v === null || Number.isNaN(v) ) ) {
+        aabb(state) {
+            if(state.regionOfInterest.flat().some(v => v === null || Number.isNaN(v)))
                 return [Array(3).fill(new THREE.Vector3(NaN, NaN, NaN))];
-            }
+
             const mins = new THREE.Vector3( state.regionOfInterest[0][0]
-                                          , state.regionOfInterest[0][1]
-                                          , state.regionOfInterest[0][2]
-                                       );
+                                           , state.regionOfInterest[0][1]
+                                           , state.regionOfInterest[0][2]
+                                           );
             const maxs = new THREE.Vector3( state.regionOfInterest[1][0]
-                                          , state.regionOfInterest[1][1]
-                                          , state.regionOfInterest[1][2]
-                                          );
+                                           , state.regionOfInterest[1][1]
+                                           , state.regionOfInterest[1][2]
+                                           );
             const c = mins.clone();
             c.add(maxs).divideScalar(2.);
             return [mins, maxs, c];
@@ -511,10 +418,8 @@ export default {
         activeSelectionSetName: state => state.activeSelectionSetName,
 
         activeSelectionSet: state => {
-          const name = state.activeSelectionSetName;
-          return name
-            ? state.selectionSets[name] ?? null
-            : null;
+            const name = state.activeSelectionSetName;
+            return name ? state.selectionSets[name] ?? null : null;
         }
 
     }  // getters

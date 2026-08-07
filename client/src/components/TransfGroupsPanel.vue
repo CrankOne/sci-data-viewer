@@ -29,7 +29,7 @@
             class="icon-button"
             title="Reset to identity"
             aria-label="Reset to identity"
-            @click="resetActiveGroup"
+            @click="reset_active_group"
           >
             <span class="vi vi-camera-reset" aria-hidden="true" />
           </button>
@@ -69,9 +69,7 @@ import Vector3Field from './Vector3Field.vue';
 
 const store = useStore();
 
-const groupNames = computed(
-    () => store.getters['transfGroups/group_names']
-);
+const groupNames = computed(() => store.getters['transfGroups/groupNames']);
 
 const activeGroupName = ref(null);
 
@@ -94,7 +92,7 @@ function patch(value) {
     });
 }
 
-function resetActiveGroup() {
+function reset_active_group() {
     if(!activeGroupName.value) return;
     store.commit('transfGroups/reset_group', activeGroupName.value);
 }

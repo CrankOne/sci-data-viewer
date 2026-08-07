@@ -3,7 +3,6 @@
 
 <script>
 export default {
-  name: 'SourceListItemDenseCollection',
+    name: 'SourceListItemDenseCollection'
 }
 </script>
-

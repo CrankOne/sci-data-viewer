@@ -76,12 +76,11 @@ class CameraManager {
         this._cameraType = null;
         this._controls = null;
 
-        this._unsubscribe = this._vuexStore.subscribe((mutation) => {
-                if(mutation.type.startsWith('cameras/')) {
-                    this.sync_camera_from_store();
-                }
+        this._unsubscribe = this._vuexStore.subscribe(mutation => {
+            if(mutation.type.startsWith('cameras/')) {
+                this.sync_camera_from_store();
             }
-        );
+        });
 
         this.sync_camera_from_store();
     }  // }}}
@@ -90,11 +89,11 @@ class CameraManager {
     get controls() { return this._controls; }
 
     get cameraSettings() {
-        return this._vuexStore.getters['cameras/current_preset'](this._viewportID);
+        return this._vuexStore.getters['cameras/currentPreset'](this._viewportID);
     }
 
     get viewportSettings() {
-        return this._vuexStore.getters['cameras/viewport_state'](this._viewportID);
+        return this._vuexStore.getters['cameras/viewportState'](this._viewportID);
     }
 
     sync_camera_from_store() {
@@ -132,9 +131,7 @@ class CameraManager {
         } else if (type === 'orthographic') {
             this._camera = new THREE.OrthographicCamera();
         } else {
-            throw new Error(
-                `Unsupported camera type: ${type}`
-            );
+            throw new Error(`Unsupported camera type: ${type}`);
         }
         this._cameraType = type;
         this._create_controls(type);
@@ -148,12 +145,8 @@ class CameraManager {
             configure_perspective_controls(controls);
         else
             configure_orthographic_controls(controls);
-        controls.addEventListener('change',
-                () => this._render()
-            );
-        controls.addEventListener('end',
-                () => this._store_runtime_camera_state()
-            );
+        controls.addEventListener('change', () => this._render());
+        controls.addEventListener('end', () => this._store_runtime_camera_state());
 
         // disable to make OrbitControls to not install its keyboard handlers
         // globally:
@@ -182,10 +175,10 @@ class CameraManager {
 
     _store_runtime_camera_state() {
         const patch = {
-                position: this._camera.position.toArray(),
-                target: this._controls.target.toArray(),
-                up: this._camera.up.toArray()
-            };
+            position: this._camera.position.toArray(),
+            target: this._controls.target.toArray(),
+            up: this._camera.up.toArray()
+        };
         if(this._camera.isOrthographicCamera) patch.zoom = this._camera.zoom;
 
         this._vuexStore.commit('cameras/patch_working_camera', {
@@ -242,7 +235,7 @@ class CameraManager {
     }
 
     // Called after the renderer/viewport has been resized; the camera's
-    // aspect comes from `cameras/viewport_state`, which the caller is
+    // aspect comes from `cameras/viewportState`, which the caller is
     // expected to have already updated (see Viewport.vue's ResizeObserver).
     resize() {
         this.sync_camera_from_store();

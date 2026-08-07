@@ -41,26 +41,26 @@ export default {
   name: 'AppearanceCtrls',
 
   components: {
-    NavBarEntity,
+    NavBarEntity
   },
 
   data() {
     return {
-      themes: ['bright', 'dark'/*, 'auto'*/],
+      themes: ['bright', 'dark'/*, 'auto'*/]
     };
   },
 
   computed: {
     theme: {
       get() { return this.$store.state.appCommon.theme; },
-      set(value) { this.$store.commit('appCommon/set_theme', value); },
+      set(value) { this.$store.commit('appCommon/set_theme', value); }
     },
 
     highlightInvisibleOnHover: {
       get() { return this.$store.state.view3D.highlightHiddenSelection; },
       set(value) { this.$store.commit('view3D/toggle_highlight_hidden', value); }
-    },
-  },
+    }
+  }
 };
 </script>
 

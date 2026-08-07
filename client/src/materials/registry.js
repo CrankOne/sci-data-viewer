@@ -19,8 +19,7 @@ export function make_material(matType, matDef, context = {}) {
     const definition = registry.get(matType);
     if(!definition)
         throw new Error(`Unknown material type: ${matType}`);
-    const r = { base: definition.make_material(matDef, context)
-           , mask: null };
+    const r = {base: definition.make_material(matDef, context), mask: null};
     if(typeof definition.make_mask_material === 'function') {
         // has special mask material
         r.mask = definition.make_mask_material(matDef);
@@ -30,7 +29,7 @@ export function make_material(matType, matDef, context = {}) {
 
 export function dispose(matType, mat, context = {}) {
     const definition = registry.get(matType);
-    if (!definition)
+    if(!definition)
         throw new Error(`Unknown material type: ${matType}`);
     // ...
 }

@@ -5,11 +5,11 @@ import * as Shaders from './shaders';
 // Marker drawing functions, meant to be used with canvas context
 const markerDrawingFunctions = {
     // Hollow circle
-    hollowCircle: (sz, ctx) => ctx.arc( sz/2, sz/2, sz/2 - .5, 0, 2*Math.PI ),
+    hollowCircle: (sz, ctx) => ctx.arc(sz / 2, sz / 2, sz / 2 - .5, 0, 2 * Math.PI),
     // Circle to be filled
-    filledCircle: (sz, ctx) => ctx.arc( sz/2, sz/2, sz/2 -  1, 0, 2*Math.PI ),
+    filledCircle: (sz, ctx) => ctx.arc(sz / 2, sz / 2, sz / 2 - 1, 0, 2 * Math.PI),
     // Rectangle to be filled
-    filledRectangle: (sz, ctx) => ctx.fillRect(  .5, .5, sz - .5, sz - .5),
+    filledRectangle: (sz, ctx) => ctx.fillRect(.5, .5, sz - .5, sz - .5),
     // Hollow rectangle
     hollowRectangle: (sz, ctx) => ctx.strokeRect(.5, .5, sz - .5, sz - .5),
     // X-like cross, 1-line thin
@@ -21,46 +21,46 @@ const markerDrawingFunctions = {
     },
     // X-like cross, hollow within
     hollowXCross: (sz, ctx) => {
-        ctx.moveTo(.5, sz*.25);
-        ctx.lineTo(sz*.25, .5);
-        ctx.lineTo(sz*.5-.5, sz*.24);
-        ctx.lineTo(sz*.75, .5);
-        ctx.lineTo(sz-.5, sz*.25)
-        ctx.lineTo(sz*.75, sz*.5);
-        ctx.lineTo(sz-.5, sz*.75);
-        ctx.lineTo(sz*.75, sz-.5);
-        ctx.lineTo(sz*.5, sz*.75);
-        ctx.lineTo(sz*.25, sz-.5);
-        ctx.lineTo(.5, sz*.75);
-        ctx.lineTo(sz*.25, sz*.5);
-        ctx.lineTo(.5, sz*.25);
+        ctx.moveTo(.5, sz * .25);
+        ctx.lineTo(sz * .25, .5);
+        ctx.lineTo(sz * .5 - .5, sz * .24);
+        ctx.lineTo(sz * .75, .5);
+        ctx.lineTo(sz - .5, sz * .25);
+        ctx.lineTo(sz * .75, sz * .5);
+        ctx.lineTo(sz - .5, sz * .75);
+        ctx.lineTo(sz * .75, sz - .5);
+        ctx.lineTo(sz * .5, sz * .75);
+        ctx.lineTo(sz * .25, sz - .5);
+        ctx.lineTo(.5, sz * .75);
+        ctx.lineTo(sz * .25, sz * .5);
+        ctx.lineTo(.5, sz * .25);
     },
     // 1-line-thin +-like cross
     plusCross: (sz, ctx) => {
-        ctx.moveTo(sz/2 - 1 + .5, 1 + .5);
-        ctx.lineTo(sz/2 - 1 + .5, sz - 2 + .5);
-        ctx.moveTo(1 + .5, sz/2 - 1 + .5);
-        ctx.lineTo(sz - 2 + .5, sz/2 - 1 + .5);
+        ctx.moveTo(sz / 2 - 1 + .5, 1 + .5);
+        ctx.lineTo(sz / 2 - 1 + .5, sz - 2 + .5);
+        ctx.moveTo(1 + .5, sz / 2 - 1 + .5);
+        ctx.lineTo(sz - 2 + .5, sz / 2 - 1 + .5);
     },
     // +-like cross, hollow within
     hollowPlusCross: (sz, ctx) => {
-        ctx.moveTo(sz*.33 - .5, sz*.33 + .5);
-        ctx.lineTo(sz*.33 - .5, .5);
-        ctx.lineTo(sz*.66 + .5, .5);
-        ctx.lineTo(sz*.66 + .5, sz*.33 - .5);
-        ctx.lineTo(sz-.5,       sz*.33 - .5);
-        ctx.lineTo(sz-.5,       sz*.66 + .5);
-        ctx.lineTo(sz*.66 + .5, sz*.66 + .5);
-        ctx.lineTo(sz*.66 + .5, sz-.5);
-        ctx.lineTo(sz*.33 - .5, sz-.5);
-        ctx.lineTo(sz*.33 - .5, sz*.66 + .5);
-        ctx.lineTo(.5,          sz*.66 + .5);
-        ctx.lineTo(.5,          sz*.33 - .5);
-        ctx.lineTo(sz*.33 - .5, sz*.33 - .5);
+        ctx.moveTo(sz * .33 - .5, sz * .33 + .5);
+        ctx.lineTo(sz * .33 - .5, .5);
+        ctx.lineTo(sz * .66 + .5, .5);
+        ctx.lineTo(sz * .66 + .5, sz * .33 - .5);
+        ctx.lineTo(sz - .5, sz * .33 - .5);
+        ctx.lineTo(sz - .5, sz * .66 + .5);
+        ctx.lineTo(sz * .66 + .5, sz * .66 + .5);
+        ctx.lineTo(sz * .66 + .5, sz - .5);
+        ctx.lineTo(sz * .33 - .5, sz - .5);
+        ctx.lineTo(sz * .33 - .5, sz * .66 + .5);
+        ctx.lineTo(.5, sz * .66 + .5);
+        ctx.lineTo(.5, sz * .33 - .5);
+        ctx.lineTo(sz * .33 - .5, sz * .33 - .5);
     }
 };
 
-function draw_texture( draw_callback, sz, flags ) {
+function draw_texture(draw_callback, sz, flags) {
     flags = flags || 0x0;
     const canvas = document.createElement('canvas');
     canvas.width = sz;
@@ -71,7 +71,7 @@ function draw_texture( draw_callback, sz, flags ) {
     //context.fillRect(0, 0, sz, sz);
     // draw in white
     context.strokeStyle = "#fff";
-    context.fillStyle   = "#fff";
+    context.fillStyle = "#fff";
     // draw
     context.beginPath();
     draw_callback(sz, context);
@@ -91,14 +91,12 @@ function draw_texture( draw_callback, sz, flags ) {
 
 class MarkerAssets {
     // Constructs instance for certain defaults
-    constructor( defaultShape
-               , defaultFlags
-               , defaultSize ) {
+    constructor(defaultShape, defaultFlags, defaultSize) {
         this._defaults = {
-                shape: defaultShape || 'xCross',
-                flags: defaultFlags || 0x0,
-                size:  defaultSize  || 16,
-            };
+            shape: defaultShape || 'xCross',
+            flags: defaultFlags || 0x0,
+            size: defaultSize || 16
+        };
         this._textureCache = {};
     }
     // Returns tuple of texture lookup key, shape and size
@@ -109,15 +107,12 @@ class MarkerAssets {
             const rx = /(\w+)(?:-(\d+))?(?:-(\d+))?/;
             const m = pattern.match(rx);
             if(!m) throw new Error("Marker type string does not match expected pattern <name>[-flags][-pxSize]");
-            pattern = { shape: m[1]
-                    , flags : parseInt(m[2])
-                    , size: parseInt(m[3])
-                };
+            pattern = {shape: m[1], flags: parseInt(m[2]), size: parseInt(m[3])};
         } else if(!(typeof pattern === 'object')) {
             throw new Error("Bad argument type for marker type parameter.");
         }
         const shape = pattern.shape || this._defaults.shape;
-        const size  = pattern.size  || this._defaults.size;
+        const size = pattern.size || this._defaults.size;
         const flags = pattern.flags || this._defaults.flags;
         const k = `${shape}-${flags}-${size}`;
         return [k, shape, flags & 0x3, size];
@@ -127,15 +122,14 @@ class MarkerAssets {
     // texture and `materials' field referencing sub-object listing created
     // materials
     get_texture_catalogue(pattern) {
-        let k, shape, flags, size;
-        [k, shape, flags, size] = this.complete_texture_lookup_key(pattern);
+        const [k, shape, flags, size] = this.complete_texture_lookup_key(pattern);
         if(k in this._textureCache) return this._textureCache[k];
         this._textureCache[k] = {
-                texture: new THREE.Texture(draw_texture( markerDrawingFunctions[shape], size, flags)),
-                materials: {}
-            }
+            texture: new THREE.Texture(draw_texture(markerDrawingFunctions[shape], size, flags)),
+            materials: {}
+        };
         this._textureCache[k].texture.needsUpdate = true;  // NOTE: required for some reason...
-        return this._textureCache[k]
+        return this._textureCache[k];
     }
     // Returns shader-based material for marker
     get_material(patternObj) {
@@ -145,10 +139,10 @@ class MarkerAssets {
         const cat = this.get_texture_catalogue(patternObj);
         if(flags in cat.materials) return cat.materials[flags];
         // Create new material otherwise
-        cat.materials[flags] = new THREE.ShaderMaterial( {
+        cat.materials[flags] = new THREE.ShaderMaterial({
             uniforms: {
-                markerScale: { value: 1.0 },  // TODO: bind control, watcher, etc?
-                pointTexture: { type: "t", value: cat.texture },
+                markerScale: {value: 1.0},  // TODO: bind control, watcher, etc?
+                pointTexture: {type: "t", value: cat.texture}
                 //pointTexture: { value: new THREE.TextureLoader().load( 'https://threejs.org/examples/textures/sprites/spark1.png' ) }
                 //pointTexture: { value: new THREE.TextureLoader().load( 'textures/sprites/spark1.png' ) }
                 // ...
@@ -160,7 +154,7 @@ class MarkerAssets {
             depthTest: true,
             transparent: true,
 
-            vertexColors: ((flags & 0x4) ? false : true)
+            vertexColors: (flags & 0x4) ? false : true
         });
         return cat.materials[flags];
     }
@@ -212,6 +206,3 @@ export function get_markers() {
     return markers;
 }
 */
-
-
-

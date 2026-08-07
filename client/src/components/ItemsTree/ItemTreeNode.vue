@@ -11,7 +11,7 @@
            selected: groupSelectionState === 'all',
            'partially-selected': groupSelectionState === 'partial'
          }"
-        @mouseenter="hoverGroup"
+        @mouseenter="hover_group"
         @mouseleave="$emit('unhover')">
       <button
         type="button"
@@ -43,7 +43,7 @@
         class="group-action-button"
         title="Select all items in this group"
         aria-label="Select all items in this group"
-        @click.stop="selectGroup"
+        @click.stop="select_group"
       >
         <span class="vi vi-select-all" aria-hidden="true" />
       </button>
@@ -53,7 +53,7 @@
         class="group-action-button"
         title="Invert selection in this group"
         aria-label="Invert selection in this group"
-        @click.stop="invertGroupSelection"
+        @click.stop="invert_group_selection"
       >
         <span class="vi vi-invert-selection" aria-hidden="true" />
       </button>
@@ -64,7 +64,7 @@
         title="Clear selection in this group"
         aria-label="Clear selection in this group"
         :disabled="selectedCount === 0"
-        @click.stop="clearGroupSelection"
+        @click.stop="clear_group_selection"
       >
         <span class="vi vi-clear-selection" aria-hidden="true" />
       </button>
@@ -74,7 +74,7 @@
         class="visibility-button"
         :title="groupVisibilityTitle"
         :aria-label="groupVisibilityTitle"
-        @click.stop="toggleGroupVisibility"
+        @click.stop="toggle_group_visibility"
       >
         <span
           class="vi"
@@ -127,158 +127,150 @@
 
 <script>
 import DrawableItemRow from "./DrawableItemRow.vue";
-import { collectItemIDs } from "./tree.js";
+import { collect_item_ids } from "./tree.js";
 
 export default {
-  name: "ItemTreeNode",
+    name: "ItemTreeNode",
 
-  components: {
-    DrawableItemRow
-  },
-
-  props: {
-    node: {
-      type: Object,
-      required: true
+    components: {
+        DrawableItemRow
     },
 
-    expandedGroupKeys: {
-      type: Set,
-      required: true
+    props: {
+        node: {
+            type: Object,
+            required: true
+        },
+
+        expandedGroupKeys: {
+            type: Set,
+            required: true
+        },
+
+        selectedIds: {
+            type: Set,
+            required: true
+        },
+
+        highlightedIds: {
+            type: Set,
+            required: true
+        },
+
+        hiddenIds: {
+            type: Set,
+            required: true
+        }
     },
 
-    selectedIds: {
-      type: Set,
-      required: true
-    },
-
-    highlightedIds: {
-      type: Set,
-      required: true
-    },
-
-    hiddenIds: {
-      type: Set,
-      required: true
-    }
-  },
-
-  emits: [
-    "toggle-group",
-    "toggle-selection",
-    "select-items",
-    "clear-selection",
-    "invert-selection",
-    "hover",
-    "unhover",
-    "set-visibility"
-  ],
-
-  computed: {
-    isExpanded() {
-      return this.expandedGroupKeys.has(this.node.key);
-    },
-
-    descendantItemIDs() {
-      return collectItemIDs(this.node);
-    },
-
-    visibleCount() {
-      return this.descendantItemIDs.reduce(
-        (count, id) => count + (this.hiddenIds.has(id) ? 0 : 1),
-        0
-      );
-    },
-
-    groupVisibilityState() {
-      if (this.visibleCount === 0)
-        return "hidden";
-
-      if (this.visibleCount === this.descendantItemIDs.length)
-        return "visible";
-
-      return "mixed";
-    },
-
-    groupVisibilityIcon() {
-      switch (this.groupVisibilityState) {
-        case "visible":
-          return "vi-eye";
-
-        case "hidden":
-          return "vi-eye-stroked";
-
-        default:
-          return "vi-eye-semistroked";
-      }
-    },
-
-    groupVisibilityTitle() {
-      switch (this.groupVisibilityState) {
-        case "visible":
-          return "Hide all items in this group";
-
-        case "hidden":
-          return "Show all items in this group";
-
-        default:
-          return "Show all items in this group";
-      }
-    },
-
-    containsHighlightedItem() {
-      return this.descendantItemIDs.some(id =>
-        this.highlightedIds.has(id)
-      );
-    },
-
-    selectedCount() {
-      return this.descendantItemIDs.reduce(
-        (count, id) => count + (this.selectedIds.has(id) ? 1 : 0),
-        0
-      );
-    },
-
-    groupSelectionState() {
-      if (this.selectedCount === 0)
-        return "none";
-
-      if (this.selectedCount === this.descendantItemIDs.length)
-        return "all";
-
-      return "partial";
-    },
-  },  // computed
-
-  methods: {
-    toggleGroupVisibility() {
-      this.$emit("set-visibility", {
-        ids: this.descendantItemIDs,
-        visible: this.groupVisibilityState !== "visible"
-      });
-    },
-    hoverGroup() {
-      this.$emit(
-        "hover",
-        this.descendantItemIDs
-      );
-    },
-
-    selectGroup() {
-      this.$emit("select-items", this.descendantItemIDs);
-    },
-
-    invertGroupSelection() {
-      this.$emit("invert-selection", this.descendantItemIDs);
-    },
-
-    clearGroupSelection() {
-      this.$emit(
+    emits: [
+        "toggle-group",
+        "toggle-selection",
+        "select-items",
         "clear-selection",
-        this.descendantItemIDs
-      );
-    },
-  }  // methods
+        "invert-selection",
+        "hover",
+        "unhover",
+        "set-visibility"
+    ],
+
+    computed: {
+        isExpanded() {
+            return this.expandedGroupKeys.has(this.node.key);
+        },
+
+        descendantItemIDs() {
+            return collect_item_ids(this.node);
+        },
+
+        visibleCount() {
+            return this.descendantItemIDs.reduce(
+                (count, id) => count + (this.hiddenIds.has(id) ? 0 : 1)
+              , 0
+            );
+        },
+
+        groupVisibilityState() {
+            if (this.visibleCount === 0)
+                return "hidden";
+
+            if (this.visibleCount === this.descendantItemIDs.length)
+                return "visible";
+
+            return "mixed";
+        },
+
+        groupVisibilityIcon() {
+            switch (this.groupVisibilityState) {
+                case "visible":
+                    return "vi-eye";
+
+                case "hidden":
+                    return "vi-eye-stroked";
+
+                default:
+                    return "vi-eye-semistroked";
+            }
+        },
+
+        groupVisibilityTitle() {
+            switch (this.groupVisibilityState) {
+                case "visible":
+                    return "Hide all items in this group";
+
+                case "hidden":
+                    return "Show all items in this group";
+
+                default:
+                    return "Show all items in this group";
+            }
+        },
+
+        containsHighlightedItem() {
+            return this.descendantItemIDs.some(id => this.highlightedIds.has(id));
+        },
+
+        selectedCount() {
+            return this.descendantItemIDs.reduce(
+                (count, id) => count + (this.selectedIds.has(id) ? 1 : 0)
+              , 0
+            );
+        },
+
+        groupSelectionState() {
+            if (this.selectedCount === 0)
+                return "none";
+
+            if (this.selectedCount === this.descendantItemIDs.length)
+                return "all";
+
+            return "partial";
+        },
+    },  // computed
+
+    methods: {
+        toggle_group_visibility() {
+            this.$emit("set-visibility", {
+                ids: this.descendantItemIDs,
+                visible: this.groupVisibilityState !== "visible"
+            });
+        },
+        hover_group() {
+            this.$emit("hover", this.descendantItemIDs);
+        },
+
+        select_group() {
+            this.$emit("select-items", this.descendantItemIDs);
+        },
+
+        invert_group_selection() {
+            this.$emit("invert-selection", this.descendantItemIDs);
+        },
+
+        clear_group_selection() {
+            this.$emit("clear-selection", this.descendantItemIDs);
+        },
+    }  // methods
 };
 </script>
 

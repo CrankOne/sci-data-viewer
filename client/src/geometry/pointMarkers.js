@@ -7,16 +7,16 @@ export function make_geometry(material, geoDef, context = {}) {
     const positions = [];
     const colors = [];
     const sizes = [];
-    geoDef.items.forEach((pt) => {
-            positions.push(pt.position);
-            colors.push(pt.color);
-            sizes.push(pt.size || material.uniforms.pointTexture.value.image.width);
-        });
+    geoDef.items.forEach(pt => {
+        positions.push(pt.position);
+        colors.push(pt.color);
+        sizes.push(pt.size || material.uniforms.pointTexture.value.image.width);
+    });
     // ^^^ NOTE: it is important that default size matches the one used to
     //     create the material's texture
-    geometry.setAttribute( 'position',  new THREE.Float32BufferAttribute( positions.flat(), 3 ) );
-    geometry.setAttribute( 'color',     new THREE.Float32BufferAttribute( colors.flat(), 3 ) );
-    geometry.setAttribute( 'size',      new THREE.Float32BufferAttribute( sizes, 1) );
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions.flat(), 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors.flat(), 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
     const geo = new THREE.Points(geometry, material);
     geo.userData.isPointCloud = true;
     return geo;
@@ -30,16 +30,13 @@ export function make_highlight_overlay_geometry(material, geoDef, context={}) {
         ...geoDef,
         items: geoDef.items.map(item => ({
             ...item,
-            size: (item.size || material.uniforms.pointTexture.value.image.width)*1.25,
-            color: [1, 1, 1],
-        })),
+            size: (item.size || material.uniforms.pointTexture.value.image.width) * 1.25,
+            color: [1, 1, 1]
+        }))
     };
-    return make_geometry(material
-            , maskGeoDef
-            , context);
+    return make_geometry(material, maskGeoDef, context);
 }
 
 export function make_selected_overlay_geometry(material, geoDef, context={}) {
     return make_highlight_overlay_geometry(material, geoDef, context);
 }
-

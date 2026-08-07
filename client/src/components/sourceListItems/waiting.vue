@@ -9,17 +9,17 @@ type {{type}}, error "{{error}}").</div>
 
 <script>
 export default {
-  name: 'WaitingSourceListItem',
-  props: {
-    name: String,
-    endpoint: String,
-    status: String,
-    manifest: Object,
-    type: String,
-    dataURL: String,
-    dataSize: Number,
-    error: String,
-  },
+    name: 'WaitingSourceListItem',
+    props: {
+        name: String,
+        endpoint: String,
+        status: String,
+        manifest: Object,
+        type: String,
+        dataURL: String,
+        dataSize: Number,
+        error: String
+    }
 }
 </script>
 
@@ -28,4 +28,3 @@ div.error-msg {
   color: var(--clr-fg-main-highlighted);
 }
 </style>
-

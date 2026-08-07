@@ -19,11 +19,9 @@ class ThreeView {
         this._scene.add(mainLight, hemisphereLight);
     }  // }}}
     _create_renderer() {  // {{{
-        this._renderer = new THREE.WebGLRenderer({ antialias: true });  // TODO: option?
-        this._renderer.setSize( this._container.clientWidth
-                              , this._container.clientHeight
-                              );
-        this._renderer.setPixelRatio( window.devicePixelRatio );
+        this._renderer = new THREE.WebGLRenderer({antialias: true});  // TODO: option?
+        this._renderer.setSize(this._container.clientWidth, this._container.clientHeight);
+        this._renderer.setPixelRatio(window.devicePixelRatio);
         //this._renderer.gammaFactor = 2.2;  // deprecated?
         this._renderer.gammaOutput = true;
         this._renderer.physicallyCorrectLights = true;
@@ -62,47 +60,47 @@ class ThreeView {
         watch( [ () => this._vuexStore.getters['view3D/geoData']
                , () => this._vuexStore.getters['view3D/transformationMatrix']
                ]
-            , () => this._geometryManager.update_drawables() );
+             , () => this._geometryManager.update_drawables()
+             );
 
         // Highlighted items updater
         watch( () => this._vuexStore.getters['view3D/highlightedGeoItemIDs']
-            , (hlItems, hlItemsOld) => {
-                    this._geometryManager.update_highlighted_graphics(hlItems, hlItemsOld);
-                    this._render();
-                }
-            );
+             , (hlItems, hlItemsOld) => {
+                   this._geometryManager.update_highlighted_graphics(hlItems, hlItemsOld);
+                   this._render();
+               }
+             );
         // Selected items updater
         watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
-            , (hlItems, hlItemsOld) => {
-                    this._geometryManager.update_selected_graphics(hlItems, hlItemsOld);
-                    this._render();
-                }
-            );
+             , (hlItems, hlItemsOld) => {
+                   this._geometryManager.update_selected_graphics(hlItems, hlItemsOld);
+                   this._render();
+               }
+             );
         // Highlighted markers
         watch( () => this._vuexStore.getters['view3D/highlightedMarkers']
-            , (hlMarkers) => {
-                    this._geometryManager.update_highlighted_markers(hlMarkers);
-                    this._render();
-                }
-            );
+             , hlMarkers => {
+                   this._geometryManager.update_highlighted_markers(hlMarkers);
+                   this._render();
+               }
+             );
         // Visibility
         watch( () => this._vuexStore.getters['view3D/hiddenGeoItemIDs']
-            , () => {
-                    this._geometryManager.sync_hidden_items();
-                    this._render();
-                }
-            );
+             , () => {
+                   this._geometryManager.sync_hidden_items();
+                   this._render();
+               }
+             );
         // Global switch to steer highlightinh of hidden items
         watch( () => this._vuexStore.getters['view3D/highlightHiddenSelection']
-            , () => {
-                    this._geometryManager.sync_hidden_items_highlight();
-                    this._render();
-                }
-            );
+             , () => {
+                   this._geometryManager.sync_hidden_items_highlight();
+                   this._render();
+               }
+             );
     }  // _bind_watchers() }}}
     // Creates fixture to render things using three.js
-    constructor({element, store, viewportID}
-            , highlightOnHover=true, highlightOnSelection=true) {  // {{{
+    constructor({element, store, viewportID}, highlightOnHover=true, highlightOnSelection=true) {  // {{{
         this._viewportID = viewportID;
         this._vuexStore = store;
         this._container = element;
@@ -130,35 +128,28 @@ class ThreeView {
         let ready = false;
         const render = () => { if(ready) this._render(); };
 
-        this._cameraManager = new CameraManager({
-                viewportID, store,
-                renderer: this._renderer,
-                render
-            });
-        this._materialManager = new MaterialManager({
-                textureLoader: this._textureLoader
-            });
+        this._cameraManager = new CameraManager({viewportID, store, renderer: this._renderer, render});
+        this._materialManager = new MaterialManager({textureLoader: this._textureLoader});
         this._geometryManager = new GeometryManager({
-                scene: this._scene,
-                store,
-                materialManager: this._materialManager,
-                render
-            });
+            scene: this._scene,
+            store,
+            materialManager: this._materialManager,
+            render
+        });
 
         this._bind_watchers();
 
         const w = this._container.clientWidth;
         const h = this._container.clientHeight;
+        // last arg enables debug quad; possible options: 'mask', 'dilate'
         if(highlightOnHover)
-            this._hoverHL = new HlOverlay.SilhouetteOverlay(Utils.LAYER_MASK_HIGHLIGHTED
-                    , w, h, Utils.get_theme().highlight
-                    , null  // enables debug quad; possible options: 'mask', 'dilate'
-                    );
+            this._hoverHL = new HlOverlay.SilhouetteOverlay(
+                Utils.LAYER_MASK_HIGHLIGHTED, w, h, Utils.get_theme().highlight, null
+            );
         if(highlightOnSelection)
-            this._selectHL = new HlOverlay.SilhouetteOverlay(Utils.LAYER_MASK_SELECTED
-                    , w, h, Utils.get_theme().selected
-                    , null  // enables debug quad; possible options: 'mask', 'dilate'
-                    );
+            this._selectHL = new HlOverlay.SilhouetteOverlay(
+                Utils.LAYER_MASK_SELECTED, w, h, Utils.get_theme().selected, null
+            );
         ready = true;
         this._render();
     }  // }}}
@@ -170,8 +161,8 @@ class ThreeView {
         const rect = this._container.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-        this._pointer.x = ( x / rect.width ) * 2 - 1;
-        this._pointer.y = - ( y / rect.height ) * 2 + 1;
+        this._pointer.x = (x / rect.width) * 2 - 1;
+        this._pointer.y = -(y / rect.height) * 2 + 1;
 
         const camera = this.get_cam();
         const settings = this._cameraManager.cameraSettings;
@@ -180,7 +171,7 @@ class ThreeView {
         // update picking ray with camera and pointer position
         this._raycaster.setFromCamera(this._pointer, camera);
         // get the intersecting objects
-        let intersects = this._raycaster.intersectObjects( this._scene.children, true );
+        let intersects = this._raycaster.intersectObjects(this._scene.children, true);
         // The raycaster's world-space threshold set above is exact for
         // orthographic cameras, but only a conservative (over-inclusive
         // near the camera) estimate for perspective ones -- see
@@ -202,22 +193,24 @@ class ThreeView {
             // the hit object's own visibility directly.
             intersects = intersects.filter(item => item.object.visible);
         }
-        const items2highlight = intersects.filter(item => item.object.userData?.pickable );
-        const markers2highlight = intersects.filter(item => (item.object.userData?.pickable
-                    && item.object.userData?.isPointCloud));
+        const items2highlight = intersects.filter(item => item.object.userData?.pickable);
+        const markers2highlight = intersects.filter(
+            item => item.object.userData?.pickable && item.object.userData?.isPointCloud
+        );
         let hasSome = false;
         if(items2highlight && items2highlight.length) {
-            const ids2highlight = items2highlight.map(item => Utils.full_geo_id(
-                    item.object.userData.srcID, item.object.userData.geoID));
+            const ids2highlight = items2highlight.map(
+                item => Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+            );
             this._vuexStore.commit('view3D/set_scene_hover_geo_items', ids2highlight);
             hasSome = true;
         }
         if(markers2highlight && markers2highlight.length) {
-            const ids2highlight = items2highlight.map(item =>
-                    [ Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
-                    , item.index
-                    ]
-                );
+            const ids2highlight = items2highlight.map( item =>
+                [ Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+                , item.index
+                ]
+            );
             const ptsByGeo = new Map();
             for(const [geoID, idx] of ids2highlight) {
                 if(!ptsByGeo.has(geoID)) ptsByGeo.set(geoID, new Set());
@@ -281,8 +274,7 @@ class ThreeView {
 
         const selectedGeoItemIDs = this._vuexStore.getters['view3D/selectedGeoItemIDs'];
         const selectedMarkers = this._vuexStore.getters['view3D/selectedMarkers'];
-        const selectedMarkerCount = [...selectedMarkers.values()]
-            .reduce((n, indices) => n + indices.size, 0);
+        const selectedMarkerCount = [...selectedMarkers.values()].reduce((n, indices) => n + indices.size, 0);
 
         if(selectedGeoItemIDs.size === 0 && selectedMarkerCount === 1) {
             const [itemID, indices] = [...selectedMarkers.entries()][0];
@@ -312,9 +304,7 @@ class ThreeView {
     resize(width, height) {
         const w = Math.max(1, Math.round(width));
         const h = Math.max(1, Math.round(height));
-        this._renderer.setPixelRatio(
-            window.devicePixelRatio
-        );
+        this._renderer.setPixelRatio(window.devicePixelRatio);
         this._renderer.setSize(w, h);
         this._materialManager.resize(w, h);
         if(this._hoverHL)

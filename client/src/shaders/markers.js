@@ -20,4 +20,3 @@ void main() {
 export { markerPointVertexShader
        , markerPointFragmentShader
        };
-

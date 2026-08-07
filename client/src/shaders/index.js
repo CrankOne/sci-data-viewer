@@ -7,4 +7,3 @@ export {
     dashedLine,
     highlight
 };
-

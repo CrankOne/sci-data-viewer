@@ -17,7 +17,7 @@
           id="facet-preset"
           class="facet-preset-select"
           :value="activePresetName"
-          @change="activateSelectedPreset"
+          @change="activate_selected_preset"
         >
           <option
             v-for="name in presetNames"
@@ -37,7 +37,7 @@
         class="header-action"
         title="Save as a new preset"
         aria-label="Save as a new preset"
-        @click="saveAs"
+        @click="save_as"
       >
         <span
           class="vi vi-save"
@@ -74,8 +74,8 @@
           }"
           @dragenter.prevent="dragTargetZone = 'active'"
           @dragover.prevent
-          @dragleave="leaveZone('active', $event)"
-          @drop="dropAtEnd('active')"
+          @dragleave="leave_zone('active', $event)"
+          @drop="drop_at_end('active')"
         >
           <button
             v-for="(facet, index) in activeFacets"
@@ -84,13 +84,11 @@
             class="facet-chip facet-chip--active"
             draggable="true"
             :title="`Grouping level ${index + 1}; double-click to remove`"
-            @dragstart="
-              startDrag(facet, 'active', index, $event)
-            "
-            @dragend="finishDrag"
+            @dragstart="start_drag(facet, 'active', index, $event)"
+            @dragend="finish_drag"
             @dragenter.prevent
             @dragover.prevent
-            @drop.stop="dropBefore(index)"
+            @drop.stop="drop_before(index)"
             @dblclick="deactivate(facet)"
           >
             <span
@@ -132,8 +130,8 @@
           }"
           @dragenter.prevent="dragTargetZone = 'inactive'"
           @dragover.prevent
-          @dragleave="leaveZone('inactive', $event)"
-          @drop="dropAtEnd('inactive')"
+          @dragleave="leave_zone('inactive', $event)"
+          @drop="drop_at_end('inactive')"
         >
           <button
             v-for="(facet, index) in inactiveFacets"
@@ -142,10 +140,8 @@
             class="facet-chip"
             draggable="true"
             title="Double-click to add this facet"
-            @dragstart="
-              startDrag(facet, 'inactive', index, $event)
-            "
-            @dragend="finishDrag"
+            @dragstart="start_drag(facet, 'inactive', index, $event)"
+            @dragend="finish_drag"
             @dblclick="activate(facet)"
           >
             <span
@@ -174,201 +170,176 @@
 import FramedDisclosure from "../FramedDisclosure.vue";
 
 export default {
-  name: "FacetPresetEditor",
+    name: "FacetPresetEditor",
 
-  components: {
-    FramedDisclosure
-  },
-
-  props: {
-    presetNames: {
-      type: Array,
-      required: true
+    components: {
+        FramedDisclosure
     },
 
-    activePresetName: {
-      type: String,
-      required: true
+    props: {
+        presetNames: {
+            type: Array,
+            required: true
+        },
+
+        activePresetName: {
+            type: String,
+            required: true
+        },
+
+        /*
+         * Current working facet order. This may differ from the saved preset.
+         */
+        activeFacets: {
+            type: Array,
+            required: true
+        },
+
+        /*
+         * Facet order stored in the currently selected named preset.
+         */
+        savedFacets: {
+            type: Array,
+            required: true
+        },
+
+        inactiveFacets: {
+            type: Array,
+            required: true
+        }
     },
 
-    /*
-     * Current working facet order. This may differ from the saved preset.
-     */
-    activeFacets: {
-      type: Array,
-      required: true
-    },
-
-    /*
-     * Facet order stored in the currently selected named preset.
-     */
-    savedFacets: {
-      type: Array,
-      required: true
-    },
-
-    inactiveFacets: {
-      type: Array,
-      required: true
-    }
-  },
-
-  emits: [
-    "activate-preset",
-    "set-active-facets",
-    "save-preset",
-    "update-preset",
-    "delete-preset"
-  ],
-
-  data() {
-    return {
-      editorExpanded: false,
-
-      /*
-       * {
-       *   facet: string,
-       *   zone: "active" | "inactive",
-       *   index: number
-       * }
-       */
-      dragged: null,
-
-      dragTargetZone: null
-    };
-  },
-
-  methods: {
-    activateSelectedPreset(event) {
-      this.$emit(
+    emits: [
         "activate-preset",
-        event.target.value
-      );
-    },
-
-    startDrag(facet, zone, index, event) {
-      this.dragged = {
-        facet,
-        zone,
-        index
-      };
-
-      this.dragTargetZone = zone;
-
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", facet);
-    },
-
-    finishDrag() {
-      this.dragged = null;
-      this.dragTargetZone = null;
-    },
-
-    leaveZone(zone, event) {
-      /*
-       * Moving between children of the same drop zone also emits dragleave.
-       * Clear the indication only when the pointer actually leaves the zone.
-       */
-      if (
-        this.dragTargetZone === zone &&
-        !event.currentTarget.contains(event.relatedTarget)
-      ) {
-        this.dragTargetZone = null;
-      }
-    },
-
-    activate(facet) {
-      if (this.activeFacets.includes(facet))
-        return;
-
-      this.$emit(
         "set-active-facets",
-        [...this.activeFacets, facet]
-      );
-    },
-
-    deactivate(facet) {
-      this.$emit(
-        "set-active-facets",
-        this.activeFacets.filter(
-          activeFacet => activeFacet !== facet
-        )
-      );
-    },
-
-    dropAtEnd(zone) {
-      if (!this.dragged)
-        return;
-
-      if (zone === "active") {
-        this.moveToActive(this.activeFacets.length);
-      } else {
-        this.deactivate(this.dragged.facet);
-      }
-
-      this.finishDrag();
-    },
-
-    dropBefore(targetIndex) {
-      if (!this.dragged)
-        return;
-
-      this.moveToActive(targetIndex);
-      this.finishDrag();
-    },
-
-    moveToActive(targetIndex) {
-      if (!this.dragged)
-        return;
-
-      const { facet, zone, index } = this.dragged;
-
-      /*
-       * Remove the dragged facet first. This handles both reordering an
-       * active facet and moving an inactive facet into the active list.
-       */
-      const next = this.activeFacets.filter(
-        activeFacet => activeFacet !== facet
-      );
-
-      /*
-       * Removing an active facet before the insertion position shifts the
-       * target index to the left.
-       */
-      if (
-        zone === "active" &&
-        index < targetIndex
-      ) {
-        --targetIndex;
-      }
-
-      targetIndex = Math.max(
-        0,
-        Math.min(targetIndex, next.length)
-      );
-
-      next.splice(targetIndex, 0, facet);
-
-      this.$emit(
-        "set-active-facets",
-        next
-      );
-    },
-
-    saveAs() {
-      const name = window.prompt(
-        "View preset name:"
-      )?.trim();
-
-      if (!name)
-        return;
-
-      this.$emit(
         "save-preset",
-        name
-      );
+        "update-preset",
+        "delete-preset"
+    ],
+
+    data() {
+        return {
+            editorExpanded: false,
+
+            /*
+             * {
+             *   facet: string,
+             *   zone: "active" | "inactive",
+             *   index: number
+             * }
+             */
+            dragged: null,
+
+            dragTargetZone: null
+        };
+    },
+
+    methods: {
+        activate_selected_preset(event) {
+            this.$emit("activate-preset", event.target.value);
+        },
+
+        start_drag(facet, zone, index, event) {
+            this.dragged = {
+                facet,
+                zone,
+                index
+            };
+
+            this.dragTargetZone = zone;
+
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", facet);
+        },
+
+        finish_drag() {
+            this.dragged = null;
+            this.dragTargetZone = null;
+        },
+
+        leave_zone(zone, event) {
+            /*
+             * Moving between children of the same drop zone also emits dragleave.
+             * Clear the indication only when the pointer actually leaves the zone.
+             */
+            if (
+                this.dragTargetZone === zone &&
+                !event.currentTarget.contains(event.relatedTarget)
+            ) {
+                this.dragTargetZone = null;
+            }
+        },
+
+        activate(facet) {
+            if (this.activeFacets.includes(facet))
+                return;
+
+            this.$emit("set-active-facets", [...this.activeFacets, facet]);
+        },
+
+        deactivate(facet) {
+            this.$emit(
+                "set-active-facets"
+              , this.activeFacets.filter(activeFacet => activeFacet !== facet)
+            );
+        },
+
+        drop_at_end(zone) {
+            if (!this.dragged)
+                return;
+
+            if (zone === "active") {
+                this.move_to_active(this.activeFacets.length);
+            } else {
+                this.deactivate(this.dragged.facet);
+            }
+
+            this.finish_drag();
+        },
+
+        drop_before(targetIndex) {
+            if (!this.dragged)
+                return;
+
+            this.move_to_active(targetIndex);
+            this.finish_drag();
+        },
+
+        move_to_active(targetIndex) {
+            if (!this.dragged)
+                return;
+
+            const { facet, zone, index } = this.dragged;
+
+            /*
+             * Remove the dragged facet first. This handles both reordering an
+             * active facet and moving an inactive facet into the active list.
+             */
+            const next = this.activeFacets.filter(activeFacet => activeFacet !== facet);
+
+            /*
+             * Removing an active facet before the insertion position shifts the
+             * target index to the left.
+             */
+            if (zone === "active" && index < targetIndex)
+                --targetIndex;
+
+            targetIndex = Math.max(0, Math.min(targetIndex, next.length));
+
+            next.splice(targetIndex, 0, facet);
+
+            this.$emit("set-active-facets", next);
+        },
+
+        save_as() {
+            const name = window.prompt("View preset name:")?.trim();
+
+            if (!name)
+                return;
+
+            this.$emit("save-preset", name);
+        }
     }
-  }
 };
 </script>
 

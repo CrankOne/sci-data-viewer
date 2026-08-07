@@ -4,10 +4,10 @@
 // Split array onto sub-arrays, based on the field value of objects
 //  see: https://stackoverflow.com/a/60835733/1734499
 export function group_by(arr, property) {
-  return arr.reduce((acc, cur) => {
-    acc[cur[property]] = [...acc[cur[property]] || [], cur];
-    return acc;
-  }, {});
+    return arr.reduce((acc, cur) => {
+        acc[cur[property]] = [...acc[cur[property]] || [], cur];
+        return acc;
+    }, {});
 }
 
 export function set_difference(a, b) {
@@ -19,7 +19,7 @@ export function set_difference(a, b) {
     return out;
 }
 
-export const GEO_KEY_DELIMITER='@';
+export const GEO_KEY_DELIMITER = '@';
 
 // used to stringify srcID+geoID pairs into keys since JS does not have tuples
 // for Set()
@@ -28,7 +28,7 @@ export function full_geo_id(srcID, geoID) { return `${geoID}${GEO_KEY_DELIMITER}
 // returns [srcID, geoID]
 export function destruct_geo_id(itemID) {
     const p = itemID.indexOf('@');
-    return [ itemID.slice(p + 1), itemID.slice(0, p) ];
+    return [itemID.slice(p + 1), itemID.slice(0, p)];
 }
 
 //
@@ -49,11 +49,8 @@ function resolve_css_color(value) {
 }
 
 function normalize_hex(hex) {
-    if (hex.length === 4) {
-        return "#" + [...hex.slice(1)]
-            .map(ch => ch + ch)
-            .join("");
-    }
+    if(hex.length === 4)
+        return "#" + [...hex.slice(1)].map(ch => ch + ch).join("");
     return hex.toLowerCase();
 }
 
@@ -62,9 +59,7 @@ function clamp255(x) {
 }
 
 function rgb_to_hex(r, g, b) {
-    return "#" + [r, g, b]
-        .map(x => clamp255(x).toString(16).padStart(2, "0"))
-        .join("");
+    return "#" + [r, g, b].map(x => clamp255(x).toString(16).padStart(2, "0")).join("");
 }
 
 function css_color_to_hex(value) {
@@ -74,9 +69,7 @@ function css_color_to_hex(value) {
     if(m) return rgb_to_hex(+m[1], +m[2], +m[3]);
 
     // color(srgb 0.331765 0.369412 0.385098)
-    m = resolved.match(
-        /^color\(\s*srgb\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)/i
-    );
+    m = resolved.match(/^color\(\s*srgb\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)/i);
     if(m) {
         return rgb_to_hex(
             Math.round(+m[1] * 255),
@@ -86,28 +79,26 @@ function css_color_to_hex(value) {
     }
     // #abc or #aabbcc
     m = resolved.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-    if (m) return normalize_hex(resolved);
+    if(m) return normalize_hex(resolved);
     throw new Error(`Cannot parse CSS color: ${resolved}`);
 }
 
-function css_var(name, { resolveColor = true } = {}) {
-    const v = getComputedStyle(document.documentElement)
-        .getPropertyValue(name)
-        .trim();
+function css_var(name, {resolveColor = true} = {}) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return resolveColor ? css_color_to_hex(v) : v;
 }
 
 export function get_theme() {
     return {
-        background : css_var('--clr-neutral'),
-        foreground : css_var('--clr-graph-foreground'),
-        grid1      : css_var('--clr-graph-grid1'),
-        grid2      : css_var('--clr-graph-grid2'),
+        background: css_var('--clr-neutral'),
+        foreground: css_var('--clr-graph-foreground'),
+        grid1: css_var('--clr-graph-grid1'),
+        grid2: css_var('--clr-graph-grid2'),
         annotations: css_var('--clr-graph-annotations'),
-        annotations_mute: css_var('--clr-graph-annotations-mute'),
-        geometry   : css_var('--clr-graph-annotations-lighter'),
-        highlight  : css_var('--clr-graph-highlight'),
-        selected   : css_var('--clr-graph-selection'),
+        annotationsMute: css_var('--clr-graph-annotations-mute'),
+        geometry: css_var('--clr-graph-annotations-lighter'),
+        highlight: css_var('--clr-graph-highlight'),
+        selected: css_var('--clr-graph-selection')
     };
 }
 

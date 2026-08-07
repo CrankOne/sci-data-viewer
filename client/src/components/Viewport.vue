@@ -14,7 +14,7 @@
           class="camera-widget__select"
           :value="currentPresetName"
           title="Camera preset"
-          @change="selectCamera($event.target.value)"
+          @change="select_camera($event.target.value)"
         >
           <option
             v-for="name in presetNames"
@@ -49,7 +49,7 @@
             class="icon-button"
             type="button"
             title="Save current camera as"
-            @click="saveAs"
+            @click="save_as"
           >
             <span class="vi vi-save" aria-hidden="true"/>
           </button>
@@ -58,7 +58,7 @@
             class="icon-button"
             type="button"
             title="New perspective camera"
-            @click="createPerspective"
+            @click="create_perspective"
           >
             <span class="vi vi-add-perspective-view" aria-hidden="true"/>
           </button>
@@ -67,7 +67,7 @@
             class="icon-button"
             type="button"
             title="New orthographic camera"
-            @click="createOrthographic"
+            @click="create_orthographic"
           >
             <span class="vi vi-add-orthographic-view" aria-hidden="true"/>
           </button>
@@ -76,7 +76,7 @@
             class="icon-button"
             type="button"
             title="Reset current camera"
-            @click="resetCamera"
+            @click="reset_camera"
           >
             <span class="vi vi-camera-reset" aria-hidden="true"/>
           </button>
@@ -85,7 +85,7 @@
             class="icon-button"
             type="button"
             title="Frame selected or visible objects"
-            @click="frameObjects"
+            @click="frame_objects"
           >
             <span class="vi vi-frame-selected" aria-hidden="true"/>
           </button>
@@ -95,7 +95,7 @@
             type="button"
             title="Remove current camera"
             :disabled="presetNames.length <= 1"
-            @click="removeCamera"
+            @click="remove_camera"
           >
             <span class="vi vi-trash-bin" aria-hidden="true"/>
           </button>
@@ -105,7 +105,7 @@
           :is="cameraEditorComponent"
           :camera="currentCamera"
           :aspect="viewportState.aspect"
-          @patch="patchCurrentCamera"
+          @patch="patch_current_camera"
         />
       </div>
     </aside>
@@ -143,24 +143,16 @@ let view = null;
 let resizeObserver = null;
 let pointerTimer = null;
 
-const presetNames = computed(
-    () => store.getters['cameras/preset_names']
-);
+const presetNames = computed(() => store.getters['cameras/presetNames']);
 
-const currentPresetName = computed(
-    () => store.getters['cameras/current_preset_name'](VIEWPORT_ID)
-);
+const currentPresetName = computed(() => store.getters['cameras/currentPresetName'](VIEWPORT_ID));
 
-const currentCamera = computed(
-    () => store.getters['cameras/current_preset'](VIEWPORT_ID)
-);
+const currentCamera = computed(() => store.getters['cameras/currentPreset'](VIEWPORT_ID));
 
-const viewportState = computed(
-    () => store.getters['cameras/viewport_state'](VIEWPORT_ID)
-);
+const viewportState = computed(() => store.getters['cameras/viewportState'](VIEWPORT_ID));
 
 const cameraEditorComponent = computed(() => {
-    switch (currentCamera.value?.type) {
+    switch(currentCamera.value?.type) {
     case 'perspective':
         return PerspectiveCameraControls;
     case 'orthographic':
@@ -170,66 +162,46 @@ const cameraEditorComponent = computed(() => {
     }
 });
 
-function selectCamera(name) {
-    store.dispatch('cameras/select_preset', {
-        viewportID: VIEWPORT_ID,
-        name
-    });
+function select_camera(name) {
+    store.dispatch('cameras/select_preset', {viewportID: VIEWPORT_ID, name});
 }
 
-function patchCurrentCamera(patch) {
-    store.commit('cameras/patch_preset', {
-        name: currentPresetName.value,
-        patch
-    });
+function patch_current_camera(patch) {
+    store.commit('cameras/patch_preset', {name: currentPresetName.value, patch});
 }
 
-async function createPerspective() {
-    await store.dispatch('cameras/create_persp_view', {
-        viewportID: VIEWPORT_ID
-    });
+async function create_perspective() {
+    await store.dispatch('cameras/create_persp_view', {viewportID: VIEWPORT_ID});
 }
 
-async function createOrthographic() {
-    await store.dispatch('cameras/create_ortho_view', {
-        viewportID: VIEWPORT_ID
-    });
+async function create_orthographic() {
+    await store.dispatch('cameras/create_ortho_view', {viewportID: VIEWPORT_ID});
 }
 
-async function resetCamera() {
-    await store.dispatch('cameras/reset_current', {
-        viewportID: VIEWPORT_ID
-    });
+async function reset_camera() {
+    await store.dispatch('cameras/reset_current', {viewportID: VIEWPORT_ID});
 }
 
-async function removeCamera() {
-    await store.dispatch('cameras/remove_current', {
-        viewportID: VIEWPORT_ID
-    });
+async function remove_camera() {
+    await store.dispatch('cameras/remove_current', {viewportID: VIEWPORT_ID});
 }
 
-async function saveAs() {
+async function save_as() {
     const initialName = currentPresetName.value;
-    const name = window.prompt(
-        'Camera preset name:',
-        initialName
-    );
+    const name = window.prompt('Camera preset name:', initialName);
 
-    if (name === null || !name.trim())
+    if(name === null || !name.trim())
         return;
 
-    await store.dispatch('cameras/save_current_as', {
-        viewportID: VIEWPORT_ID,
-        name
-    });
+    await store.dispatch('cameras/save_current_as', {viewportID: VIEWPORT_ID, name});
 }
 
-function frameObjects() {
+function frame_objects() {
     view?.frame_selected_or_visible();
 }
 
-function schedulePointerUpdate(event) {
-    if (pointerTimer !== null)
+function schedule_pointer_update(event) {
+    if(pointerTimer !== null)
         clearTimeout(pointerTimer);
 
     // Retain only coordinates; the MouseEvent itself need not survive.
@@ -244,8 +216,8 @@ function schedulePointerUpdate(event) {
     }, 20);
 }
 
-function cancelPointerUpdate() {
-    if (pointerTimer !== null) {
+function cancel_pointer_update() {
+    if(pointerTimer !== null) {
         clearTimeout(pointerTimer);
         pointerTimer = null;
     }
@@ -274,28 +246,16 @@ onMounted(() => {
 
     resizeObserver.observe(viewportElement.value);
 
-    viewportElement.value.addEventListener(
-        'mousemove',
-        schedulePointerUpdate
-    );
-    viewportElement.value.addEventListener(
-        'mouseleave',
-        cancelPointerUpdate
-    );
+    viewportElement.value.addEventListener('mousemove', schedule_pointer_update);
+    viewportElement.value.addEventListener('mouseleave', cancel_pointer_update);
 });
 
 onBeforeUnmount(() => {
-    cancelPointerUpdate();
+    cancel_pointer_update();
     resizeObserver?.disconnect();
 
-    viewportElement.value?.removeEventListener(
-        'mousemove',
-        schedulePointerUpdate
-    );
-    viewportElement.value?.removeEventListener(
-        'mouseleave',
-        cancelPointerUpdate
-    );
+    viewportElement.value?.removeEventListener('mousemove', schedule_pointer_update);
+    viewportElement.value?.removeEventListener('mouseleave', cancel_pointer_update);
 
     view?.dispose();
     view = null;
