@@ -64,8 +64,8 @@
     --clr-neutral-brighten:         color-mix(in srgb, var(--clr-neutral) 80%, white);
     --clr-neutral-brighten2:        color-mix(in srgb, var(--clr-neutral) 35%, white);
     --clr-neutral-transparent:      color-mix(in srgb, var(--clr-neutral) 50%, transparent);
-    --clr-neutral-fg                var(--clr-supporting-brighten);
-    --clr-neutral-fg-muted          var(--clr-supporting-darken);
+    --clr-neutral-fg:               var(--clr-supporting-brighten);
+    --clr-neutral-fg-muted:         var(--clr-supporting-darken);
     /* - Supporting */
     --clr-supporting-darken:        color-mix(in srgb, var(--clr-supporting) 80%, black);
     --clr-supporting-brighten:      color-mix(in srgb, var(--clr-supporting) 65%, white);
