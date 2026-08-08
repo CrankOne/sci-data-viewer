@@ -1,31 +1,39 @@
 <template>
-<div class="frame">
-  <div class="frame__bar">
-    <h2 class="frame__title">
-        {{name}}
-    </h2>
+  <FramedDisclosure v-model="expanded">
+    <template #header>
+      <span class="source-name">{{ name }}</span>
+    </template>
 
-    <div class="frame__actions">
+    <template #actions>
       <button
-            type="button"
-            title="Reload manifest"
-            v-if="!noRefreshManifest"
-            @click="reload_manifest">🗘</button>
-      <button
-            type="button"
-            title="Remove source"
-            v-if="!noRemove"
-            @click="remove_resource">🗑</button>
-    </div>
-  </div>
+        v-if="!noRefreshManifest"
+        type="button"
+        class="header-action"
+        title="Reload manifest"
+        aria-label="Reload manifest"
+        @click="reload_manifest"
+      >
+        <span class="vi vi-reload" aria-hidden="true" />
+      </button>
 
-  <div class="frame__content">
+      <button
+        v-if="!noRemove"
+        type="button"
+        class="header-action"
+        title="Remove source"
+        aria-label="Remove source"
+        @click="remove_resource"
+      >
+        <span class="vi vi-trash-bin" aria-hidden="true" />
+      </button>
+    </template>
+
     <component :is="concreteSourceItemComponent" v-bind="definition"/>
-  </div>
-</div>
+  </FramedDisclosure>
 </template>
 
 <script>
+import FramedDisclosure from './FramedDisclosure.vue';
 import WaitingSourceListItem from './sourceListItems/waiting.vue'
 import StaticSourceListItem from './sourceListItems/static.vue'
 // import ... (other source list items)
@@ -33,15 +41,24 @@ import StaticSourceListItem from './sourceListItems/static.vue'
 export default {
     name: 'SourceListItem',
     components: {
+        FramedDisclosure,
         WaitingSourceListItem,
         StaticSourceListItem
         // ...
     },
     props: {
         name: String,
-        noRemove: false,
-        noRefreshManifest: false,
+        noRemove: {type: Boolean, default: false},
+        noRefreshManifest: {type: Boolean, default: false},
         definition: Object
+    },
+    data() {
+        return {
+            // Unlike the (persistent) facet/selection-set editors, source
+            // entries are shown expanded by default -- collapsing is an
+            // option for decluttering a long list, not the normal state.
+            expanded: true
+        };
     },
     methods: {
         reload_manifest() {
@@ -84,74 +101,14 @@ export default {
 </script>
 
 <style scoped>
-.frame {
-  --frame-padding-x: 1rem;
-  --frame-border-color: var(--clr-border-inactive);
-  --frame-background: var(--clr-bg-panel);
-
-  position: relative;
+.source-name {
   min-width: 0;
-
-  margin-top: 1rem;
-  padding:
-    1.5rem
-    var(--frame-padding-x)
-    1rem;
-
-  border: 1px solid var(--frame-border-color);
-  border-radius: 0.4rem;
-  background: var(--frame-background);
-}
-
-.frame__bar {
-  position: absolute;
-  top: 0;
-  left: var(--frame-padding-x);
-  right: var(--frame-padding-x);
-
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-
-  /*
-   * Move the bar vertically so that its centre coincides with the border.
-   */
-  transform: translateY(-50%);
-}
-
-.frame__title {
-  min-width: 0;
-  margin: 0;
-  padding-inline: 0.35rem;
 
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  background: var(--frame-background);
   font-size: .9rem;
   font-weight: 600;
 }
-
-.frame__actions {
-  display: flex;
-  flex: none;
-  gap: 0.4rem;
-
-  /*
-   * Masks the frame border behind and between the buttons.
-   */
-  padding-inline: 0.35rem;
-  background: var(--frame-background);
-}
-
-.frame__actions button {
-  white-space: nowrap;
-}
-
-.frame__content {
-  min-width: 0;
-}
 </style>
-

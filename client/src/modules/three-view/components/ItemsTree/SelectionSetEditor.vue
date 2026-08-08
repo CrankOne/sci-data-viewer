@@ -55,6 +55,7 @@
     <div class="selection-toolbar">
       <button
         type="button"
+        class="header-action"
         title="Save current selection"
         @click="save"
       >
@@ -63,6 +64,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Delete saved selection"
         :disabled="!activeSetName"
         @click="$emit('delete-set', activeSetName)"
@@ -74,6 +76,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Replace current selection with saved set"
         :disabled="!activeSetName"
         @click="apply('replace')"
@@ -83,6 +86,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Append saved set"
         :disabled="!activeSetName"
         @click="apply('union')"
@@ -92,6 +96,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Subtract saved set"
         :disabled="!activeSetName"
         @click="apply('subtract-saved')"
@@ -101,6 +106,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Keep common elements"
         :disabled="!activeSetName"
         @click="apply('intersection')"
@@ -113,6 +119,7 @@
 
       <button
         type="button"
+        class="header-action"
         title="Select from set that are not selected now"
         :disabled="!activeSetName"
         @click="apply('saved-minus-current')"
@@ -226,31 +233,7 @@ export default {
   gap: 0.2rem;
 }
 
-.selection-toolbar button {
-  display: inline-grid;
-  place-items: center;
-
-  width: 1.8rem;
-  height: 1.8rem;
-  padding: 0;
-
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 0.2rem;
-
-  background: var(--clr-bg-options);
-  color: var(--clr-fg-options);
-  cursor: pointer;
-}
-
-.selection-toolbar button:hover:not(:disabled) {
-  background: var(--clr-bg-highlight2);
-  color: var(--clr-fg-highlight2);
-}
-
-.selection-toolbar button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+/* .header-action is defined globally in framed-disclosure.css */
 
 .selection-toolbar__separator {
   align-self: stretch;

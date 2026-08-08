@@ -384,32 +384,7 @@ export default {
   pointer-events: none;
 }
 
-.header-action {
-  display: inline-grid;
-  place-items: center;
-
-  width: 1.8rem;
-  height: 1.8rem;
-  padding: 0;
-
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 0.2rem;
-
-  background: var(--clr-bg-options);
-  color: var(--clr-fg-options);
-
-  cursor: pointer;
-}
-
-.header-action:hover:not(:disabled) {
-  background: var(--clr-bg-highlight2);
-  color: var(--clr-fg-highlight2);
-}
-
-.header-action:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+/* .header-action is defined globally in framed-disclosure.css */
 
 .facet-editor-body {
   display: grid;
