@@ -167,7 +167,7 @@
 </template>
 
 <script>
-import FramedDisclosure from "../FramedDisclosure.vue";
+import FramedDisclosure from "@/components/FramedDisclosure.vue";
 
 export default {
     name: "FacetPresetEditor",

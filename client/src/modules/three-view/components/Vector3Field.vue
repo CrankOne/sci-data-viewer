@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import NumericField from './NumericField.vue';
+import NumericField from '@/components/NumericField.vue';
 
 const props = defineProps({
     label: {

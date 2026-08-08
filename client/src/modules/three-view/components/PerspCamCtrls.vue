@@ -82,7 +82,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import NumericField from './NumericField.vue';
+import NumericField from '@/components/NumericField.vue';
 import Vector3Field from './Vector3Field.vue';
 
 const props = defineProps({

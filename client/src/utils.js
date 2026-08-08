@@ -10,27 +10,6 @@ export function group_by(arr, property) {
     }, {});
 }
 
-export function set_difference(a, b) {
-    const out = new Set();
-    for(const x of a) {
-        if(!b.has(x))
-            out.add(x);
-    }
-    return out;
-}
-
-export const GEO_KEY_DELIMITER = '@';
-
-// used to stringify srcID+geoID pairs into keys since JS does not have tuples
-// for Set()
-export function full_geo_id(srcID, geoID) { return `${geoID}${GEO_KEY_DELIMITER}${srcID}`; }
-
-// returns [srcID, geoID]
-export function destruct_geo_id(itemID) {
-    const p = itemID.indexOf('@');
-    return [itemID.slice(p + 1), itemID.slice(0, p)];
-}
-
 //
 // Colors
 
@@ -101,8 +80,3 @@ export function get_theme() {
         selected: css_var('--clr-graph-selection')
     };
 }
-
-// Used to highlight geometry entities by maintaining copy objects
-export const LAYER_MAIN = 0;
-export const LAYER_MASK_HIGHLIGHTED = 1;
-export const LAYER_MASK_SELECTED = 2;

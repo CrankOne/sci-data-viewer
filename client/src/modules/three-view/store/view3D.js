@@ -5,7 +5,7 @@ import {
     union_selections,
     subtract_selections,
     intersect_selections
-} from "../selectionSets.js";
+} from "./selectionSets.js";
 
 //                  * * *   * * *   * * *
 // Helpers (not state getters -- not computed or cached by themselves)

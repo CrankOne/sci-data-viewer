@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import _ from 'lodash';
 import * as Materials from '../materials';
-import * as Utils from '../utils';
+import { get_theme } from '@/utils';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 // Owns the default materials expected across the geometry API, plus the
@@ -26,18 +26,18 @@ class MaterialManager {
         // NOTE: these are not all the default ones used to create geometries,
         // some others are created in the highlighting overlays.
         this._defaultMaterials['defaultMeshMaterial'] = new THREE.MeshBasicMaterial({
-            color: Utils.get_theme().foreground,
+            color: get_theme().foreground,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.15
         });
 
         this._defaultMaterials['defaultLineMaterial'] = new THREE.LineBasicMaterial({
-            color: Utils.get_theme().foreground
+            color: get_theme().foreground
         });
 
         this._defaultMaterials['defaultFatLineMaterial'] = new LineMaterial({
-            color: Utils.get_theme().foreground,
+            color: get_theme().foreground,
             linewidth: 5
         });
     }  // }}}

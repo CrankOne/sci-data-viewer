@@ -5,7 +5,6 @@
 
 import * as THREE from 'three';
 import * as Shaders from './shaders';
-import * as Utils from './utils';
 
 //                  * * *   * * *   * * *
 

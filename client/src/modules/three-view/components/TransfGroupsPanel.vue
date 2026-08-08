@@ -64,7 +64,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useStore } from 'vuex';
-import NavBarEntity from './NavBarEntity.vue';
+import NavBarEntity from '@/components/NavBarEntity.vue';
 import Vector3Field from './Vector3Field.vue';
 
 const store = useStore();

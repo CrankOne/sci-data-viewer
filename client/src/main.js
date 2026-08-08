@@ -6,15 +6,13 @@ import "@/viewer-icons.css";
 import "@/framed-disclosure.css";
 
 import App from './App.vue';
-import view3D from './store/modules/view3D';  // viewer state module
 import { stateModule as connection } from './connection';  // data source state module
-import cameras from './store/modules/cameras';
-import transfGroups from './store/modules/transfGroups';
+import appCommon from './store/modules/appCommon';
 import create_router from './router';
 
-import { install_facet_preset_persistence } from "@/store/facetPresetPersistence.js";
-import { install_selection_set_persistence } from "@/store/selectionSetPersistence.js";
-import { install_camera_preset_persistence } from "@/store/cameraPresetPersistence.js";
+import { all_modules } from './modules/registry';
+import './modules/three-view';  // registers itself as a viewer module (dataType: 'geo3d')
+// import './modules/fsm-view';  // <- future viewer modules just add a line here
 
 async function fetch_plugin_manifest() {
     const response = await fetch("/api/plugins", {
@@ -40,30 +38,18 @@ async function main() {
     const router = create_router();
     const app = createApp(App);
 
-    // common application state module
-    const appCommon = {
-        namespaced: true,
-        state: () => ({
-            theme: localStorage.getItem("theme") ?? "dark"
-        }),
-        mutations: {
-            set_theme(state, theme) {
-                state.theme = theme;
-                document.documentElement.dataset.theme = theme;
-                localStorage.setItem("theme", theme);
-            }
-        }
-    };
-
-    // Compose app's store as concatenation of viewer store module (view3D) and
-    // API connection state model (`connection'):
+    // Compose app's store from core state (connection, appCommon) plus
+    // whatever viewer modules have registered themselves (see
+    // modules/registry.js) -- core has no knowledge of any specific
+    // viewer module's store shape.
+    const moduleStoreModules = all_modules().reduce(
+        (acc, mod) => ({...acc, ...mod.storeModules}), {}
+    );
     const store = createStore({
-        modules: {connection, view3D, appCommon, cameras, transfGroups}
+        modules: {connection, appCommon, ...moduleStoreModules}
     });
 
-    install_facet_preset_persistence(store);
-    install_selection_set_persistence(store);
-    install_camera_preset_persistence(store);
+    for(const mod of all_modules()) mod.installPersistence?.(store);
 
     app.use(store);  // BEFORE app.mount()!
     app.use(router);

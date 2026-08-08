@@ -138,7 +138,7 @@
 </template>
 
 <script>
-import NavBarEntity from "../NavBarEntity.vue";
+import NavBarEntity from "@/components/NavBarEntity.vue";
 import FacetPresetEditor from "./FacetPresetEditor.vue";
 import ItemTreeNode from "./ItemTreeNode.vue";
 import SelectionSetEditor from "./SelectionSetEditor.vue";

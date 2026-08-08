@@ -1,5 +1,7 @@
 //                          * * *   * * *   * * *
 
+import { get_module } from './modules/registry';
+
 // Ongoing manifest fetch request.
 // Populated once new data source gets added, when the manifest fetching is
 // active.
@@ -7,26 +9,6 @@
 const gManifestRequests = new Map();
 
 //                          * * *   * * *   * * *
-
-// Handlers for various resource types. By receiving a payload of a certain
-// type should commit appropriate changes in a global state.
-const RESOURCE_TYPE_HANDLERS = Object.freeze({
-    geo3d: {
-        mutation: 'view3D/update_geo_data',
-        payload(resource, data) {
-            return {name: resource.name, geoData: data};
-        }
-    }
-
-    // Future examples:
-    //
-    // timeseries: {
-    //     mutation: 'plots/update_time_series',
-    //     payload(resource, data) {
-    //         return {name: resource.name, data};
-    //     }
-    // }
-});
 
 // Relative data URLs are resolved against the manifest endpoint,
 // rather than against the current SPA URL.
@@ -94,6 +76,12 @@ const stateModule = {
             state.resources = resources;
             console.debug(`resource "${name}" removed`);
         }
+    },
+    getters: {
+        // The data type of whichever loaded resource is currently driving
+        // the viewport (see modules/registry.js). v1 keeps a single active
+        // type at a time -- the first resource that has resolved a type.
+        activeType: state => Object.values(state.resources).find(r => r.type)?.type ?? null
     },
     actions: {
         // Add and inspect a resource.
@@ -227,13 +215,13 @@ const stateModule = {
             }
         },
 
-        // fwd a resource payload to its type-specific consumer.
+        // fwd a resource payload to its type-specific viewer module.
         apply_resource_data({commit}, {resource, data}) {
-            const handler = RESOURCE_TYPE_HANDLERS[resource.type];
-            if(!handler) {
-                throw new Error(`Unsupported resource type ${JSON.stringify(resource.type)}`);
+            const module = get_module(resource.type);
+            if(!module) {
+                throw new Error(`No viewer module registered for resource type ${JSON.stringify(resource.type)}`);
             }
-            commit(handler.mutation, handler.payload(resource, data), {root: true});
+            commit(module.payloadMutation, module.payload(resource, data), {root: true});
         }
     }
 };

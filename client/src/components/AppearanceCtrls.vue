@@ -21,14 +21,6 @@
           </select>
         </div>
 
-        <!-- Turns on on-hover and selection highlight for invisible items -->
-        <div>
-          <span>Highlight invis. selection</span>
-        </div>
-        <div class="control">
-          <input type="checkbox" v-model="highlightInvisibleOnHover"/>
-        </div>
-
       </div>
     </template>
   </NavBarEntity>
@@ -54,11 +46,6 @@ export default {
     theme: {
       get() { return this.$store.state.appCommon.theme; },
       set(value) { this.$store.commit('appCommon/set_theme', value); }
-    },
-
-    highlightInvisibleOnHover: {
-      get() { return this.$store.state.view3D.highlightHiddenSelection; },
-      set(value) { this.$store.commit('view3D/toggle_highlight_hidden', value); }
     }
   }
 };

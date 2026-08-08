@@ -5,13 +5,14 @@
       <div>X<input min="1.0e-12" max="1.0e+3"  :value.number="scaleX" @input="e => this.update_scale(e, 'x')"/></div>
       <div>Y<input min="1.0e-12" max="1.0e+3"  :value.number="scaleY" @input="e => this.update_scale(e, 'y')"/></div>
       <div>Z<input min="1.0e-12" max="1.0e+3"  :value.number="scaleZ" @input="e => this.update_scale(e, 'z')"/></div>
+      <div>Highlight invis. selection <input type="checkbox" v-model="highlightInvisibleOnHover"/></div>
     </template>
   </NavBarEntity>
 </template>
 
 <script>
 import {mapState} from 'vuex';
-import NavBarEntity from './NavBarEntity.vue'
+import NavBarEntity from '@/components/NavBarEntity.vue'
 
 export default {
     name: 'SceneHelpers',
@@ -21,7 +22,12 @@ export default {
             scaleX: state => state.view3D.axesScales[0],
             scaleY: state => state.view3D.axesScales[1],
             scaleZ: state => state.view3D.axesScales[2]
-        })
+        }),
+
+        highlightInvisibleOnHover: {
+            get() { return this.$store.state.view3D.highlightHiddenSelection; },
+            set(value) { this.$store.commit('view3D/toggle_highlight_hidden', value); }
+        }
     },
     methods: {
         update_scale(e, vn) {
@@ -31,4 +37,3 @@ export default {
     }
 }
 </script>
-

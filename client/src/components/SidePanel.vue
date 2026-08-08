@@ -1,36 +1,26 @@
 <template>
     <div id="container">
         <source-list :defaultOpenedState="true" />
-        <!--<ev-nav-bar eventID="null"/>-->
-        <items-tree :defaultOpenedState="true" />
-        <scene-helpers />
-        <!--<event-tree-on-side-panel :eventNum="0"/>-->
-        <transf-groups-panel :defaultOpenedState="true" />
+        <component
+            v-for="(Section, index) in sidePanelSections"
+            :key="index"
+            :is="Section"
+            :defaultOpenedState="true"
+        />
         <appearance-ctrls :defaultOpenedState="true"/>
     </div>
 </template>
 
-<script>
-//import EvNavBar from './EvNavBar.vue'
-import SceneHelpers from './SceneHelpers.vue'
-import SourceList from './SourcesList.vue'
-import ItemsTree from './ItemsTree'
-import TransfGroupsPanel from './TransfGroupsPanel.vue'
-import AppearanceCtrls from './AppearanceCtrls.vue'
-//import EventTreeOnSidePanel from './EventTreeOnSidePanel.vue'
+<script setup>
+import { computed } from 'vue';
+import { useStore } from 'vuex';
+import { get_module } from '@/modules/registry';
+import SourceList from './SourcesList.vue';
+import AppearanceCtrls from './AppearanceCtrls.vue';
 
-export default {
-    components: {
-        SourceList,
-        ItemsTree,
-        SceneHelpers,
-        TransfGroupsPanel,
-        AppearanceCtrls
-    },
-    data() {
-        return {};
-    }
-}
+const store = useStore();
+const activeType = computed(() => store.getters['connection/activeType']);
+const sidePanelSections = computed(() => get_module(activeType.value)?.sidePanelSections ?? []);
 </script>
 
 <style scoped>
@@ -39,4 +29,3 @@ div#container {
     padding: 0 3pt;
 }
 </style>
-

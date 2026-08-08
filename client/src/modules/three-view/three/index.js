@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { watch } from 'vue';
+import { get_theme } from '@/utils';
 import * as Utils from '../utils';
 import * as HlOverlay from '../hl-overlay';
 
@@ -110,7 +111,7 @@ class ThreeView {
         //this._raycaset.threshold = 5.0;  // world units unfortunately
         // Creating the (main) scene
         this._scene = new THREE.Scene();
-        this._scene.background = new THREE.Color(Utils.get_theme().background);
+        this._scene.background = new THREE.Color(get_theme().background);
 
         this._create_lights();
         this._create_renderer();
@@ -144,11 +145,11 @@ class ThreeView {
         // last arg enables debug quad; possible options: 'mask', 'dilate'
         if(highlightOnHover)
             this._hoverHL = new HlOverlay.SilhouetteOverlay(
-                Utils.LAYER_MASK_HIGHLIGHTED, w, h, Utils.get_theme().highlight, null
+                Utils.LAYER_MASK_HIGHLIGHTED, w, h, get_theme().highlight, null
             );
         if(highlightOnSelection)
             this._selectHL = new HlOverlay.SilhouetteOverlay(
-                Utils.LAYER_MASK_SELECTED, w, h, Utils.get_theme().selected, null
+                Utils.LAYER_MASK_SELECTED, w, h, get_theme().selected, null
             );
         ready = true;
         this._render();
