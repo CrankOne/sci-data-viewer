@@ -36,7 +36,6 @@
 import FramedDisclosure from './FramedDisclosure.vue';
 import WaitingSourceListItem from './sourceListItems/waiting.vue'
 import StaticSourceListItem from './sourceListItems/static.vue'
-// import ... (other source list items)
 
 export default {
     name: 'SourceListItem',
@@ -44,7 +43,6 @@ export default {
         FramedDisclosure,
         WaitingSourceListItem,
         StaticSourceListItem
-        // ...
     },
     props: {
         name: String,
@@ -75,6 +73,10 @@ export default {
     },
 
     computed: {
+        // NOTE: only the "static view" access model is implemented
+        // end-to-end today; the richer iterable/paginated collection models
+        // sketched in the project README were never fully built out
+        // client-side and need a proper redesign before being reintroduced.
         concreteSourceItemComponent() {
             if(this.definition.manifest === null) {
                 return 'waiting-source-list-item';
@@ -82,19 +84,7 @@ export default {
             if(this.definition.manifest.accessModel == 'staticView') {
                 return 'static-source-list-item';
             }
-            if(this.definition.manifest.accessModel == 'staticViewWithPeriodicUpdates') {
-                return 'static-source-list-item-with-periodic-updates';
-            }
-            if(this.definition.manifest.accessModel == 'fwIterableCollection') {
-                return 'source-list-item-fw-iterable';
-            }
-            if(this.definition.manifest.accessModel == 'sparseCollection') {
-                return 'static-source-list-item-sparse-collection';
-            }
-            if(this.definition.manifest.accessModel == 'sparseCollectionWithPagination') {
-                return 'static-source-list-item-sparse-collection-with-pagination';
-            }
-            throw new Error(`Unknown access model type "${this.definition.manifest.accessModel}"`)
+            throw new Error(`Unsupported access model type "${this.definition.manifest.accessModel}"`)
         }
     }
 }

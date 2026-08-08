@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import {
     normalize_selection_asset,
     serialize_selection,
@@ -58,12 +57,6 @@ export default {
         // Behavior controls
         highlightHiddenSelection: true,
 
-        // Axis-aligned bounding box for objects of interest
-        regionOfInterest: [[null, null, null], [null, null, null]],
-        // Global axis scales to be applied for geometrical entities as
-        // multiplication factors, f_i, r_shown = f_i * r_original.
-        axesScales: [1., 1., 1.],  // x, y, z
-
         //highlightedGeoItemIDs: new Set(),  // highlighted item IDs
         treeHoveredGeoItemIDs: new Set(),  // hovered in tree vwr
         sceneHoveredGeoItemIDs: new Set(),  // hovered on scene
@@ -98,30 +91,6 @@ export default {
 
         toggle_highlight_hidden(state, value) {
             state.highlightHiddenSelection = value;
-        },
-
-        // Updates region of interest with given point r:float[3]
-        update_region_of_interest(state, rs) {
-            rs.forEach(r => {
-                for(let j = 0; j < 3; ++j) {
-                    if(state.regionOfInterest[0][j] === null || state.regionOfInterest[0][j] > r[j])
-                        state.regionOfInterest[0][j] = r[j];
-                    if(state.regionOfInterest[1][j] === null || state.regionOfInterest[1][j] < r[j])
-                        state.regionOfInterest[1][j] = r[j];
-                }
-            });
-        },
-        // Re-sets region of interest to null
-        reset_region_of_interest(state) {
-            for(let j = 0; j < 3; ++j) {
-                state.regionOfInterest[0][j] = null;
-                state.regionOfInterest[1][j] = null;
-            }
-        },
-        // Change the scales
-        change_axis_scale(state, pl) {
-            const nIdx = {'x': 0, 'y': 1, 'z': 2}[pl['var']];
-            state.axesScales[nIdx] = pl.v;
         },
 
         //
@@ -378,39 +347,6 @@ export default {
         activeFacetPresetName: state => state.activeFacetPresetName,
 
         activeFacetPreset: state => state.facetPresets[state.activeFacetPresetName] ?? {facets: []},
-
-        // Returns current global transformation (for viewing objects)
-        transformationMatrix(state) {
-            const m = new THREE.Matrix3();
-            m.set( state.axesScales[0], 0, 0
-                 , 0, state.axesScales[1], 0
-                 , 0, 0, state.axesScales[2]
-                 );
-            return m;
-        },
-        // Axis-aligned bounding box for current region of interest
-        aabb(state) {
-            if(state.regionOfInterest.flat().some(v => v === null || Number.isNaN(v)))
-                return [Array(3).fill(new THREE.Vector3(NaN, NaN, NaN))];
-
-            const mins = new THREE.Vector3( state.regionOfInterest[0][0]
-                                           , state.regionOfInterest[0][1]
-                                           , state.regionOfInterest[0][2]
-                                           );
-            const maxs = new THREE.Vector3( state.regionOfInterest[1][0]
-                                           , state.regionOfInterest[1][1]
-                                           , state.regionOfInterest[1][2]
-                                           );
-            const c = mins.clone();
-            c.add(maxs).divideScalar(2.);
-            return [mins, maxs, c];
-        },
-
-        //highlightedMarkersList: state =>
-        //    [...state.highlightedMarkers.entries()].map(([geoID, indices]) => ({
-        //        geoID,
-        //        indices: [...indices],
-        //        })),
 
         //
         // Selection sets

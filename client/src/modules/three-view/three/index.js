@@ -55,12 +55,9 @@ class ThreeView {
         // NOTE: the `cameras/' store subscription lives inside CameraManager.
 
         // Geometry update watcher
-        //  This function is triggered on either geometry data indexed by source
-        //  name gets updated, global transformation matrix gets changed, list
-        //  of drawn items changed, etc.
-        watch( [ () => this._vuexStore.getters['view3D/geoData']
-               , () => this._vuexStore.getters['view3D/transformationMatrix']
-               ]
+        //  This function is triggered when geometry data indexed by source
+        //  name gets updated.
+        watch( () => this._vuexStore.getters['view3D/geoData']
              , () => this._geometryManager.update_drawables()
              );
 
