@@ -1,53 +1,25 @@
-const STORAGE_KEY = "viewer.camera-presets.v1";
-
-function read_stored_presets() {
-    try {
-        const text = localStorage.getItem(STORAGE_KEY);
-        if(!text) return null;
-
-        const value = JSON.parse(text);
-        if(!value || typeof value !== "object" || typeof value.presets !== "object")
-            return null;
-
-        return value;
-    } catch(error) {
-        console.warn("Could not read saved camera presets:", error);
-        return null;
-    }
-}
-
-function write_stored_presets(state) {
-    try {
-        const currentPresetByViewport = Object.fromEntries(
-            Object.entries(state.viewports).map(([viewportID, viewport]) => [viewportID, viewport.currentPreset])
-        );
-
-        localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({presets: state.presets, currentPresetByViewport})
-        );
-    } catch(error) {
-        console.warn("Could not persist camera presets:", error);
-    }
-}
+import { install_persistence } from '@/store/persistence';
 
 export function install_camera_preset_persistence(store) {
-    const stored = read_stored_presets();
-    if(stored) store.commit("cameras/initialize_presets", stored);
-
-    // NOTE: deliberately excludes "cameras/resize_viewport" -- viewport
-    // width/height/aspect are runtime layout state, not part of a preset.
-    const persistentMutations = new Set([
-        "cameras/initialize_presets",
-        "cameras/set_current_preset",
-        "cameras/replace_preset",
-        "cameras/patch_preset",
-        "cameras/patch_working_camera",
-        "cameras/remove_preset"
-    ]);
-
-    store.subscribe((mutation, rootState) => {
-        if(!persistentMutations.has(mutation.type)) return;
-        write_stored_presets(rootState.cameras);
+    install_persistence(store, {
+        storageKey: "viewer.camera-presets.v1",
+        requiredKey: "presets",
+        initMutation: "cameras/initialize_presets",
+        // NOTE: deliberately excludes "cameras/resize_viewport" -- viewport
+        // width/height/aspect are runtime layout state, not part of a preset.
+        persistMutations: [
+            "cameras/initialize_presets",
+            "cameras/set_current_preset",
+            "cameras/replace_preset",
+            "cameras/patch_preset",
+            "cameras/patch_working_camera",
+            "cameras/remove_preset"
+        ],
+        serialize(rootState) {
+            const currentPresetByViewport = Object.fromEntries(
+                Object.entries(rootState.cameras.viewports).map(([viewportID, viewport]) => [viewportID, viewport.currentPreset])
+            );
+            return {presets: rootState.cameras.presets, currentPresetByViewport};
+        }
     });
 }

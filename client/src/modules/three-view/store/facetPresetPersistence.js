@@ -1,48 +1,19 @@
-const STORAGE_KEY = "viewer.facet-presets.v1";
-
-function read_stored_presets() {
-    try {
-        const text = window.localStorage.getItem(STORAGE_KEY);
-        if(!text) return null;
-
-        const parsed = JSON.parse(text);
-        if(!parsed || typeof parsed !== "object" || typeof parsed.presets !== "object")
-            return null;
-
-        return parsed;
-    } catch(error) {
-        console.warn("Could not read facet presets from local storage:", error);
-        return null;
-    }
-}
-
-function write_stored_presets(state) {
-    try {
-        window.localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({presets: state.facetPresets, activePresetName: state.activeFacetPresetName})
-        );
-    } catch(error) {
-        console.warn("Could not save facet presets to local storage:", error);
-    }
-}
+import { install_persistence } from '@/store/persistence';
 
 export function install_facet_preset_persistence(store) {
-    const stored = read_stored_presets();
-    if(stored) store.commit("view3D/initialize_facet_presets", stored);
-
-    store.subscribe((mutation, rootState) => {
-        if(!mutation.type.startsWith("view3D/")) return;
-
-        const persistentMutations = new Set([
+    install_persistence(store, {
+        storageKey: "viewer.facet-presets.v1",
+        requiredKey: "presets",
+        initMutation: "view3D/initialize_facet_presets",
+        persistMutations: [
             "view3D/initialize_facet_presets",
             "view3D/activate_facet_preset",
             "view3D/set_active_facet_preset_facets",
             "view3D/save_facet_preset",
             "view3D/delete_facet_preset"
-        ]);
-
-        if(!persistentMutations.has(mutation.type)) return;
-        write_stored_presets(rootState.view3D);
+        ],
+        serialize(rootState) {
+            return {presets: rootState.view3D.facetPresets, activePresetName: rootState.view3D.activeFacetPresetName};
+        }
     });
 }
