@@ -20,7 +20,11 @@ register_module({
     dataType: 'geo3d',
     label: '3D Geometry',
     viewportComponent: ThreeViewport,
-    sidePanelSections: [ItemsTree, TransfGroupsPanel, SceneHelpers],
+    sidePanelSections: [
+        {id: 'geo3d:items-tree', title: 'Items', component: ItemsTree},
+        {id: 'geo3d:transf-groups', title: 'Transformation groups', component: TransfGroupsPanel},
+        {id: 'geo3d:scene-helpers', title: 'Scene Helpers', component: SceneHelpers}
+    ],
     storeModules: {view3D, cameras, transfGroups},
     // Same {mutation, payload} shape connection.js's RESOURCE_TYPE_HANDLERS
     // used to hardcode -- now owned by the module instead of by core.

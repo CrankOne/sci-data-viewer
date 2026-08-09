@@ -8,6 +8,8 @@ import "@/framed-disclosure.css";
 import App from './App.vue';
 import { stateModule as connection } from './connection';  // data source state module
 import appCommon from './store/modules/appCommon';
+import layout from './store/modules/layout';
+import { install_layout_persistence } from './store/modules/layoutPersistence';
 import create_router from './router';
 
 import { all_modules } from './modules/registry';
@@ -46,10 +48,11 @@ async function main() {
         (acc, mod) => ({...acc, ...mod.storeModules}), {}
     );
     const store = createStore({
-        modules: {connection, appCommon, ...moduleStoreModules}
+        modules: {connection, appCommon, layout, ...moduleStoreModules}
     });
 
     for(const mod of all_modules()) mod.installPersistence?.(store);
+    install_layout_persistence(store);
 
     app.use(store);  // BEFORE app.mount()!
     app.use(router);

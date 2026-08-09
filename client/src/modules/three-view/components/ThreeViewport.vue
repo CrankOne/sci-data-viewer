@@ -9,7 +9,11 @@
       class="camera-widget"
       :class="{ expanded: editorOpened }"
     >
-      <div class="camera-widget__bar">
+      <div
+        class="camera-widget__bar"
+        draggable="true"
+        @dragstart="on_module_drag_start"
+      >
         <select
           class="camera-widget__select"
           :value="currentPresetName"
@@ -200,6 +204,11 @@ function frame_objects() {
     view?.frame_selected_or_visible();
 }
 
+function on_module_drag_start(event) {
+    event.dataTransfer.setData('application/x-panel-module', '1');
+    event.dataTransfer.effectAllowed = 'move';
+}
+
 function schedule_pointer_update(event) {
     if(pointerTimer !== null)
         clearTimeout(pointerTimer);
@@ -294,6 +303,7 @@ onBeforeUnmount(() => {
 .camera-widget__bar {
     display: flex;
     align-items: center;
+    cursor: grab;
     gap: 0.3rem;
     padding: 0.3rem;
 }
