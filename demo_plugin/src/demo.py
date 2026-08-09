@@ -213,6 +213,7 @@ class DemoViewerPlugin:
     id = "demo"  # should match entry point name from pyproject.toml
     def blueprints(self):
         return (blueprint,)
+
     def data_sources(self):
         return (
             DataSourceDeclaration(
@@ -226,8 +227,10 @@ class DemoViewerPlugin:
         )
     def resolvers(self):
         return ()
+
     def client_extensions(self):
         return ()
+
     def resources(self):
         return ()
 
