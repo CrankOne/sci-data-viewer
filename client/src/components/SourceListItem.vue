@@ -73,18 +73,23 @@ export default {
     },
 
     computed: {
-        // NOTE: only the "static view" access model is implemented
-        // end-to-end today; the richer iterable/paginated collection models
-        // sketched in the project README were never fully built out
-        // client-side and need a proper redesign before being reintroduced.
+        // NOTE: only "plain" sources (sequential=false, addressable=false;
+        // see doc/sources.rst) are implemented end-to-end today; the richer
+        // sequential/addressable collection models sketched there were
+        // never fully built out client-side and need a proper redesign
+        // before being reintroduced.
         concreteSourceItemComponent() {
             if(this.definition.manifest === null) {
                 return 'waiting-source-list-item';
             }
-            if(this.definition.manifest.accessModel == 'staticView') {
+            const {sequential, addressable} = this.definition.manifest;
+            if(!sequential && !addressable) {
                 return 'static-source-list-item';
             }
-            throw new Error(`Unsupported access model type "${this.definition.manifest.accessModel}"`)
+            throw new Error(
+                `Unsupported source capabilities (sequential=${sequential}, `
+                + `addressable=${addressable}): only plain sources are supported`
+            );
         }
     }
 }

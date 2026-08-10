@@ -6,6 +6,7 @@ add external ones.
 
 from __future__ import annotations
 from dataclasses import asdict
+from urllib.parse import urlsplit
 from flask import Blueprint, current_app, jsonify, url_for
 
 blueprint = Blueprint(
@@ -39,6 +40,10 @@ def plugin_manifest():
     for k, att, kwargs in attrsToBeResolvedAsURLs:
         for item in r[k]:
             if att not in item or not item[att]: continue
+            if urlsplit(item[att]).scheme:
+                # already an absolute URL (e.g. a 3rd-party source) --
+                # used as-is, not a local Flask endpoint name
+                continue
             item[att] = url_for(item[att], **kwargs)
 
     return jsonify(r)

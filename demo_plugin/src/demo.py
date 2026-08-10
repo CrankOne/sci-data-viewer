@@ -1,6 +1,6 @@
 from __future__ import annotations
 from flask import Blueprint, jsonify, request, url_for
-from viewer_server.plugins.contracts import DataSourceDeclaration
+from viewer_server.plugins.contracts import DataSourceDeclaration, SourceDescriptor
 import time  # XXX
 
 # A Flask blueprint containing all plugin's resources
@@ -14,15 +14,13 @@ blueprint = Blueprint(
 @blueprint.get("/source")
 def source_descriptor():
     #time.sleep(4.0)  # dev note: uncomment to test manifest fetch mgmnt
-    return jsonify({
-        "data-url": url_for(__name__ + '.geometry'),
-        "type": "geo3d",  # mandatory for 3D viewer
 
-        # Data source access model features:
-        "accessModel": "staticView",
-        "iterable": True,
-        "expiresIn": None,
-    })
+    # A plain source (doc/sources.rst): neither sequential nor addressable,
+    # `GET data-url` returns the geometry payload directly.
+    return jsonify(SourceDescriptor(
+        data_url=url_for(__name__ + '.geometry'),
+        extra={"type": "geo3d"},  # mandatory for 3D viewer
+    ).to_json())
 
 @blueprint.get("/geometry")
 def geometry():

@@ -20,6 +20,14 @@ from flask_restful import Resource
 class DataSourceDeclaration:
     """
     A predefined data-source descriptor endpoint.
+
+    ``url`` is either a Flask endpoint name local to this server (resolved
+    via ``url_for`` when the plugin manifest is built), or an absolute URL
+    (``scheme://...``), used as-is. The latter lets a plugin register a
+    3rd-party source that implements the REST contract from
+    ``doc/sources.rst`` on its own, without a local proxy route -- see
+    "Cross-origin sources" there for what that source must additionally
+    provide (CORS headers) to be reachable from a browser client.
     """
     id: str
     url: str
@@ -33,6 +41,15 @@ class ResolverDeclaration:
     """
     A resolver capable of providing associated data for the objects picked
     on the scene for a detailed inspection.
+
+    ``url`` MUST point to an endpoint implementing the *addressable* data
+    source interface from ``doc/sources.rst``, with ``collection.enumerable``
+    set to ``true``: the picked object's stable identifier is used as the
+    ``{id}`` in ``GET {url}/{id}``, and ``GET {url}`` MUST enumerate the
+    identifiers the resolver can currently resolve. Use
+    :func:`enumerable_resolver_descriptor` to build the JSON document
+    returned by that endpoint. As with ``DataSourceDeclaration.url``, this
+    MAY be an absolute URL pointing at a 3rd-party resolver.
     """
 
     id: str
@@ -40,6 +57,98 @@ class ResolverDeclaration:
     label: str | None = None
     supported_types: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CollectionCapabilities:
+    """
+    Mirrors the ``collection`` object of an addressable source descriptor
+    (doc/sources.rst, "Addressable capability").
+    """
+
+    enumerable: bool
+    finite: bool = True
+    pagination: bool = False
+    page_size: int | None = None
+    max_page_size: int | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        doc: dict[str, Any] = {
+            "finite": self.finite,
+            "enumerable": self.enumerable,
+            "pagination": self.pagination,
+        }
+        if self.pagination:
+            if self.page_size is not None:
+                doc["page-size"] = self.page_size
+            if self.max_page_size is not None:
+                doc["max-page-size"] = self.max_page_size
+        return doc
+
+
+@dataclass(frozen=True)
+class SourceDescriptor:
+    """
+    Builds a data source descriptor document as defined by the Data Source
+    REST Interface (doc/sources.rst). Serve the result of :meth:`to_json`
+    from the endpoint referenced by ``DataSourceDeclaration.url`` /
+    ``ResolverDeclaration.url``.
+    """
+
+    data_url: str
+    sequential: bool = False
+    addressable: bool = False
+    collection: CollectionCapabilities | None = None
+    # source-specific properties the spec permits in addition to the
+    # standard ones, e.g. {"type": "geo3d"}
+    extra: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.collection is not None and not self.addressable:
+            raise ValueError(
+                "collection capabilities require addressable=True"
+            )
+
+    def to_json(self) -> dict[str, Any]:
+        doc: dict[str, Any] = {
+            "data-url": self.data_url,
+            "sequential": self.sequential,
+            "addressable": self.addressable,
+        }
+        if self.collection is not None:
+            doc["collection"] = self.collection.to_json()
+        doc.update(self.extra)
+        return doc
+
+
+def enumerable_resolver_descriptor(
+    data_url: str,
+    *,
+    finite: bool = True,
+    pagination: bool = False,
+    page_size: int | None = None,
+    max_page_size: int | None = None,
+    **extra: Any,
+) -> SourceDescriptor:
+    """
+    Builds the descriptor a resolver's endpoint MUST return.
+
+    A resolver is addressable by picked-object id and enumerable over that
+    id space (see :class:`ResolverDeclaration`), so ``addressable`` and
+    ``collection.enumerable`` are fixed to ``True``.
+    """
+    return SourceDescriptor(
+        data_url=data_url,
+        addressable=True,
+        collection=CollectionCapabilities(
+            enumerable=True,
+            finite=finite,
+            pagination=pagination,
+            page_size=page_size,
+            max_page_size=max_page_size,
+        ),
+        extra=extra,
+    )
 
 
 @dataclass(frozen=True)

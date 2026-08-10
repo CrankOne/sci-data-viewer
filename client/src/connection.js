@@ -40,6 +40,12 @@ function normalize_manifest(manifest, manifestURL) {
     if(typeof manifest.type !== 'string' || manifest.type.length === 0) {
         throw new TypeError(`Resource manifest from ${manifestURL} has no valid "type"`);
     }
+    if(typeof manifest.sequential !== 'boolean' || typeof manifest.addressable !== 'boolean') {
+        throw new TypeError(
+            `Resource manifest from ${manifestURL} must explicitly advertise `
+            + `"sequential" and "addressable" capabilities (booleans)`
+        );
+    }
     return {
         ...manifest,
         dataURL: resolve_url_rel_to_endpoint(manifest['data-url'], manifestURL)
