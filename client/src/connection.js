@@ -8,6 +8,21 @@ import { get_module } from './modules/registry';
 // name -> {controller, generation}
 const gManifestRequests = new Map();
 
+// Drops a loaded resource's data from its (current) context's module, via
+// the owning viewer module's removeMutation/removePayload (mirrors
+// payloadMutation/payload) -- a no-op for a resource that was never loaded,
+// isn't contextual, or whose module declares no removeMutation.
+function clean_up_resource_data(commit, resource) {
+    if(resource.status !== 'loaded' || !resource.type || !resource.contextId) return;
+    const module = get_module(resource.type);
+    if(!module?.removeMutation) return;
+    const mutation = typeof module.removeMutation === 'function'
+        ? module.removeMutation(resource.contextId)
+        : module.removeMutation;
+    const payload = module.removePayload ? module.removePayload(resource) : resource.name;
+    commit(mutation, payload, {root: true});
+}
+
 //                          * * *   * * *   * * *
 
 // Relative data URLs are resolved against the manifest endpoint,
@@ -87,12 +102,23 @@ const stateModule = {
         // The data type of whichever loaded resource is currently driving
         // the viewport (see modules/registry.js). v1 keeps a single active
         // type at a time -- the first resource that has resolved a type.
-        activeType: state => Object.values(state.resources).find(r => r.type)?.type ?? null
+        activeType: state => Object.values(state.resources).find(r => r.type)?.type ?? null,
+
+        // Every resource currently assigned to a given context -- used to
+        // warn before removing a context's last viewport (see Panel.vue).
+        resourcesForContext: state => contextId =>
+            Object.values(state.resources).filter(r => r.contextId === contextId)
     },
     actions: {
-        // Add and inspect a resource.
-        // `load' controls whether its payload is fetched immediately
-        async add_resource({commit, dispatch}, {name, endpoint, load = true, signal = undefined}) {
+        // Add and inspect a resource. `load' controls whether its payload is
+        // fetched immediately -- pass `load: false' to resolve just the
+        // (cheap) manifest first and inspect its `type' before committing to
+        // a context and the (potentially large) data fetch; see
+        // assign_resource_context below and SourcesList.vue's add-source
+        // flow. `contextId' defaults to unassigned; a contextual-type
+        // resource with no contextId fails at apply_resource_data() below,
+        // not silently.
+        async add_resource({commit, dispatch}, {name, endpoint, load = true, contextId = null, signal = undefined}) {
             commit('new_resource', {
                 name,
                 endpoint,
@@ -101,10 +127,18 @@ const stateModule = {
                 type: null,
                 dataURL: null,
                 dataSize: null,
-                error: null
+                error: null,
+                contextId
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
+        },
+
+        // Sets (or reassigns) which context a resource's data lands in --
+        // called once the caller has resolved which scene to use, before
+        // load_resource_data.
+        assign_resource_context({commit}, {name, contextId}) {
+            commit('update_resource', {name, changes: {contextId}});
         },
 
         async fetch_resource_manifest({state, commit, dispatch}, {name, load = true}) {
@@ -172,10 +206,30 @@ const stateModule = {
             return dispatch('fetch_resource_manifest', {name, load});
         },
 
-        remove_resource({commit}, name) {
+        remove_resource({state, commit}, name) {
+            const resource = state.resources[name];
+            if(resource) clean_up_resource_data(commit, resource);
             gManifestRequests.get(name)?.controller.abort();
             gManifestRequests.delete(name);
             commit('remove_resource', name);
+        },
+
+        // Reassigns an already-added, already-loaded resource to a
+        // different context: drops its data from the old context and
+        // re-fetches/re-applies it under the new one (see
+        // SourceListItem.vue's scene-reassignment control). A no-op if the
+        // resource isn't loaded yet or is already on that context.
+        async reassign_resource_context({state, commit, dispatch}, {name, contextId}) {
+            const resource = state.resources[name];
+            if(!resource) throw new Error(`Unknown resource ${name}`);
+            if(resource.contextId === contextId) return;
+
+            const wasLoaded = resource.status === 'loaded';
+            if(wasLoaded) clean_up_resource_data(commit, resource);
+
+            commit('update_resource', {name, changes: {contextId}});
+
+            if(wasLoaded) await dispatch('load_resource_data', {name});
         },
 
         // Fetch the payload for an already registered resource.
@@ -227,7 +281,24 @@ const stateModule = {
             if(!module) {
                 throw new Error(`No viewer module registered for resource type ${JSON.stringify(resource.type)}`);
             }
-            commit(module.payloadMutation, module.payload(resource, data), {root: true});
+            if(module.contextual && !resource.contextId) {
+                throw new Error(`Resource "${resource.name}" has type "${resource.type}", which requires a context, but none is assigned`);
+            }
+            const mutation = typeof module.payloadMutation === 'function'
+                ? module.payloadMutation(resource.contextId)
+                : module.payloadMutation;
+            commit(mutation, module.payload(resource, data), {root: true});
+        },
+
+        // Moves every resource currently targeting `fromContextId` to
+        // `toContextId` -- used when a context is removed (see
+        // store/modules/contexts.js) so its sources aren't silently
+        // orphaned.
+        reassign_context_sources({state, commit}, {fromContextId, toContextId}) {
+            for(const resource of Object.values(state.resources)) {
+                if(resource.contextId !== fromContextId) continue;
+                commit('update_resource', {name: resource.name, changes: {contextId: toContextId ?? null}});
+            }
         }
     }
 };

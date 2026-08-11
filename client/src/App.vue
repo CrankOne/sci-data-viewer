@@ -1,8 +1,10 @@
 <template>
   <router-view></router-view>
+  <ModalHost />
 </template>
 
 <script setup>
+import ModalHost from './components/ModalHost.vue';
 </script>
 
 <style>

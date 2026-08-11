@@ -1,8 +1,11 @@
 import { install_persistence } from '@/store/persistence';
 
-export function install_camera_preset_persistence(store) {
+// `sessionId` scopes this to one saved session (see
+// store/modules/session.js) -- each session gets its own independent
+// camera presets.
+export function install_camera_preset_persistence(store, sessionId) {
     install_persistence(store, {
-        storageKey: "viewer.camera-presets.v1",
+        storageKey: `viewer.camera-presets.v1.${sessionId}`,
         requiredKey: "presets",
         initMutation: "cameras/initialize_presets",
         // NOTE: deliberately excludes "cameras/resize_viewport" -- viewport

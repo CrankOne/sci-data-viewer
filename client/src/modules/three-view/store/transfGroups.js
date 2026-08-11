@@ -1,11 +1,14 @@
-// A state module maintaining shared, named "transformation groups".
+// A state module maintaining named "transformation groups".
 //
 // Groups are *discovered* from loaded geometry rather than created by hand:
 // as GeometryManager parses each geo item's `_transfGroup` reference, it
 // commits `ensure_group` for the referenced name so it shows up here (and
 // in the TransfGroupsPanel.vue editor) at an identity transform. Names are
-// global -- shared across data sources -- unlike individual geo item
-// definitions, which are scoped per source.
+// shared across every data source within one context (scene) -- unlike
+// individual geo item definitions, which are scoped per source -- but not
+// across contexts: each context gets its own instance of this module (see
+// store/modules/contexts.js), so two scenes both referencing a group named
+// "main" do not affect each other.
 
 //                      * * *   * * *   * * *
 
@@ -24,7 +27,10 @@ function copy_vec3(value, fallback) {
 
 //                      * * *   * * *   * * *
 
-export default {
+// A factory, not a singleton object, since one instance is registered per
+// context (see store/modules/contexts.js).
+export function make_transf_groups_module() {
+    return {
     namespaced: true,
 
     state: () => ({
@@ -63,4 +69,5 @@ export default {
                 state.groups[name] = identity_group();
         }
     }
-};
+    };
+}

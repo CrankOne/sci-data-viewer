@@ -48,8 +48,10 @@ function assign_selection(state, selection) {
 }
 
 //                  * * *   * * *   * * *
-// Vuex state module
-export default {
+// Vuex state module -- a factory, not a singleton object, since one
+// instance is registered per context (see store/modules/contexts.js).
+export function make_view3D_module() {
+    return {
     namespaced: true,
     state: () => ({
         geoDataBySource: {},
@@ -87,6 +89,16 @@ export default {
             };
             // suceeds
             console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);
+        },
+
+        // Drops a source's geometry -- used when a source is removed or
+        // reassigned to a different context/scene (see SourceListItem.vue),
+        // so its data doesn't linger in a context it no longer belongs to.
+        remove_geo_data(state, sourceName) {
+            if(!Object.hasOwn(state.geoDataBySource, sourceName)) return;
+            const geoDataBySource = {...state.geoDataBySource};
+            delete geoDataBySource[sourceName];
+            state.geoDataBySource = geoDataBySource;
         },
 
         toggle_highlight_hidden(state, value) {
@@ -359,4 +371,5 @@ export default {
         }
 
     }  // getters
-};  // view3D module
+    };  // view3D module
+}

@@ -15,7 +15,7 @@ export function install_persistence(store, {storageKey, requiredKey, initMutatio
     });
 }
 
-function read_stored(storageKey, requiredKey) {
+export function read_stored(storageKey, requiredKey) {
     try {
         const text = localStorage.getItem(storageKey);
         if(!text) return null;
@@ -31,7 +31,7 @@ function read_stored(storageKey, requiredKey) {
     }
 }
 
-function write_stored(storageKey, value) {
+export function write_stored(storageKey, value) {
     try {
         localStorage.setItem(storageKey, JSON.stringify(value));
     } catch(error) {

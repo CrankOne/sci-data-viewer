@@ -1,8 +1,10 @@
-// A state module maintaining viewer's cameras
+// A state module maintaining viewer's cameras. `viewportID` throughout this
+// module is a widget-instance id (see store/modules/widgetInstances.js) --
+// several viewport instances may point at the same context (shared
+// geometry/selection, independent cameras), so camera identity is keyed by
+// the viewport instance, not by context.
 
 //                      * * *   * * *   * * *
-
-const DEFAULT_VIEWPORT_ID = 'main';
 
 const DEFAULT_PERSPECTIVE_CAMERA = Object.freeze({
     type: 'perspective',
@@ -169,16 +171,9 @@ export default {
             orthoXY: make_default_ortho_cam()
         },
 
-        viewports: {
-            [DEFAULT_VIEWPORT_ID]: {
-                currentPreset: 'persp1',
-                // Runtime viewport properties; these do not belong to a
-                // camera preset.
-                widthPx: 1,
-                heightPx: 1,
-                aspect: 1
-            }
-        }
+        // Populated dynamically as viewport widget instances are created --
+        // see register_viewport/unregister_viewport below.
+        viewports: {}
     }),
 
     getters: {
@@ -272,6 +267,30 @@ export default {
 
         // Viewports
         //
+
+        // Registers a new viewport (idempotent -- a second call for an
+        // already-known viewportID is a no-op, so callers don't need to
+        // special-case "was this already registered").
+        register_viewport(state, {viewportID, currentPreset}) {
+            if(state.viewports[viewportID]) return;
+            state.viewports = {
+                ...state.viewports,
+                [viewportID]: {
+                    currentPreset: currentPreset ?? Object.keys(state.presets)[0],
+                    // Runtime viewport properties; these do not belong to a
+                    // camera preset.
+                    widthPx: 1,
+                    heightPx: 1,
+                    aspect: 1
+                }
+            };
+        },
+
+        unregister_viewport(state, viewportID) {
+            const viewports = {...state.viewports};
+            delete viewports[viewportID];
+            state.viewports = viewports;
+        },
 
         // updates viewport size
         resize_viewport(state, {viewportID, widthPx, heightPx}) {

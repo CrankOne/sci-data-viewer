@@ -106,9 +106,12 @@ function apply_composed_transform(threeJSGeo, composed) {
 // `view3D/geoData`, and applies highlight/selection/visibility state to the
 // resulting three.js objects.
 class GeometryManager {
-    constructor({scene, store, materialManager, render}) {  // {{{
+    constructor({scene, store, contextId, materialManager, render}) {  // {{{
         this._scene = scene;
         this._vuexStore = store;
+        this._contextId = contextId;
+        this._view3D = `view3D_${contextId}`;
+        this._transfGroups = `transfGroups_${contextId}`;
         this._materialManager = materialManager;
         this._render = render;
         // Geometries, of similar structure to materials:
@@ -117,11 +120,12 @@ class GeometryManager {
         //       ownPosition, ownQuaternion}
         this._geometries = {};
 
+        const transfGroupsPrefix = `${this._transfGroups}/`;
         this._unsubscribe = this._vuexStore.subscribe(mutation => {
-            if(!mutation.type.startsWith('transfGroups/')) return;
+            if(!mutation.type.startsWith(transfGroupsPrefix)) return;
             // A newly-discovered group starts at identity; nothing
             // existing needs re-placing on account of it.
-            if(mutation.type === 'transfGroups/ensure_group') return;
+            if(mutation.type === `${this._transfGroups}/ensure_group`) return;
             const name = typeof mutation.payload === 'string' ? mutation.payload : mutation.payload?.name;
             this.sync_transf_groups(name ? new Set([name]) : null);
             this._render();
@@ -134,10 +138,10 @@ class GeometryManager {
 
     update_drawables() {  // {{{
         console.debug('"geometry updated" hook triggered in ThreeViewer');
-        // use values from this._vuexStore.getters['view3D/geoData']
+        // use values from this._vuexStore.getters[`${this._view3D}/geoData`]
         // to re-draw the scene. Take into account items disabled for
         // drawing
-        Object.entries(this._vuexStore.getters['view3D/geoData'])
+        Object.entries(this._vuexStore.getters[`${this._view3D}/geoData`])
             .map(([sourceName, geoData]) => this.update_drawables_from_source(sourceName, geoData));
         this._render();
     }  // }}}
@@ -180,7 +184,7 @@ class GeometryManager {
         // geometry still registers a newly-referenced group.
         const transfGroupRef = parse_transf_group_ref(transfGroupSpec);
         if(transfGroupRef) {
-            this._vuexStore.commit('transfGroups/ensure_group', transfGroupRef.name);
+            this._vuexStore.commit(`${this._transfGroups}/ensure_group`, transfGroupRef.name);
         }
         // try to get material
         const defaultMaterials = this._materialManager.defaultMaterials;
@@ -275,7 +279,7 @@ class GeometryManager {
             )
             : new THREE.Quaternion();
 
-        const group = this._vuexStore.getters['transfGroups/group'](transfGroupRef.name);
+        const group = this._vuexStore.getters[`${this._transfGroups}/group`](transfGroupRef.name);
         if(group) {
             const composed = compose_transf_group(ownPosition, ownQuaternion, group, transfGroupRef);
             apply_composed_transform(threeJSGeo, composed);
@@ -291,7 +295,7 @@ class GeometryManager {
             const ref = item.transfGroupRef;
             if(!ref) return;
             if(names && !names.has(ref.name)) return;
-            const group = this._vuexStore.getters['transfGroups/group'](ref.name);
+            const group = this._vuexStore.getters[`${this._transfGroups}/group`](ref.name);
             if(!group) return;
             const composed = compose_transf_group(item.ownPosition, item.ownQuaternion, group, ref);
             apply_composed_transform(item.threeJSGeo, composed);
@@ -412,14 +416,15 @@ class GeometryManager {
     }  // }}}
 
     sync_hidden_items_highlight() {  // {{{
-        const hiddenAreVisible = this._vuexStore.state.view3D.highlightHiddenSelection;
+        const view3D = this._vuexStore.state[this._view3D];
+        const hiddenAreVisible = view3D.highlightHiddenSelection;
         // iterate over all threeJS geometry instances that have
         // userData.handles.base
         this.for_each_geometry_entry((srcID, geoID, item) => {
             if(item.threeJSGeo.userData.handles.selected) {
                 const fullGeoID = Utils.full_geo_id(srcID, geoID);
-                if(this._vuexStore.state.view3D.selectedGeoItemIDs.has(fullGeoID)) {
-                    if(this._vuexStore.state.view3D.hiddenGeoItemIDs.has(fullGeoID)) {
+                if(view3D.selectedGeoItemIDs.has(fullGeoID)) {
+                    if(view3D.hiddenGeoItemIDs.has(fullGeoID)) {
                         item.threeJSGeo.userData.handles.selected.visible = hiddenAreVisible;
                     }
                 }
@@ -446,7 +451,7 @@ class GeometryManager {
     sync_hidden_items() {  // {{{
         this.for_each_geometry_entry((srcID, geoID, item) => {
             const itemID = Utils.full_geo_id(srcID, geoID);
-            if(this._vuexStore.state.view3D.hiddenGeoItemIDs.has(itemID))
+            if(this._vuexStore.state[this._view3D].hiddenGeoItemIDs.has(itemID))
                 item.threeJSGeo.userData.handles.base.visible = false;
             else
                 item.threeJSGeo.userData.handles.base.visible = true;
@@ -468,7 +473,7 @@ class GeometryManager {
     // Expands `box' to enclose the base representation of every item that
     // isn't currently hidden. Returns `box' for chaining.
     expand_box_by_visible_items(box) {  // {{{
-        const hiddenIDs = this._vuexStore.state.view3D.hiddenGeoItemIDs;
+        const hiddenIDs = this._vuexStore.state[this._view3D].hiddenGeoItemIDs;
         this.for_each_geometry_entry((srcID, geoID, item) => {
             const itemID = Utils.full_geo_id(srcID, geoID);
             if(hiddenIDs.has(itemID)) return;

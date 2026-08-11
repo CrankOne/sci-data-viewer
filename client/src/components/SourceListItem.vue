@@ -6,6 +6,17 @@
 
     <template #actions>
       <button
+        v-if="contextualDataType"
+        type="button"
+        class="header-action"
+        title="Connect to scene"
+        aria-label="Connect to scene"
+        @click="open_connect_scope"
+      >
+        <span class="vi vi-cube" aria-hidden="true" />
+      </button>
+
+      <button
         v-if="!noRefreshManifest"
         type="button"
         class="header-action"
@@ -36,6 +47,7 @@
 import FramedDisclosure from './FramedDisclosure.vue';
 import WaitingSourceListItem from './sourceListItems/waiting.vue'
 import StaticSourceListItem from './sourceListItems/static.vue'
+import { get_module } from '@/modules/registry'
 
 export default {
     name: 'SourceListItem',
@@ -69,10 +81,30 @@ export default {
 
         remove_resource() {
             return this.$store.dispatch('connection/remove_resource', this.name);
+        },
+
+        open_connect_scope() {
+            this.$store.commit('ui/open_modal', {
+                name: 'connect-scope',
+                props: {
+                    kind: 'resource',
+                    name: this.name,
+                    dataType: this.contextualDataType,
+                    currentContextId: this.definition.contextId ?? null
+                }
+            });
         }
     },
 
     computed: {
+        // Type is only known once the manifest has resolved; null (hiding
+        // the "connect to scene" button) until then, and for a
+        // non-contextual type.
+        contextualDataType() {
+            const type = this.definition.manifest?.type;
+            return type && get_module(type)?.contextual ? type : null;
+        },
+
         // NOTE: only "plain" sources (sequential=false, addressable=false;
         // see doc/sources.rst) are implemented end-to-end today; the richer
         // sequential/addressable collection models sketched there were
@@ -106,4 +138,5 @@ export default {
   font-size: .9rem;
   font-weight: 600;
 }
+
 </style>

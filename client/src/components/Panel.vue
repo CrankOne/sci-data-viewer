@@ -7,8 +7,18 @@
     @drop="on_panel_drop"
   >
     <template v-if="node.content.kind === 'module'">
-      <div v-if="activeModule" :id="'module-slot-' + node.id" class="module-slot" />
-      <p v-else class="panel-empty">Load a data source to begin.</p>
+      <div class="module-panel-wrap">
+        <button
+          type="button"
+          class="header-action content-remove-btn"
+          title="Remove viewport"
+          aria-label="Remove viewport"
+          @click="remove_module"
+        >
+          <span class="vi vi-trash-bin" aria-hidden="true" />
+        </button>
+        <div :id="'module-slot-' + node.id" class="module-slot" />
+      </div>
     </template>
 
     <template v-else>
@@ -24,12 +34,35 @@
         @dragleave="on_item_drag_leave(item)"
         @drop="on_item_drop($event, item)"
       >
+        <button
+          v-if="item.contextualDataType"
+          type="button"
+          class="header-action content-connect-btn"
+          title="Connect to scene"
+          aria-label="Connect to scene"
+          @click="open_connect_scope(item)"
+        >
+          <span class="vi vi-cube" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          class="header-action content-remove-btn"
+          title="Remove subpanel"
+          aria-label="Remove subpanel"
+          @click="remove_item(item.id)"
+        >
+          <span class="vi vi-trash-bin" aria-hidden="true" />
+        </button>
         <component :is="item.component" :item-id="item.id" :defaultOpenedState="true" />
       </div>
 
-      <p v-if="resolvedItems.length === 0" class="panel-empty">
-        Empty panel &mdash; drag an item or the 3D view here.
-      </p>
+      <div
+        v-if="resolvedItems.length === 0"
+        class="panel-empty-wrap"
+        @click="on_empty_panel_click"
+      >
+        <p class="panel-empty-hint">Shift-click to add a new item, or drag existing here.</p>
+      </div>
     </template>
   </div>
 </template>
@@ -37,21 +70,47 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
-import { get_module } from '@/modules/registry';
-import { resolve_side_panel_item } from '@/modules/panelItems';
+import { resolve_item_type } from '@/modules/panelItems';
+import { all_modules } from '@/modules/registry';
 
 const props = defineProps({
     node: {type: Object, required: true}
 });
 
 const store = useStore();
-const activeType = computed(() => store.getters['connection/activeType']);
-const activeModule = computed(() => get_module(activeType.value));
 
+// The dataType of the contextual module owning `itemType`, or null if
+// `itemType` isn't a subpanel type for a contextual module (e.g. a core
+// item like Data Sources) -- used to decide whether a "connect to scene"
+// button applies to a given resolved item.
+function owning_contextual_data_type(itemType) {
+    for(const mod of all_modules()) {
+        if((mod.sidePanelSections ?? []).some(section => section.id === itemType))
+            return mod.contextual ? mod.dataType : null;
+    }
+    return null;
+}
+
+// props.node.content.ids are widget-instance ids (see
+// store/modules/widgetInstances.js); resolve each to its component/title
+// via the itemType it was created with. `id` here stays the instance id
+// (not the item type) so drag-reordering below keeps operating on the same
+// ids layout.js's `ids` array holds.
 const resolvedItems = computed(() => {
     if(props.node.content.kind !== 'items') return [];
     return props.node.content.ids
-        .map(id => resolve_side_panel_item(id, activeType.value))
+        .map(instanceId => {
+            const instance = store.getters['widgetInstances/instance'](instanceId);
+            const catalogEntry = instance ? resolve_item_type(instance.itemType) : null;
+            if(!catalogEntry) return null;
+            return {
+                id: instanceId,
+                component: catalogEntry.component,
+                title: catalogEntry.title,
+                contextualDataType: owning_contextual_data_type(instance.itemType),
+                contextId: instance.contextId
+            };
+        })
         .filter(Boolean);
 });
 
@@ -59,6 +118,78 @@ const dropHover = ref(false);
 // {itemId, before} -- which item's top/bottom edge is currently previewing
 // an insertion point, while dragging another item over this panel's stack.
 const reorderTarget = ref(null);
+
+// Shift-click on an empty panel opens the add-content modal (see
+// components/modals/AddContentModal.vue) -- a plain click does nothing,
+// leaving room for e.g. text selection without accidentally opening it.
+function on_empty_panel_click(event) {
+    if(!event.shiftKey) return;
+    store.commit('ui/open_modal', {name: 'add-content', props: {toPanelId: props.node.id}});
+}
+
+function open_connect_scope(item) {
+    store.commit('ui/open_modal', {
+        name: 'connect-scope',
+        props: {
+            kind: 'instance',
+            instanceId: item.id,
+            dataType: item.contextualDataType,
+            currentContextId: item.contextId
+        }
+    });
+}
+
+//
+// Removing already-placed content. Always a deliberate, explicit action
+// (see layout.js's clear_instance_from_leaf vs. the occupied-panel collapse
+// guard on ordinary drag/resize mechanics).
+
+function remove_item(instanceId) {
+    store.commit('layout/clear_instance_from_leaf', {instanceId});
+    store.commit('widgetInstances/remove_instance', instanceId);
+}
+
+async function remove_module() {
+    if(props.node.content.kind !== 'module') return;
+    const instanceId = props.node.content.instanceId;
+    const instance = store.getters['widgetInstances/instance'](instanceId);
+    const contextId = instance?.contextId ?? null;
+
+    if(contextId) {
+        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
+            .filter(other => other.instanceId !== instanceId && other.itemType.endsWith(':module'));
+
+        if(remainingViewports.length === 0) {
+            const sources = store.getters['connection/resourcesForContext'](contextId);
+            const scene = store.getters['contexts/context'](contextId);
+            if(sources.length > 0) {
+                const proceed = window.confirm(
+                    `This is the last viewport for "${scene?.name ?? contextId}". Removing it also removes the `
+                    + `scene, and its ${sources.length} assigned source(s) will be reassigned elsewhere. Continue?`
+                );
+                if(!proceed) return;
+            }
+        }
+    }
+
+    store.commit('layout/clear_instance_from_leaf', {instanceId});
+    store.commit('widgetInstances/remove_instance', instanceId);
+    store.commit('cameras/unregister_viewport', instanceId);
+
+    if(contextId) {
+        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
+            .filter(other => other.itemType.endsWith(':module'));
+        if(remainingViewports.length === 0) {
+            const otherContext = store.getters['contexts/listForType'](instance.itemType.split(':')[0])
+                .find(ctx => ctx.id !== contextId);
+            try {
+                await store.dispatch('contexts/remove_context', {id: contextId, reassignSourcesTo: otherContext?.id});
+            } catch(error) {
+                console.warn(`Could not remove context "${contextId}":`, error);
+            }
+        }
+    }
+}
 
 function drag_kind(event) {
     const types = event.dataTransfer?.types ?? [];
@@ -100,7 +231,8 @@ function on_panel_drop(event) {
     event.preventDefault();
 
     if(kind === 'module') {
-        store.commit('layout/move_module', {toPanelId: props.node.id});
+        const instanceId = event.dataTransfer.getData('application/x-panel-module');
+        store.commit('layout/move_module', {toPanelId: props.node.id, instanceId});
     } else {
         const itemId = event.dataTransfer.getData('application/x-panel-item');
         store.commit('layout/move_item', {itemId, toPanelId: props.node.id, beforeItemId: null});
@@ -155,6 +287,14 @@ function on_item_drop(event, item) {
     outline-offset: -2px;
 }
 
+.module-panel-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
 .module-slot {
     width: 100%;
     height: 100%;
@@ -164,6 +304,20 @@ function on_item_drop(event, item) {
 
 .panel-item {
     position: relative;
+}
+
+.content-remove-btn {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    z-index: 10;
+}
+
+.content-connect-btn {
+    position: absolute;
+    top: 0.3rem;
+    right: 2.1rem;
+    z-index: 10;
 }
 
 .panel-item--drop-before::before,
@@ -184,13 +338,19 @@ function on_item_drop(event, item) {
     bottom: 0;
 }
 
-.panel-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.panel-empty-wrap {
+    display: grid;
+    place-items: center;
     height: 100%;
+    padding: 0.5rem;
+    cursor: default;
+}
+
+.panel-empty-hint {
     margin: 0;
     color: var(--clr-fg-main-muted);
+    opacity: 0.6;
     text-align: center;
+    font-style: italic;
 }
 </style>

@@ -69,7 +69,13 @@ import Vector3Field from './Vector3Field.vue';
 
 const store = useStore();
 
-const groupNames = computed(() => store.getters['transfGroups/groupNames']);
+// TODO(multi-scene phase 2/3): replace with an `instanceId` prop resolving
+// its own bound context via widgetInstances -- for now there is exactly
+// one bootstrap-created geo3d context.
+const contextId = computed(() => store.getters['contexts/listForType']('geo3d')[0]?.id ?? null);
+const transfGroupsNS = computed(() => `transfGroups_${contextId.value}`);
+
+const groupNames = computed(() => store.getters[`${transfGroupsNS.value}/groupNames`]);
 
 const activeGroupName = ref(null);
 
@@ -80,13 +86,13 @@ watch(groupNames, (names) => {
 
 const activeGroup = computed(
     () => activeGroupName.value
-        ? store.getters['transfGroups/group'](activeGroupName.value)
+        ? store.getters[`${transfGroupsNS.value}/group`](activeGroupName.value)
         : null
 );
 
 function patch(value) {
     if(!activeGroupName.value) return;
-    store.commit('transfGroups/patch_group', {
+    store.commit(`${transfGroupsNS.value}/patch_group`, {
         name: activeGroupName.value,
         patch: value
     });
@@ -94,7 +100,7 @@ function patch(value) {
 
 function reset_active_group() {
     if(!activeGroupName.value) return;
-    store.commit('transfGroups/reset_group', activeGroupName.value);
+    store.commit(`${transfGroupsNS.value}/reset_group`, activeGroupName.value);
 }
 </script>
 

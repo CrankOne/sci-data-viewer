@@ -1,0 +1,173 @@
+// Generic registry of "contexts" -- isolated, per-instance state for a
+// viewer-module dataType (a geo3d "scene" is a context of dataType
+// "geo3d"; future module types, e.g. an FSM graph or a 2D plot, reuse the
+// same mechanism under their own dataType). A context owns its own
+// dynamically-registered Vuex module instances (see `contextStoreModules`
+// on the module's registration in modules/registry.js) and persists them
+// independently.
+//
+// This module knows nothing about geo3d, view3D, or three.js -- it only
+// orchestrates registerModule/unregisterModule against whatever a given
+// dataType's viewer module declares.
+import { get_module } from '@/modules/registry';
+import { install_persistence } from '@/store/persistence';
+
+let idCounter = 0;
+function generate_context_id() {
+    idCounter += 1;
+    return `ctx-${Date.now().toString(36)}-${idCounter}`;
+}
+
+function mk_default_name(state, dataType) {
+    const existing = state.order
+        .map(id => state.byId[id])
+        .filter(ctx => ctx.dataType === dataType).length;
+    return `Scene ${existing + 1}`;
+}
+
+// Installs persistence for the facet-preset / selection-set slices of a
+// freshly-registered per-context view3D module instance. Reuses the
+// generic install_persistence() unchanged -- the only thing that varies
+// per context is the storage key and the (fully-qualified, namespaced)
+// mutation-type strings passed in, so no changes to store/persistence.js
+// itself are needed.
+//
+// `sessionId` scopes this to one saved session (see
+// store/modules/session.js) -- each session's contexts persist their facet
+// presets/selection sets independently, even if they happen to share a
+// contextId format.
+function install_view3d_context_persistence(store, contextId, sessionId) {
+    const ns = `view3D_${contextId}`;
+
+    install_persistence(store, {
+        storageKey: `viewer.facet-presets.v1.${sessionId}.${contextId}`,
+        requiredKey: 'presets',
+        initMutation: `${ns}/initialize_facet_presets`,
+        persistMutations: [
+            `${ns}/initialize_facet_presets`,
+            `${ns}/activate_facet_preset`,
+            `${ns}/set_active_facet_preset_facets`,
+            `${ns}/save_facet_preset`,
+            `${ns}/delete_facet_preset`
+        ],
+        serialize(rootState) {
+            const view3D = rootState[ns];
+            return {presets: view3D.facetPresets, activePresetName: view3D.activeFacetPresetName};
+        }
+    });
+
+    install_persistence(store, {
+        storageKey: `viewer.selection-sets.v1.${sessionId}.${contextId}`,
+        requiredKey: 'sets',
+        initMutation: `${ns}/initialize_selection_sets`,
+        persistMutations: [
+            `${ns}/initialize_selection_sets`,
+            `${ns}/activate_selection_set`,
+            `${ns}/save_selection_set`,
+            `${ns}/update_active_selection_set`,
+            `${ns}/delete_selection_set`
+        ],
+        serialize(rootState) {
+            return {sets: rootState[ns].selectionSets};
+        }
+    });
+}
+
+export default {
+    namespaced: true,
+
+    state: () => ({
+        byId: {},
+        order: []
+    }),
+
+    getters: {
+        list: state => state.order.map(id => state.byId[id]),
+        listForType: state => dataType => state.order
+            .map(id => state.byId[id])
+            .filter(ctx => ctx.dataType === dataType),
+        context: state => id => state.byId[id] ?? null
+    },
+
+    mutations: {
+        add_context(state, {id, name, dataType}) {
+            state.byId = {...state.byId, [id]: {id, name, dataType}};
+            state.order = [...state.order, id];
+        },
+
+        rename_context(state, {id, name}) {
+            const context = state.byId[id];
+            if(!context) return;
+            const trimmed = name?.trim();
+            if(!trimmed) return;
+            state.byId = {...state.byId, [id]: {...context, name: trimmed}};
+        },
+
+        remove_context(state, id) {
+            if(!Object.hasOwn(state.byId, id)) return;
+            const byId = {...state.byId};
+            delete byId[id];
+            state.byId = byId;
+            state.order = state.order.filter(existingId => existingId !== id);
+        }
+    },
+
+    actions: {
+        // Creates a new context of `dataType`, registering whatever
+        // dynamic Vuex module instances that dataType's viewer module
+        // declares (`contextStoreModules`) and seeding them from
+        // persistence. Does NOT create a viewport -- a context isn't
+        // useful without one, but viewport creation is a separate act
+        // (several viewports may attach to one context), left to the
+        // caller (see store/modules/widgetInstances.js).
+        //
+        // `id`, if given, is used as-is instead of generating a random one
+        // -- used for the well-known default context (see
+        // store/modules/layoutDefaults.js), so its identity -- and
+        // therefore its persisted sub-state -- is stable across reloads.
+        // Idempotent: a second call with the same `id` is a no-op.
+        create_context({state, commit, rootState}, {id, dataType, name} = {}) {
+            if(id && state.byId[id]) return id;
+
+            const module = get_module(dataType);
+            if(!module?.contextual) {
+                throw new Error(`Data type "${dataType}" is not contextual -- it has no per-instance state to isolate`);
+            }
+
+            id = id ?? generate_context_id();
+            commit('add_context', {id, name: name?.trim() || mk_default_name(state, dataType), dataType});
+
+            for(const [moduleName, makeModule] of Object.entries(module.contextStoreModules ?? {})) {
+                this.registerModule([`${moduleName}_${id}`], makeModule());
+            }
+            // view3D is the one dynamic module with persisted sub-state
+            // (facet presets, selection sets) today; transfGroups has none
+            // (groups are derived from loaded geometry, not persisted).
+            if(module.contextStoreModules?.view3D) {
+                install_view3d_context_persistence(this, id, rootState.session.activeId);
+            }
+
+            return id;
+        },
+
+        remove_context({state, commit, dispatch, rootGetters}, {id, reassignSourcesTo} = {}) {
+            const context = state.byId[id];
+            if(!context) return false;
+
+            const stillMounted = rootGetters['widgetInstances/instancesForContext']?.(id) ?? [];
+            if(stillMounted.some(instance => instance.itemType.endsWith(':module'))) {
+                throw new Error(`Context "${id}" still has a mounted viewport -- remove or relocate it first`);
+            }
+
+            dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
+
+            const module = get_module(context.dataType);
+            for(const moduleName of Object.keys(module?.contextStoreModules ?? {})) {
+                this.unregisterModule([`${moduleName}_${id}`]);
+            }
+
+            commit('remove_context', id);
+            return true;
+        }
+    }
+};

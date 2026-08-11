@@ -53,44 +53,45 @@ class ThreeView {
     } // }}}
     _bind_watchers() {  // {{{
         // NOTE: the `cameras/' store subscription lives inside CameraManager.
+        const view3D = this._view3D;
 
         // Geometry update watcher
         //  This function is triggered when geometry data indexed by source
         //  name gets updated.
-        watch( () => this._vuexStore.getters['view3D/geoData']
+        watch( () => this._vuexStore.getters[`${view3D}/geoData`]
              , () => this._geometryManager.update_drawables()
              );
 
         // Highlighted items updater
-        watch( () => this._vuexStore.getters['view3D/highlightedGeoItemIDs']
+        watch( () => this._vuexStore.getters[`${view3D}/highlightedGeoItemIDs`]
              , (hlItems, hlItemsOld) => {
                    this._geometryManager.update_highlighted_graphics(hlItems, hlItemsOld);
                    this._render();
                }
              );
         // Selected items updater
-        watch( () => this._vuexStore.getters['view3D/selectedGeoItemIDs']
+        watch( () => this._vuexStore.getters[`${view3D}/selectedGeoItemIDs`]
              , (hlItems, hlItemsOld) => {
                    this._geometryManager.update_selected_graphics(hlItems, hlItemsOld);
                    this._render();
                }
              );
         // Highlighted markers
-        watch( () => this._vuexStore.getters['view3D/highlightedMarkers']
+        watch( () => this._vuexStore.getters[`${view3D}/highlightedMarkers`]
              , hlMarkers => {
                    this._geometryManager.update_highlighted_markers(hlMarkers);
                    this._render();
                }
              );
         // Visibility
-        watch( () => this._vuexStore.getters['view3D/hiddenGeoItemIDs']
+        watch( () => this._vuexStore.getters[`${view3D}/hiddenGeoItemIDs`]
              , () => {
                    this._geometryManager.sync_hidden_items();
                    this._render();
                }
              );
         // Global switch to steer highlightinh of hidden items
-        watch( () => this._vuexStore.getters['view3D/highlightHiddenSelection']
+        watch( () => this._vuexStore.getters[`${view3D}/highlightHiddenSelection`]
              , () => {
                    this._geometryManager.sync_hidden_items_highlight();
                    this._render();
@@ -98,8 +99,10 @@ class ThreeView {
              );
     }  // _bind_watchers() }}}
     // Creates fixture to render things using three.js
-    constructor({element, store, viewportID}, highlightOnHover=true, highlightOnSelection=true) {  // {{{
+    constructor({element, store, viewportID, contextId}, highlightOnHover=true, highlightOnSelection=true) {  // {{{
         this._viewportID = viewportID;
+        this._contextId = contextId;
+        this._view3D = `view3D_${contextId}`;
         this._vuexStore = store;
         this._container = element;
         // create raycaster and pointer vec
@@ -131,6 +134,7 @@ class ThreeView {
         this._geometryManager = new GeometryManager({
             scene: this._scene,
             store,
+            contextId,
             materialManager: this._materialManager,
             render
         });
@@ -184,7 +188,7 @@ class ThreeView {
             const hitY = (1 - projected.y) / 2 * rect.height;
             return Math.hypot(hitX - x, hitY - y) <= radiusPx;
         });
-        if(!this._vuexStore.state.view3D.highlightHiddenSelection) {
+        if(!this._vuexStore.state[this._view3D].highlightHiddenSelection) {
             // `item.object' *is* the base handle for any raycast hit (see
             // geometry/registry.js) -- `userData.handles' lives one level up,
             // on the parent group, not on the hit object itself, so check
@@ -200,7 +204,7 @@ class ThreeView {
             const ids2highlight = items2highlight.map(
                 item => Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
             );
-            this._vuexStore.commit('view3D/set_scene_hover_geo_items', ids2highlight);
+            this._vuexStore.commit(`${this._view3D}/set_scene_hover_geo_items`, ids2highlight);
             hasSome = true;
         }
         if(markers2highlight && markers2highlight.length) {
@@ -214,16 +218,16 @@ class ThreeView {
                 if(!ptsByGeo.has(geoID)) ptsByGeo.set(geoID, new Set());
                 ptsByGeo.get(geoID).add(idx);
             }
-            this._vuexStore.commit('view3D/set_highlighted_markers', ptsByGeo);
+            this._vuexStore.commit(`${this._view3D}/set_highlighted_markers`, ptsByGeo);
             hasSome = true;
         }
         if(!hasSome) {
-            this._vuexStore.commit('view3D/clear_scene_hover_geo_items');
+            this._vuexStore.commit(`${this._view3D}/clear_scene_hover_geo_items`);
         }
     }  // }}}
     clear_pointer() {  // {{{
-        this._vuexStore.commit('view3D/clear_scene_hover_geo_items');
-        this._vuexStore.commit('view3D/clear_highlighted_markers');
+        this._vuexStore.commit(`${this._view3D}/clear_scene_hover_geo_items`);
+        this._vuexStore.commit(`${this._view3D}/clear_highlighted_markers`);
     }  // }}}
 
     // Configures the raycaster's pick range/threshold from the active
@@ -270,8 +274,8 @@ class ThreeView {
     frame_selected_or_visible() {  // {{{
         this._scene.updateMatrixWorld(true);
 
-        const selectedGeoItemIDs = this._vuexStore.getters['view3D/selectedGeoItemIDs'];
-        const selectedMarkers = this._vuexStore.getters['view3D/selectedMarkers'];
+        const selectedGeoItemIDs = this._vuexStore.getters[`${this._view3D}/selectedGeoItemIDs`];
+        const selectedMarkers = this._vuexStore.getters[`${this._view3D}/selectedMarkers`];
         const selectedMarkerCount = [...selectedMarkers.values()].reduce((n, indices) => n + indices.size, 0);
 
         if(selectedGeoItemIDs.size === 0 && selectedMarkerCount === 1) {

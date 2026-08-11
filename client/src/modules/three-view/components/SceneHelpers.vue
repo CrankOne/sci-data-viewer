@@ -14,9 +14,15 @@ export default {
     name: 'SceneHelpers',
     components: {NavBarEntity},
     computed: {
+        // TODO(multi-scene phase 2/3): replace with an `instanceId` prop
+        // resolving its own bound context via widgetInstances -- for now
+        // there is exactly one bootstrap-created geo3d context.
+        contextId() {
+            return this.$store.getters['contexts/listForType']('geo3d')[0]?.id ?? null;
+        },
         highlightInvisibleOnHover: {
-            get() { return this.$store.state.view3D.highlightHiddenSelection; },
-            set(value) { this.$store.commit('view3D/toggle_highlight_hidden', value); }
+            get() { return this.$store.state[`view3D_${this.contextId}`].highlightHiddenSelection; },
+            set(value) { this.$store.commit(`view3D_${this.contextId}/toggle_highlight_hidden`, value); }
         }
     }
 }

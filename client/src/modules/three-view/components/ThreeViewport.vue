@@ -136,9 +136,16 @@ import PerspectiveCameraControls from './PerspCamCtrls.vue';
 import OrthographicCameraControls from './OrthoCamCtrls.vue';
 import { ThreeView } from '../three';
 
-const VIEWPORT_ID = 'main';
+// The widget instance id this viewport was created for (see
+// store/modules/widgetInstances.js) -- also used as the `cameras/*`
+// viewportID, since camera identity is keyed by viewport instance, not by
+// context (several viewport instances may share one context).
+const props = defineProps({
+    instanceId: {type: String, required: true}
+});
 
 const store = useStore();
+const contextId = computed(() => store.getters['widgetInstances/instance'](props.instanceId)?.contextId ?? null);
 const viewportElement = ref(null);
 const orientationWidget = ref(null);
 const editorOpened = ref(false);
@@ -149,11 +156,11 @@ let pointerTimer = null;
 
 const presetNames = computed(() => store.getters['cameras/presetNames']);
 
-const currentPresetName = computed(() => store.getters['cameras/currentPresetName'](VIEWPORT_ID));
+const currentPresetName = computed(() => store.getters['cameras/currentPresetName'](props.instanceId));
 
-const currentCamera = computed(() => store.getters['cameras/currentPreset'](VIEWPORT_ID));
+const currentCamera = computed(() => store.getters['cameras/currentPreset'](props.instanceId));
 
-const viewportState = computed(() => store.getters['cameras/viewportState'](VIEWPORT_ID));
+const viewportState = computed(() => store.getters['cameras/viewportState'](props.instanceId));
 
 const cameraEditorComponent = computed(() => {
     switch(currentCamera.value?.type) {
@@ -167,7 +174,7 @@ const cameraEditorComponent = computed(() => {
 });
 
 function select_camera(name) {
-    store.dispatch('cameras/select_preset', {viewportID: VIEWPORT_ID, name});
+    store.dispatch('cameras/select_preset', {viewportID: props.instanceId, name});
 }
 
 function patch_current_camera(patch) {
@@ -175,19 +182,19 @@ function patch_current_camera(patch) {
 }
 
 async function create_perspective() {
-    await store.dispatch('cameras/create_persp_view', {viewportID: VIEWPORT_ID});
+    await store.dispatch('cameras/create_persp_view', {viewportID: props.instanceId});
 }
 
 async function create_orthographic() {
-    await store.dispatch('cameras/create_ortho_view', {viewportID: VIEWPORT_ID});
+    await store.dispatch('cameras/create_ortho_view', {viewportID: props.instanceId});
 }
 
 async function reset_camera() {
-    await store.dispatch('cameras/reset_current', {viewportID: VIEWPORT_ID});
+    await store.dispatch('cameras/reset_current', {viewportID: props.instanceId});
 }
 
 async function remove_camera() {
-    await store.dispatch('cameras/remove_current', {viewportID: VIEWPORT_ID});
+    await store.dispatch('cameras/remove_current', {viewportID: props.instanceId});
 }
 
 async function save_as() {
@@ -197,7 +204,7 @@ async function save_as() {
     if(name === null || !name.trim())
         return;
 
-    await store.dispatch('cameras/save_current_as', {viewportID: VIEWPORT_ID, name});
+    await store.dispatch('cameras/save_current_as', {viewportID: props.instanceId, name});
 }
 
 function frame_objects() {
@@ -205,7 +212,7 @@ function frame_objects() {
 }
 
 function on_module_drag_start(event) {
-    event.dataTransfer.setData('application/x-panel-module', '1');
+    event.dataTransfer.setData('application/x-panel-module', props.instanceId);
     event.dataTransfer.effectAllowed = 'move';
 }
 
@@ -237,7 +244,8 @@ onMounted(() => {
     view = new ThreeView({
         element: viewportElement.value,
         store,
-        viewportID: VIEWPORT_ID
+        viewportID: props.instanceId,
+        contextId: contextId.value
     });
 
     resizeObserver = new ResizeObserver(entries => {
@@ -245,7 +253,7 @@ onMounted(() => {
         const { width, height } = entry.contentRect;
 
         store.commit('cameras/resize_viewport', {
-            viewportID: VIEWPORT_ID,
+            viewportID: props.instanceId,
             widthPx: width,
             heightPx: height
         });
