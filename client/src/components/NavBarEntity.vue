@@ -7,7 +7,15 @@
       v-on:click="opened = !opened"
       v-on:dragstart="on_drag_start"
     >
-      <slot name="header"></slot>
+      <span id="header-title"><slot name="header"></slot></span>
+      <span
+        v-if="$slots.actions"
+        id="header-actions"
+        @click.stop
+        @mousedown.stop
+      >
+        <slot name="actions"></slot>
+      </span>
     </div>
     <div id="content" v-if="isContentShown">
       <slot name="content">
@@ -58,6 +66,10 @@ div#header {
   background-color: var(--clr-bg-panel-header);
   color: var(--clr-fg-panel-header);
 
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+
   padding: 2pt 5pt;
   font-family: Calibri,sans-serif;
   font-weight: bold;
@@ -66,6 +78,22 @@ div#header {
   text-transform: uppercase;
   font-size: 9pt;
   cursor: pointer;
+}
+
+#header-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: default;
 }
 
 div.opened:before {

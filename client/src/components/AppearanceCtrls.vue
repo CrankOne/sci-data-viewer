@@ -3,6 +3,7 @@
     <template #header>
       Application Controls
     </template>
+    <template #actions><slot name="actions" /></template>
 
     <template #content>
 

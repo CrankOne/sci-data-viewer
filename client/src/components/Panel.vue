@@ -34,26 +34,29 @@
         @dragleave="on_item_drag_leave(item)"
         @drop="on_item_drop($event, item)"
       >
-        <button
-          v-if="item.contextualDataType"
-          type="button"
-          class="header-action content-connect-btn"
-          title="Connect to scene"
-          aria-label="Connect to scene"
-          @click="open_connect_scope(item)"
-        >
-          <span class="vi vi-cube" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="header-action content-remove-btn"
-          title="Remove subpanel"
-          aria-label="Remove subpanel"
-          @click="remove_item(item.id)"
-        >
-          <span class="vi vi-trash-bin" aria-hidden="true" />
-        </button>
-        <component :is="item.component" :item-id="item.id" :defaultOpenedState="true" />
+        <component :is="item.component" :item-id="item.id" :defaultOpenedState="true">
+          <template #actions>
+            <button
+              v-if="item.contextualDataType"
+              type="button"
+              class="header-action"
+              title="Connect to scene"
+              aria-label="Connect to scene"
+              @click="open_connect_scope(item)"
+            >
+              <span class="vi vi-cube" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="header-action"
+              title="Remove subpanel"
+              aria-label="Remove subpanel"
+              @click="remove_item(item.id)"
+            >
+              <span class="vi vi-trash-bin" aria-hidden="true" />
+            </button>
+          </template>
+        </component>
       </div>
 
       <div
@@ -310,13 +313,6 @@ function on_item_drop(event, item) {
     position: absolute;
     top: 0.3rem;
     right: 0.3rem;
-    z-index: 10;
-}
-
-.content-connect-btn {
-    position: absolute;
-    top: 0.3rem;
-    right: 2.1rem;
     z-index: 10;
 }
 

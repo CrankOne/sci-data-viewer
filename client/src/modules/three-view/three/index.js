@@ -108,6 +108,12 @@ class ThreeView {
         // create raycaster and pointer vec
         this._pointer = new THREE.Vector2();
         this._raycaster = new THREE.Raycaster();
+        // Ordered (near-to-far) geo IDs from the last raycast, and which one
+        // of them is currently the sole highlighted item when
+        // `highlightAllUnderCursor' is off -- see update_pointer()/
+        // cycle_hover(). Unused (left empty/0) while the toggle is on.
+        this._hoverStack = [];
+        this._hoverCycleIndex = 0;
         //this._raycaset.threshold = 5.0;  // world units unfortunately
         // Creating the (main) scene
         this._scene = new THREE.Scene();
@@ -201,11 +207,26 @@ class ThreeView {
         );
         let hasSome = false;
         if(items2highlight && items2highlight.length) {
-            const ids2highlight = items2highlight.map(
-                item => Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID)
+            // De-duplicated, near-to-far: a concave mesh can yield more than
+            // one intersection against the same geo item.
+            const seen = new Set();
+            const ids2highlight = [];
+            for(const item of items2highlight) {
+                const id = Utils.full_geo_id(item.object.userData.srcID, item.object.userData.geoID);
+                if(!seen.has(id)) { seen.add(id); ids2highlight.push(id); }
+            }
+            this._hoverStack = ids2highlight;
+            this._hoverCycleIndex = 0;
+
+            const highlightAllUnderCursor = this._vuexStore.state[this._view3D].highlightAllUnderCursor;
+            this._vuexStore.commit(
+                `${this._view3D}/set_scene_hover_geo_items`,
+                highlightAllUnderCursor ? ids2highlight : [ids2highlight[0]]
             );
-            this._vuexStore.commit(`${this._view3D}/set_scene_hover_geo_items`, ids2highlight);
             hasSome = true;
+        } else {
+            this._hoverStack = [];
+            this._hoverCycleIndex = 0;
         }
         if(markers2highlight && markers2highlight.length) {
             const ids2highlight = items2highlight.map( item =>
@@ -226,8 +247,57 @@ class ThreeView {
         }
     }  // }}}
     clear_pointer() {  // {{{
+        this._hoverStack = [];
+        this._hoverCycleIndex = 0;
         this._vuexStore.commit(`${this._view3D}/clear_scene_hover_geo_items`);
         this._vuexStore.commit(`${this._view3D}/clear_highlighted_markers`);
+    }  // }}}
+
+    // Steps which single item (from the last raycast's under-cursor stack,
+    // built by update_pointer()) is highlighted, without re-raycasting --
+    // driven by the wheel while `highlightAllUnderCursor' is off (see
+    // handle_wheel()). A no-op with nothing under the cursor.
+    cycle_hover(direction) {  // {{{
+        const n = this._hoverStack.length;
+        if(n === 0) return;
+        this._hoverCycleIndex = ((this._hoverCycleIndex + direction) % n + n) % n;
+        this._vuexStore.commit(
+            `${this._view3D}/set_scene_hover_geo_items`,
+            [this._hoverStack[this._hoverCycleIndex]]
+        );
+    }  // }}}
+
+    // Called by ThreeViewport.vue's wheel handler. Returns whether the event
+    // was consumed for cycling -- if so, the caller must preventDefault()/
+    // stopPropagation() it before OrbitControls' own wheel listener (bound
+    // directly on the canvas) sees it, so scrolling doesn't also zoom.
+    // Leaves OrbitControls entirely alone otherwise (no `enableZoom'
+    // toggling, no controls reconstruction): normal zoom behavior when
+    // `highlightAllUnderCursor' is on is completely unaffected.
+    handle_wheel(event) {  // {{{
+        if(this._vuexStore.state[this._view3D].highlightAllUnderCursor) return false;
+        this.cycle_hover(event.deltaY > 0 ? 1 : -1);
+        return true;
+    }  // }}}
+
+    // Toggles selection membership of whichever geo item(s) are currently
+    // scene-hovered -- the full under-cursor stack, or just the single
+    // cycled item, depending on `highlightAllUnderCursor'. Driven by
+    // shift+click (see ThreeViewport.vue).
+    toggle_hover_selection() {  // {{{
+        const hovered = this._vuexStore.getters[`${this._view3D}/sceneHoveredGeoItemIDs`];
+        if(hovered.size === 0) return;
+
+        const selected = this._vuexStore.getters[`${this._view3D}/selectedGeoItemIDs`];
+        const toSelect = [];
+        const toUnselect = [];
+        for(const id of hovered) {
+            if(selected.has(id)) toUnselect.push(id);
+            else toSelect.push(id);
+        }
+
+        if(toUnselect.length) this._vuexStore.commit(`${this._view3D}/unselect_geo_items`, toUnselect);
+        if(toSelect.length) this._vuexStore.commit(`${this._view3D}/select_geo_items`, toSelect);
     }  // }}}
 
     // Configures the raycaster's pick range/threshold from the active

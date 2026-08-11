@@ -16,6 +16,7 @@
   text-rendering: auto;
   text-transform: none;
   user-select: none;
+  font-size: 1em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

@@ -1,6 +1,7 @@
 <template>
   <NavBarEntity>
     <template #header>Data Sources</template>
+    <template #actions><slot name="actions" /></template>
     <template #content>
       <div class="dataSourceList">
         <source-list-item v-for="(pl, name) in dataSources" :name="name" :definition="pl"/>

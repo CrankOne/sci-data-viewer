@@ -43,6 +43,7 @@
         class="group-action-button"
         title="Select all items in this group"
         aria-label="Select all items in this group"
+        :disabled="groupSelectionState === 'all'"
         @click.stop="select_group"
       >
         <span class="vi vi-select-all" aria-hidden="true" />
@@ -325,6 +326,11 @@ export default {
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+
+.group-action-button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .group-label {

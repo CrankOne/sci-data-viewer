@@ -3,6 +3,7 @@
     <template #header>
       Transformation groups
     </template>
+    <template #actions><slot name="actions" /></template>
 
     <template #content>
       <div v-if="groupNames.length === 0" class="empty-state">

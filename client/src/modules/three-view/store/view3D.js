@@ -57,7 +57,14 @@ export function make_view3D_module() {
         geoDataBySource: {},
 
         // Behavior controls
-        highlightHiddenSelection: true,
+        highlightHiddenSelection: false,
+        // When on, hovering the scene highlights (and shift+click selects)
+        // every geo item under the cursor at once (the historical behavior).
+        // When off, only one item at a time is highlighted -- cycled via the
+        // scroll wheel, which is otherwise reserved for camera zoom -- see
+        // ThreeView.update_pointer()/cycle_hover() and ThreeViewport.vue's
+        // wheel handler.
+        highlightAllUnderCursor: true,
 
         //highlightedGeoItemIDs: new Set(),  // highlighted item IDs
         treeHoveredGeoItemIDs: new Set(),  // hovered in tree vwr
@@ -103,6 +110,10 @@ export function make_view3D_module() {
 
         toggle_highlight_hidden(state, value) {
             state.highlightHiddenSelection = value;
+        },
+
+        toggle_highlight_all_under_cursor(state, value) {
+            state.highlightAllUnderCursor = value;
         },
 
         //
@@ -340,6 +351,7 @@ export function make_view3D_module() {
         ),
 
         highlightHiddenSelection: state => state.highlightHiddenSelection,
+        highlightAllUnderCursor: state => state.highlightAllUnderCursor,
 
         treeHoveredGeoItemIDs: state => state.treeHoveredGeoItemIDs,
 

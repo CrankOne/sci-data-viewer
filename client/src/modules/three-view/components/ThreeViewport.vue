@@ -32,6 +32,15 @@
         <button
           class="icon-button"
           type="button"
+          title="Frame selected or visible objects"
+          @click="frame_objects"
+        >
+          <span class="vi vi-frame-selected" aria-hidden="true"/>
+        </button>
+
+        <button
+          class="icon-button"
+          type="button"
           :aria-expanded="editorOpened"
           :title="editorOpened ? 'Hide details' : 'Show details'"
           @click="editorOpened = !editorOpened"
@@ -83,15 +92,6 @@
             @click="reset_camera"
           >
             <span class="vi vi-camera-reset" aria-hidden="true"/>
-          </button>
-
-          <button
-            class="icon-button"
-            type="button"
-            title="Frame selected or visible objects"
-            @click="frame_objects"
-          >
-            <span class="vi vi-frame-selected" aria-hidden="true"/>
           </button>
 
           <button
@@ -240,6 +240,30 @@ function cancel_pointer_update() {
     view?.clear_pointer();
 }
 
+// Captured (not bubbled) on the container, which is an ANCESTOR of the
+// renderer's canvas -- OrbitControls listens for 'wheel' on the canvas
+// itself, so stopping propagation here, during the capture phase, keeps the
+// event from ever reaching OrbitControls' own listener and zooming. Only
+// takes effect while "highlight all items under cursor" is off; otherwise
+// view.handle_wheel() returns false and the event is left untouched.
+const WHEEL_LISTENER_OPTIONS = {capture: true, passive: false};
+
+function on_wheel(event) {
+    if(view?.handle_wheel(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+}
+
+// Shift+click toggles selection of whichever item(s) are currently
+// scene-hovered -- the whole under-cursor stack, or just the single cycled
+// item, depending on the same toggle. A plain 'click' (rather than
+// pointerdown/up) naturally ignores drag-to-rotate/pan gestures.
+function on_click(event) {
+    if(!event.shiftKey) return;
+    view?.toggle_hover_selection();
+}
+
 onMounted(() => {
     view = new ThreeView({
         element: viewportElement.value,
@@ -265,6 +289,8 @@ onMounted(() => {
 
     viewportElement.value.addEventListener('mousemove', schedule_pointer_update);
     viewportElement.value.addEventListener('mouseleave', cancel_pointer_update);
+    viewportElement.value.addEventListener('wheel', on_wheel, WHEEL_LISTENER_OPTIONS);
+    viewportElement.value.addEventListener('click', on_click);
 });
 
 onBeforeUnmount(() => {
@@ -273,6 +299,8 @@ onBeforeUnmount(() => {
 
     viewportElement.value?.removeEventListener('mousemove', schedule_pointer_update);
     viewportElement.value?.removeEventListener('mouseleave', cancel_pointer_update);
+    viewportElement.value?.removeEventListener('wheel', on_wheel, WHEEL_LISTENER_OPTIONS);
+    viewportElement.value?.removeEventListener('click', on_click);
 
     view?.dispose();
     view = null;

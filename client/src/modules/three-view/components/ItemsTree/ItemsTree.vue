@@ -3,6 +3,7 @@
     <template #header>
       Items
     </template>
+    <template #actions><slot name="actions" /></template>
 
     <template #content>
       <div class="items-tree-widget">
@@ -59,6 +60,7 @@
             <button
               type="button"
               title="Select all filtered items"
+              :disabled="filteredItemIDs.length === 0 || allFilteredSelected"
               @click="select_all"
             >
               <span class="vi vi-select-all" aria-hidden="true" />
@@ -149,6 +151,17 @@ import {
     collect_highlighted_group_keys,
 } from "./tree.js";
 
+// Mirrors just the name-extraction half of GeometryManager's
+// parse_transf_group_ref() (a bare string, or an object's `.name`) -- this
+// component has no other reason to depend on that three.js-coupled module,
+// so the couple of lines are duplicated here rather than imported.
+function transf_group_facet_value(geometry) {
+    const spec = geometry._transfGroup;
+    if(typeof spec === 'string') return spec.trim() || undefined;
+    if(spec && typeof spec === 'object') return spec.name?.trim() || undefined;
+    return undefined;
+}
+
 export default {
     name: "ItemsTree",
 
@@ -216,13 +229,25 @@ export default {
 
         availableItems() {
             return Object.entries(this.geoData).flatMap(
-                ([sourceID, source]) => (source.geometry ?? []).map(geometry => ({
-                    id: `${geometry._name}@${sourceID}`,
-                    label: geometry._name,
-                    source: sourceID,
-                    facets: geometry._facets ?? geometry._classifiers ?? {},
-                    geometryType: geometry._type ?? "unknown"
-                }))
+                ([sourceID, source]) => (source.geometry ?? []).map(geometry => {
+                    // "source" and "transf.group" are derivable for every item
+                    // regardless of what the data source itself declares (the
+                    // default "Source and transf.groups" preset expects them)
+                    // -- spread after so a source-supplied facet of the same
+                    // name still wins.
+                    const transfGroup = transf_group_facet_value(geometry);
+                    return {
+                        id: `${geometry._name}@${sourceID}`,
+                        label: geometry._name,
+                        source: sourceID,
+                        facets: {
+                            source: sourceID,
+                            ...(transfGroup !== undefined ? {"transf.group": transfGroup} : {}),
+                            ...(geometry._facets ?? geometry._classifiers ?? {})
+                        },
+                        geometryType: geometry._type ?? "unknown"
+                    };
+                })
             );
         },
 
@@ -268,6 +293,11 @@ export default {
 
         filteredItemIDs() {
             return this.filteredItems.map(item => item.id);
+        },
+
+        allFilteredSelected() {
+            return this.filteredItemIDs.length > 0
+                && this.filteredItemIDs.every(id => this.selectedGeoItemIDs.has(id));
         },
 
         tree() {
@@ -628,7 +658,6 @@ export default {
   font-style: italic;
 }
 
-.group-action-button:disabled,
 .tree-actions button:disabled {
     opacity: .35;
     cursor: default;
