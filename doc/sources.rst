@@ -364,6 +364,64 @@ For such a source, an identifier returned as the sequential session's
 
 The two capabilities otherwise remain independent.
 
+Query options
+-------------
+
+A source MAY advertise a set of query-string options accepted by its
+principal resource (``GET /resource``, i.e. the descriptor's ``data-url``).
+This lets a generic client render matching form controls and append the
+right query parameters, without any source-specific client code.
+
+The descriptor's optional ``query-options`` is an array of parameter
+descriptions:
+
+.. code-block:: json
+
+    {
+        "data-url": "/plugins/na58geom/geometry",
+        "sequential": false,
+        "addressable": false,
+        "query-options": [
+            {
+                "name": "wBoundaries",
+                "in": "query",
+                "required": false,
+                "description": "Also render each detector's wire-based boundary as a dashed outline.",
+                "schema": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        ]
+    }
+
+Each entry is a deliberately small subset of the `OpenAPI Parameter Object
+<https://swagger.io/specification/#parameter-object>`_: ``name`` is the
+query-string key; ``in`` is always ``"query"`` (present for compatibility,
+since OpenAPI also defines ``"path"``/``"header"``/``"cookie"`` parameters
+this specification does not use); ``required`` states whether the source
+rejects a request omitting it; ``description`` is a human-readable doc
+string a client MAY show as a label or tooltip. Value constraints live under
+``schema``, using a JSON-Schema-compatible vocabulary:
+
+``schema.type``
+    One of ``"boolean"``, ``"integer"``, ``"number"``, or ``"string"``.
+
+``schema.default``
+    The value assumed when the client omits the parameter. Required in
+    practice whenever ``required`` is ``false``, so the client knows what
+    behavior it is opting out of by not setting it.
+
+``schema.minimum`` / ``schema.maximum``
+    OPTIONAL, and only meaningful for ``"integer"``/``"number"``.
+
+``schema.enum``
+    OPTIONAL list of allowed string values, only meaningful for
+    ``"string"``. A ``"string"`` option without ``enum`` accepts free text.
+
+A source omitting ``query-options`` entirely accepts no query parameters
+beyond what pagination (above) already defines.
+
 HTTP conventions
 ----------------
 

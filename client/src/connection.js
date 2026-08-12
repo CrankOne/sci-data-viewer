@@ -63,8 +63,25 @@ function normalize_manifest(manifest, manifestURL) {
     }
     return {
         ...manifest,
-        dataURL: resolve_url_rel_to_endpoint(manifest['data-url'], manifestURL)
+        dataURL: resolve_url_rel_to_endpoint(manifest['data-url'], manifestURL),
+        // camelCase alias of the (optional) kebab-case "query-options" --
+        // see doc/sources.rst, "Query options". Always an array, even when
+        // the source advertises none, so consumers don't need to guard.
+        queryOptions: Array.isArray(manifest['query-options']) ? manifest['query-options'] : []
     };
+}
+
+// Builds the {name: value} map of a resource's query options at their
+// advertised defaults (options without a default are left unset -- the
+// server decides what omitting them means).
+function default_query_values(queryOptions) {
+    const values = {};
+    for(const opt of queryOptions) {
+        if(opt?.schema && Object.prototype.hasOwnProperty.call(opt.schema, 'default')) {
+            values[opt.name] = opt.schema.default;
+        }
+    }
+    return values;
 }
 
 //                          * * *   * * *   * * *
@@ -96,6 +113,17 @@ const stateModule = {
             delete resources[name];
             state.resources = resources;
             console.debug(`resource "${name}" removed`);
+        },
+
+        set_resource_query_value(state, {name, key, value}) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            state.resources = {
+                ...state.resources,
+                [name]: {...resource, queryValues: {...resource.queryValues, [key]: value}}
+            };
         }
     },
     getters: {
@@ -128,7 +156,11 @@ const stateModule = {
                 dataURL: null,
                 dataSize: null,
                 error: null,
-                contextId
+                contextId,
+                // current values of the source's advertised query options
+                // (doc/sources.rst, "Query options"); populated with
+                // defaults once the manifest resolves, see below.
+                queryValues: {}
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
@@ -171,7 +203,11 @@ const stateModule = {
                         manifest,
                         type: manifest.type,
                         dataURL: manifest.dataURL,
-                        error: null
+                        error: null,
+                        // Defaults for any newly-advertised option; a value
+                        // the user already set (e.g. surviving a "reload
+                        // manifest") is kept as-is.
+                        queryValues: {...default_query_values(manifest.queryOptions), ...resource.queryValues}
                     }
                 });
                 if(load) {
@@ -232,6 +268,21 @@ const stateModule = {
             if(wasLoaded) await dispatch('load_resource_data', {name});
         },
 
+        // Records a new value for one of the resource's advertised query
+        // options (see SourceListItem/sourceListItems/static.vue) and, if
+        // the resource has already been loaded at least once, re-fetches
+        // its data so the change takes effect immediately.
+        async set_resource_query_value({state, commit, dispatch}, {name, key, value}) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            commit('set_resource_query_value', {name, key, value});
+            if(resource.status === 'loaded' || resource.status === 'error') {
+                await dispatch('load_resource_data', {name});
+            }
+        },
+
         // Fetch the payload for an already registered resource.
         async load_resource_data({state, commit, dispatch}, {name, query = undefined, signal = undefined}) {
             const resource = state.resources[name];
@@ -243,18 +294,20 @@ const stateModule = {
             }
             console.debug(resource);  // XXX
             const url = new URL(resource.dataURL);
-            if(query) {
-                for(const [key, value] of Object.entries(query)) {
-                    if(value === undefined || value === null) {
-                        continue;
+            // Explicit `query' overrides the resource's stored option
+            // values (see set_resource_query_value below) key-by-key,
+            // rather than replacing them outright.
+            const effectiveQuery = {...resource.queryValues, ...(query ?? {})};
+            for(const [key, value] of Object.entries(effectiveQuery)) {
+                if(value === undefined || value === null) {
+                    continue;
+                }
+                if(Array.isArray(value)) {
+                    for(const item of value) {
+                        url.searchParams.append(key, String(item));
                     }
-                    if(Array.isArray(value)) {
-                        for(const item of value) {
-                            url.searchParams.append(key, String(item));
-                        }
-                    } else {
-                        url.searchParams.set(key, String(value));
-                    }
+                } else {
+                    url.searchParams.set(key, String(value));
                 }
             }
 

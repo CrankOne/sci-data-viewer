@@ -315,6 +315,18 @@ class GeometryManager {
         geoData.geometry.forEach(geoDef_ => {
             this.update_geometry_item(geoDef_, geomNamesInUse, thisSourceMats, sourceName, thisSourceGeo);
         });
+        // Drop items that existed under a previous payload from this same
+        // source but are absent from this one -- e.g. a source whose
+        // query-string options (doc/sources.rst, "Query options") change
+        // which named items it emits. Same detach-only disposal as the
+        // eponymous-replacement path above (see update_geometry_item);
+        // full GPU-resource disposal is equally not implemented here.
+        for(const geoName of Object.keys(thisSourceGeo)) {
+            if(geomNamesInUse.has(geoName)) continue;
+            console.debug(`Geometry "${sourceName}/${geoName}" no longer in source payload, removing`);
+            thisSourceGeo[geoName].threeJSGeo.removeFromParent();
+            delete thisSourceGeo[geoName];
+        }
         this._geometries[sourceName] = thisSourceGeo;
     }  // }}}
 

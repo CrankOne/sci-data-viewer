@@ -12,9 +12,11 @@ Note: IDs should be globally unique. Prefer qualified names:
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, Sequence, TypeAlias, runtime_checkable
+from typing import Any, Literal, Mapping, Protocol, Sequence, TypeAlias, runtime_checkable
 from flask import Blueprint
 from flask_restful import Resource
+
+QueryOptionType: TypeAlias = Literal["boolean", "integer", "number", "string"]
 
 @dataclass(frozen=True)
 class DataSourceDeclaration:
@@ -87,6 +89,60 @@ class CollectionCapabilities:
 
 
 @dataclass(frozen=True)
+class QueryOptionSchema:
+    """
+    Describes one query-string option accepted by a source's data-fetch
+    endpoint (the ``data-url`` from the descriptor). Advertised so a client
+    can render a matching form control and append the option to the request
+    without any source-specific client code.
+
+    Intentionally a tiny subset of the OpenAPI Parameter Object
+    (https://swagger.io/specification/#parameter-object) -- ``name``,
+    ``description``, ``required`` sit at the top level, and the value
+    constraints sit under ``schema``, mirroring that shape closely enough
+    that a client (or tooling) already familiar with OpenAPI/JSON Schema can
+    read it directly.
+    """
+
+    name: str
+    type: QueryOptionType
+    description: str | None = None
+    required: bool = False
+    default: Any = None
+    minimum: float | None = None
+    maximum: float | None = None
+    # Allowed values; only meaningful (and only emitted) for type == "string".
+    enum: Sequence[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.enum is not None and self.type != "string":
+            raise ValueError("enum is only supported for type \"string\"")
+        if (self.minimum is not None or self.maximum is not None) \
+        and self.type not in ("integer", "number"):
+            raise ValueError("minimum/maximum only apply to numeric types")
+
+    def to_json(self) -> dict[str, Any]:
+        schema: dict[str, Any] = {"type": self.type}
+        if self.default is not None:
+            schema["default"] = self.default
+        if self.minimum is not None:
+            schema["minimum"] = self.minimum
+        if self.maximum is not None:
+            schema["maximum"] = self.maximum
+        if self.enum is not None:
+            schema["enum"] = list(self.enum)
+        doc: dict[str, Any] = {
+            "name": self.name,
+            "in": "query",
+            "required": self.required,
+            "schema": schema,
+        }
+        if self.description is not None:
+            doc["description"] = self.description
+        return doc
+
+
+@dataclass(frozen=True)
 class SourceDescriptor:
     """
     Builds a data source descriptor document as defined by the Data Source
@@ -99,6 +155,8 @@ class SourceDescriptor:
     sequential: bool = False
     addressable: bool = False
     collection: CollectionCapabilities | None = None
+    # query-string options accepted by `data_url` (see QueryOptionSchema)
+    query_options: Sequence[QueryOptionSchema] = field(default_factory=tuple)
     # source-specific properties the spec permits in addition to the
     # standard ones, e.g. {"type": "geo3d"}
     extra: Mapping[str, Any] = field(default_factory=dict)
@@ -117,6 +175,8 @@ class SourceDescriptor:
         }
         if self.collection is not None:
             doc["collection"] = self.collection.to_json()
+        if self.query_options:
+            doc["query-options"] = [opt.to_json() for opt in self.query_options]
         doc.update(self.extra)
         return doc
 
