@@ -10,7 +10,7 @@
 // camera presets) is stable across reloads rather than orphaned every time
 // the app boots.
 import { all_modules } from '@/modules/registry';
-import { make_split, make_module_leaf, make_items_leaf } from './layout';
+import { make_split, make_items_leaf } from './layout';
 
 export const DEFAULT_CONTEXT_ID = 'ctx-default';
 
@@ -37,33 +37,18 @@ function ensure_default_context() {
     return null;
 }
 
-// Builds a brand-new default tree (module + core/subpanel items) from
-// scratch -- used when nothing was persisted at all.
+// Builds a brand-new default tree from scratch -- used when nothing was
+// persisted at all. Deliberately minimal: a session starts empty, with
+// nothing but a place to add sources from -- no scene/viewport is
+// pre-created (that's now a user-initiated action, same as any other
+// module's content; see AddSourceModal.vue and AddContentModal.vue), and
+// no other core items are pre-populated either (they remain reachable via
+// "add content" on the empty main panel, same as always).
 export function build_default_root(store) {
     const sourcesId = ensure_item_instance(store, 'core:sources', null);
-    const appearanceId = ensure_item_instance(store, 'core:appearance', null);
-    const itemIds = [sourcesId];
-
-    let moduleLeaf = null;
-    const contextualModule = ensure_default_context();
-    if(contextualModule) {
-        store.dispatch('contexts/create_context', {
-            id: DEFAULT_CONTEXT_ID,
-            dataType: contextualModule.dataType,
-            name: 'Scene 1'
-        });
-        const viewportInstanceId = ensure_item_instance(store, `${contextualModule.dataType}:module`, DEFAULT_CONTEXT_ID);
-        store.commit('cameras/register_viewport', {viewportID: viewportInstanceId});
-        moduleLeaf = make_module_leaf(viewportInstanceId);
-
-        for(const section of contextualModule.sidePanelSections ?? []) {
-            itemIds.push(ensure_item_instance(store, section.id, DEFAULT_CONTEXT_ID));
-        }
-    }
-    itemIds.push(appearanceId);
-
-    const itemsLeaf = make_items_leaf(itemIds);
-    return moduleLeaf ? make_split('row', 75, [moduleLeaf, itemsLeaf]) : itemsLeaf;
+    const sourcesLeaf = make_items_leaf([sourcesId]);
+    const mainLeaf = make_items_leaf([]);
+    return make_split('row', 25, [sourcesLeaf, mainLeaf]);
 }
 
 // Replays persisted contexts and widget instances into a fresh store --

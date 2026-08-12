@@ -8,6 +8,8 @@
 import { all_modules, get_module } from './modules/registry';
 import { install_layout_persistence } from './store/modules/layoutPersistence';
 import { install_connection_persistence, restore_persisted_sources } from './connectionPersistence';
+import { fetch_plugin_manifest } from './pluginManifest';
+import { create_scene_with_viewport } from './sceneCreation';
 
 const ACTIVE_SESSION_KEY = 'viewer.active-session-id';
 
@@ -18,21 +20,33 @@ export function get_active_session_id_for_tab() {
     return sessionStorage.getItem(ACTIVE_SESSION_KEY);
 }
 
-async function fetch_plugin_manifest() {
-    const response = await fetch("/api/plugins", {
-        headers: {Accept: "application/json"}
-    });
-    if(!response.ok)
-        throw new Error(`Could not retrieve viewer plugins: HTTP ${response.status}`);
-    return await response.json();
-}
-
 function collect_default_data_sources(manifest) {
     return Object.fromEntries(
         manifest.dataSources
             .filter(source => source.enabledByDefault)
             .map(source => [source.id, source.url])
     );
+}
+
+// A default-enabled source of a contextual type needs a scene to load
+// into, same as the interactive add-source flow (AddSourceModal.vue) --
+// but there's no picker to show at boot, and since build_default_root() no
+// longer pre-creates one (see layoutDefaults.js), one may not exist yet
+// either. Reuses whichever context of that type already exists, if any
+// (e.g. a second default source of the same contextual type), otherwise
+// creates one via sceneCreation.js's shared helper -- targeting the
+// still-empty main panel build_default_root() left for exactly this,
+// so a default-enabled source ends up in the same clean two-panel layout
+// a manually-added first source would (rather than sceneCreation's
+// wrap-the-whole-tree fallback, which is only needed once nothing empty
+// is left to reuse).
+async function resolve_default_context(store, module) {
+    if(!module?.contextual) return null;
+    const existing = store.getters['contexts/listForType'](module.dataType)[0];
+    if(existing) return existing.id;
+    const targetPanelId = store.getters['layout/firstEmptyItemsLeafId'];
+    const created = await create_scene_with_viewport(store, {dataType: module.dataType, targetPanelId});
+    return created.contextId;
 }
 
 // Seeds a brand-new session with the plugin manifest's default sources --
@@ -47,14 +61,12 @@ async function seed_default_sources(store) {
 
     for(const [srcName, srcURL] of Object.entries(defaultDataSources)) {
         store.dispatch('connection/add_resource', {name: srcName, endpoint: srcURL, load: false})
-            .then(() => {
+            .then(async () => {
                 const resource = store.state.connection.resources[srcName];
                 const module = get_module(resource?.type);
-                const contextId = module?.contextual
-                    ? store.getters['contexts/listForType'](module.dataType)[0]?.id ?? null
-                    : null;
-                return store.dispatch('connection/assign_resource_context', {name: srcName, contextId})
-                    .then(() => store.dispatch('connection/load_resource_data', {name: srcName}));
+                const contextId = await resolve_default_context(store, module);
+                await store.dispatch('connection/assign_resource_context', {name: srcName, contextId});
+                await store.dispatch('connection/load_resource_data', {name: srcName});
             })
             .catch(error => console.error(`Failed to load default data source "${srcName}":`, error));
     }

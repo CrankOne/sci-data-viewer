@@ -4,6 +4,7 @@ import * as pointMarkers from "./pointMarkers";
 import * as boxGeometry from "./boxGeometry";
 import * as plane from "./plane";
 import * as line from "./line";
+import * as shapeGeometry from "./shapeGeometry";
 import * as Utils from "../utils";
 
 const registry = new Map();
@@ -135,3 +136,4 @@ register(pointMarkers);
 register(boxGeometry);
 register(plane);
 register(line);
+register(shapeGeometry);

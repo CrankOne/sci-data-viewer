@@ -7,17 +7,27 @@
     </p>
 
     <div v-if="sessions.length" class="session-list">
-      <button
-        v-for="s in sessions"
-        :key="s.id"
-        type="button"
-        class="session-entry"
-        :disabled="s.id === currentSessionId"
-        @click="pick(s.id)"
-      >
-        {{ s.name }}
-        <span v-if="s.id === currentSessionId" class="current-tag">(current)</span>
-      </button>
+      <div v-for="s in sessions" :key="s.id" class="session-row">
+        <button
+          type="button"
+          class="session-entry"
+          :disabled="s.id === currentSessionId"
+          @click="pick(s.id)"
+        >
+          {{ s.name }}
+          <span v-if="s.id === currentSessionId" class="current-tag">(current)</span>
+        </button>
+        <button
+          type="button"
+          class="session-remove-btn"
+          title="Remove session"
+          aria-label="Remove session"
+          :disabled="s.id === currentSessionId"
+          @click="remove(s.id, s.name)"
+        >
+          <span class="vi vi-trash-bin" aria-hidden="true" />
+        </button>
+      </div>
     </div>
     <p v-else class="empty-state">No saved sessions yet.</p>
 
@@ -73,6 +83,16 @@ async function pick(id) {
     }
 }
 
+// Deliberately blocked for the currently-active session (button is also
+// disabled in that case) -- removing it out from under this tab's already-
+// hydrated store, and the sessionStorage pointer still aimed at it, is a
+// mess this picker has no clean recovery from.
+async function remove(id, name) {
+    if(id === currentSessionId.value) return;
+    if(!window.confirm(`Remove session "${name}"? This cannot be undone.`)) return;
+    await store.dispatch('session/remove_session', id);
+}
+
 async function create_and_pick() {
     error.value = null;
     try {
@@ -110,10 +130,21 @@ async function create_and_pick() {
   gap: 0.25rem;
 }
 
+.session-row {
+  display: flex;
+  gap: 0.25rem;
+}
+
 .session-entry {
+  flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   text-align: left;
+}
+
+.session-remove-btn {
+  flex: none;
 }
 
 .current-tag {

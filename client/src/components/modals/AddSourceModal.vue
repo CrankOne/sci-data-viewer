@@ -4,6 +4,13 @@
     <template v-if="!pendingContextStep">
       <h3>Add data source</h3>
       <form @submit.prevent="submit_add_source">
+        <p v-if="knownSources.length">
+          <label for="add-source-known">Known source</label>
+          <select id="add-source-known" v-model="selectedKnownSourceId" @change="apply_known_source">
+            <option value="">Custom URL&hellip;</option>
+            <option v-for="src in knownSources" :key="src.id" :value="src.id">{{ src.label || src.id }}</option>
+          </select>
+        </p>
         <p>
           <label for="add-source-name">Name</label>
           <input id="add-source-name" type="text" v-model.trim="newSourceName" placeholder="my-source">
@@ -47,6 +54,7 @@
 <script>
 import { get_module } from '@/modules/registry';
 import { create_scene_with_viewport } from '@/sceneCreation';
+import { fetch_plugin_manifest } from '@/pluginManifest';
 
 export default {
     name: 'AddSourceModal',
@@ -61,7 +69,12 @@ export default {
             // {name, dataType} once the manifest resolves to a contextual
             // type and a scene choice is needed before loading data.
             pendingContextStep: null,
-            pendingContextId: ''  // '' means "create a new scene"
+            pendingContextId: '',  // '' means "create a new scene"
+            // The running server's own plugin-declared sources (see
+            // pluginManifest.js) -- offered as a picker alongside free-form
+            // entry, for foreign sources this server doesn't know about.
+            knownSources: [],
+            selectedKnownSourceId: ''
         };
     },
 
@@ -75,7 +88,26 @@ export default {
         }
     },
 
+    async mounted() {
+        try {
+            const manifest = await fetch_plugin_manifest();
+            this.knownSources = manifest.dataSources ?? [];
+        } catch(error) {
+            // Not fatal -- manual URL entry still works without a manifest.
+            console.warn('Could not retrieve known data sources:', error);
+        }
+    },
+
     methods: {
+        // Prefills name + URL from the picked plugin-declared source; both
+        // stay editable afterwards, and switching back to "Custom URL…"
+        // just stops overwriting them.
+        apply_known_source() {
+            const src = this.knownSources.find(s => s.id === this.selectedKnownSourceId);
+            if(!src) return;
+            this.newSourceName = src.id;
+            this.newSourceEndpoint = src.url;
+        },
         // Step 1: creates the resource and resolves its (cheap) manifest --
         // deliberately not the (potentially large) data payload yet, so a
         // contextual type can be routed through step 2 below before
@@ -187,7 +219,8 @@ export default {
   color: var(--clr-fg-main-muted);
 }
 
-.add-source-modal input {
+.add-source-modal input,
+.add-source-modal select {
   width: 100%;
   box-sizing: border-box;
 }
