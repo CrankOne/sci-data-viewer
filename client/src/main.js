@@ -42,6 +42,11 @@ async function main() {
     app.use(router);
     app.mount('#app');
 
+    // Router's initial navigation (resolving whatever URL the tab was
+    // opened with, including a shared-link query -- see shareLink.js) is
+    // asynchronous; wait for it before anything reads router.currentRoute.
+    await router.isReady();
+
     const savedTheme = localStorage.getItem("theme") ?? "dark";
     document.documentElement.dataset.theme = savedTheme;
 
@@ -52,7 +57,7 @@ async function main() {
     // activate_session once the user picks or creates one.
     const existingSessionId = get_active_session_id_for_tab();
     if(existingSessionId) {
-        await activate_session(store, existingSessionId, {isNew: false});
+        await activate_session(store, existingSessionId, {isNew: false, router});
     } else {
         store.commit('ui/open_modal', {name: 'session-picker', props: {mode: 'initial'}, blocking: true});
     }

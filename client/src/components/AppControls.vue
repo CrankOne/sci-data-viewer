@@ -65,6 +65,16 @@
 
         <button v-if="contextualModule" type="button" @click="add_scene">+ Add scene</button>
       </div>
+
+      <div class="share-section">
+        <h4 class="scenes-heading">Share</h4>
+        <button type="button" :disabled="!shareable" @click="copy_permalink">Copy permalink</button>
+        <p v-if="!shareable" class="empty-state">
+          Load an item from a random-access data source to enable sharing.
+        </p>
+        <p v-else-if="copyStatus === 'copied'" class="copy-status">Copied to clipboard.</p>
+        <p v-else-if="copyStatus === 'error'" class="copy-status copy-status-error">Could not copy link.</p>
+      </div>
     </template>
   </NavBarEntity>
 </template>
@@ -73,9 +83,10 @@
 import NavBarEntity from './NavBarEntity.vue';
 import { all_modules } from '@/modules/registry';
 import { create_scene_with_viewport } from '@/sceneCreation';
+import { build_permalink, has_shareable_content } from '@/shareLink';
 
 export default {
-  name: 'AppearanceCtrls',
+  name: 'AppControls',
 
   components: {
     NavBarEntity
@@ -83,7 +94,10 @@ export default {
 
   data() {
     return {
-      themes: ['bright', 'dark'/*, 'auto'*/]
+      themes: ['bright', 'dark'/*, 'auto'*/],
+      // 'copied' | 'error' | null -- transient feedback for copy_permalink,
+      // cleared a couple seconds after either outcome.
+      copyStatus: null
     };
   },
 
@@ -105,6 +119,13 @@ export default {
     // second one would need a type picker in add_scene() below too.
     contextualModule() {
       return all_modules().find(mod => mod.contextual) ?? null;
+    },
+
+    // Whether there's anything a permalink could carry at all -- see
+    // shareLink.js's is_shareable_resource for the precise criteria
+    // (addressable+enumerable, connected to a scene, an item loaded).
+    shareable() {
+      return has_shareable_content(this.$store);
     }
   },
 
@@ -141,6 +162,23 @@ export default {
       const module = this.contextualModule;
       if(!module) return;
       await create_scene_with_viewport(this.$store, {dataType: module.dataType});
+    },
+
+    // Builds a permalink snapshotting which items are currently loaded
+    // (and selected) on this session's random-access data sources, and
+    // puts it on the clipboard -- see shareLink.js for exactly what it
+    // does and doesn't carry.
+    async copy_permalink() {
+      this.copyStatus = null;
+      try {
+        const url = await build_permalink(this.$store, this.$router);
+        await navigator.clipboard.writeText(url);
+        this.copyStatus = 'copied';
+      } catch(error) {
+        console.error('Could not build permalink:', error);
+        this.copyStatus = 'error';
+      }
+      setTimeout(() => { this.copyStatus = null; }, 2500);
     }
   }
 };
@@ -210,5 +248,19 @@ export default {
   color: var(--clr-fg-main-muted);
   font-style: italic;
   margin: .3em 0;
+}
+
+.share-section {
+  margin-top: .6em;
+}
+
+.copy-status {
+  margin: .3em 0 0;
+  font-size: .85rem;
+  color: var(--clr-fg-main-muted);
+}
+
+.copy-status-error {
+  color: var(--clr-fg-main-highlighted);
 }
 </style>

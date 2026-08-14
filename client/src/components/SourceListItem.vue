@@ -47,6 +47,7 @@
 import FramedDisclosure from './FramedDisclosure.vue';
 import WaitingSourceListItem from './sourceListItems/waiting.vue'
 import StaticSourceListItem from './sourceListItems/static.vue'
+import AddressableSourceListItem from './sourceListItems/addressable.vue'
 import { get_module } from '@/modules/registry'
 
 export default {
@@ -54,7 +55,8 @@ export default {
     components: {
         FramedDisclosure,
         WaitingSourceListItem,
-        StaticSourceListItem
+        StaticSourceListItem,
+        AddressableSourceListItem
     },
     props: {
         name: String,
@@ -105,22 +107,26 @@ export default {
             return type && get_module(type)?.contextual ? type : null;
         },
 
-        // NOTE: only "plain" sources (sequential=false, addressable=false;
-        // see doc/sources.rst) are implemented end-to-end today; the richer
-        // sequential/addressable collection models sketched there were
-        // never fully built out client-side and need a proper redesign
-        // before being reintroduced.
+        // NOTE: "plain" sources (sequential=false, addressable=false) and
+        // "addressable + enumerable" ones (see doc/sources.rst) are
+        // implemented end-to-end; the sequential capability, and an
+        // addressable source with no enumeration, were never built out
+        // client-side and need a proper design before being introduced.
         concreteSourceItemComponent() {
             if(this.definition.manifest === null) {
                 return 'waiting-source-list-item';
             }
-            const {sequential, addressable} = this.definition.manifest;
+            const {sequential, addressable, collection} = this.definition.manifest;
             if(!sequential && !addressable) {
                 return 'static-source-list-item';
             }
+            if(!sequential && addressable && collection?.enumerable) {
+                return 'addressable-source-list-item';
+            }
             throw new Error(
                 `Unsupported source capabilities (sequential=${sequential}, `
-                + `addressable=${addressable}): only plain sources are supported`
+                + `addressable=${addressable}, enumerable=${collection?.enumerable}): `
+                + `only plain and addressable+enumerable sources are supported`
             );
         }
     }

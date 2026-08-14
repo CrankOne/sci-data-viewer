@@ -20,6 +20,15 @@
         <button
           type="button"
           class="session-remove-btn"
+          title="Export session to file"
+          aria-label="Export session to file"
+          @click="export_to_file(s.id, s.name)"
+        >
+          <span class="vi vi-save" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          class="session-remove-btn"
           title="Remove session"
           aria-label="Remove session"
           :disabled="s.id === currentSessionId"
@@ -36,6 +45,17 @@
       <button type="submit">Create</button>
     </form>
 
+    <button type="button" class="import-btn" @click="trigger_import">
+      <span class="vi vi-load" aria-hidden="true" /> Import session from file&hellip;
+    </button>
+    <input
+      ref="fileInput"
+      type="file"
+      accept="application/json,.json"
+      class="import-file-input"
+      @change="on_import_file"
+    >
+
     <p v-if="error" class="picker-error">{{ error }}</p>
 
     <button v-if="mode === 'switch'" type="button" @click="$emit('close')">Cancel</button>
@@ -45,7 +65,9 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
+import { useRouter } from 'vue-router';
 import { activate_session } from '@/sessionActivation';
+import { export_session, import_session } from '@/sessionExport';
 
 const props = defineProps({
     // 'initial': fresh tab, blocking, nothing hydrated yet -- picking
@@ -58,10 +80,12 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const store = useStore();
+const router = useRouter();
 const sessions = computed(() => store.getters['session/list']);
 const currentSessionId = computed(() => store.state.session.activeId);
 const newName = ref('');
 const error = ref(null);
+const fileInput = ref(null);
 
 function switch_to(id) {
     sessionStorage.setItem('viewer.active-session-id', id);
@@ -76,7 +100,7 @@ async function pick(id) {
     }
     error.value = null;
     try {
-        await activate_session(store, id, {isNew: false});
+        await activate_session(store, id, {isNew: false, router});
         emit('close');
     } catch(e) {
         error.value = `Could not load session: ${e.message}`;
@@ -101,10 +125,54 @@ async function create_and_pick() {
             switch_to(id);
             return;
         }
-        await activate_session(store, id, {isNew: true});
+        await activate_session(store, id, {isNew: true, router});
         emit('close');
     } catch(e) {
         error.value = `Could not create session: ${e.message}`;
+    }
+}
+
+// Read-only, so allowed even for the currently-active session (unlike
+// remove) -- localStorage is always in sync with the live store by the
+// time a click handler runs, since every *Persistence.js writes
+// synchronously within the same mutation-subscribe tick.
+function export_to_file(id, name) {
+    error.value = null;
+    try {
+        const bundle = export_session(store, id);
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(name || 'session').replace(/[^\w.-]+/g, '_')}.viewer-session.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        error.value = `Could not export "${name}": ${e.message}`;
+    }
+}
+
+function trigger_import() {
+    fileInput.value?.click();
+}
+
+async function on_import_file(event) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // reset so re-picking the same file re-fires @change
+    if(!file) return;
+
+    error.value = null;
+    try {
+        const bundle = JSON.parse(await file.text());
+        const id = import_session(store, bundle);
+        if(props.mode === 'switch') {
+            switch_to(id);
+            return;
+        }
+        await activate_session(store, id, {isNew: false, router});
+        emit('close');
+    } catch(e) {
+        error.value = `Could not import session: ${e.message}`;
     }
 }
 </script>
@@ -166,6 +234,17 @@ async function create_and_pick() {
 .new-session-form input {
   flex: 1;
   min-width: 0;
+}
+
+.import-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.import-file-input {
+  display: none;
 }
 
 .picker-error {

@@ -6,7 +6,7 @@
 // to put it regardless of the current tree shape.
 //
 // Every "New scene…" option anywhere in the app (AddContentModal,
-// AddSourceModal, ConnectScopeModal, AppearanceCtrls.vue's "+ Add scene")
+// AddSourceModal, ConnectScopeModal, AppControls.vue's "+ Add scene")
 // MUST go through this rather than calling contexts/create_context
 // directly -- that's what guarantees a scene can never exist without a
 // viewport (a state the app could previously be walked into, since those

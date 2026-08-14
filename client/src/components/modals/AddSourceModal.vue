@@ -179,11 +179,18 @@ export default {
 
         async finish_add_source(name, contextId) {
             await this.$store.dispatch('connection/assign_resource_context', {name, contextId});
-            try {
-                await this.$store.dispatch('connection/load_resource_data', {name});
-            } catch(error) {
-                this.error = `Failed to load "${name}": ${error.message}`;
-                return;
+            // An addressable source (doc/sources.rst) has no single default
+            // payload to fetch -- its data-url enumerates items instead.
+            // Leave it "ready" and let the user pick one from its widget
+            // (sourceListItems/addressable.vue) once the modal closes.
+            const resource = this.$store.state.connection.resources[name];
+            if(!resource?.manifest?.addressable) {
+                try {
+                    await this.$store.dispatch('connection/load_resource_data', {name});
+                } catch(error) {
+                    this.error = `Failed to load "${name}": ${error.message}`;
+                    return;
+                }
             }
             this.$emit('close');
         },

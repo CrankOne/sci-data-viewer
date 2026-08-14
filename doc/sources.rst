@@ -367,20 +367,32 @@ The two capabilities otherwise remain independent.
 Query options
 -------------
 
-A source MAY advertise a set of query-string options accepted by its
-principal resource (``GET /resource``, i.e. the descriptor's ``data-url``).
-This lets a generic client render matching form controls and append the
-right query parameters, without any source-specific client code.
+A source MAY advertise a set of query-string options accepted by whichever
+endpoint returns its actual data representation: ``GET /resource`` for a
+plain source, or ``GET /resource/{id}`` for an addressable one (a plain
+source has no other GET returning data; an addressable one's ``GET
+/resource`` returns an enumeration instead, so options apply to the
+per-item retrieval, not the listing). This lets a generic client render
+matching form controls and append the right query parameters, without any
+source-specific client code.
 
 The descriptor's optional ``query-options`` is an array of parameter
-descriptions:
+descriptions. The example below is addressable+enumerable (see
+"Addressable capability" above); ``wBoundaries`` applies to
+``GET /resource/{id}``:
 
 .. code-block:: json
 
     {
         "data-url": "/plugins/na58geom/geometry",
         "sequential": false,
-        "addressable": false,
+        "addressable": true,
+        "collection": {
+            "finite": true,
+            "enumerable": true,
+            "pagination": true,
+            "page-size": 20
+        },
         "query-options": [
             {
                 "name": "wBoundaries",

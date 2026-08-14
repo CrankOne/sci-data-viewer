@@ -5,15 +5,19 @@
 // stable id so the layout tree (store/modules/layout.js) can reference them
 // without holding onto components directly.
 import SourceList from '@/components/SourcesList.vue';
-import AppearanceCtrls from '@/components/AppearanceCtrls.vue';
+import AppControls from '@/components/AppControls.vue';
 import { get_module, all_modules } from './registry';
 
 const CORE_SOURCES = {id: 'core:sources', title: 'Data Sources', component: SourceList};
-const CORE_APPEARANCE = {id: 'core:appearance', title: 'Application Controls', component: AppearanceCtrls};
+// NOTE: `id` stays 'core:appearance' despite the component's rename to
+// AppControls.vue -- it's persisted inside every saved session's layout
+// tree (store/modules/layoutPersistence.js), so changing it would orphan
+// existing sessions' references to this panel.
+const CORE_APP_CONTROLS = {id: 'core:appearance', title: 'Application Controls', component: AppControls};
 
 export function available_side_panel_items(activeType) {
     const moduleItems = get_module(activeType)?.sidePanelSections ?? [];
-    return [CORE_SOURCES, ...moduleItems, CORE_APPEARANCE];
+    return [CORE_SOURCES, ...moduleItems, CORE_APP_CONTROLS];
 }
 
 export function resolve_side_panel_item(id, activeType) {
@@ -27,7 +31,7 @@ export function resolve_side_panel_item(id, activeType) {
 // needs the old single-global-activeType gating above.
 export function all_side_panel_items() {
     const moduleItems = all_modules().flatMap(mod => mod.sidePanelSections ?? []);
-    return [CORE_SOURCES, ...moduleItems, CORE_APPEARANCE];
+    return [CORE_SOURCES, ...moduleItems, CORE_APP_CONTROLS];
 }
 
 export function resolve_item_type(itemType) {
@@ -39,5 +43,5 @@ export function resolve_item_type(itemType) {
 // registered module's items rather than just the active one's.
 export function default_side_panel_item_ids() {
     const moduleIds = all_modules().flatMap(mod => (mod.sidePanelSections ?? []).map(item => item.id));
-    return [CORE_SOURCES.id, ...moduleIds, CORE_APPEARANCE.id];
+    return [CORE_SOURCES.id, ...moduleIds, CORE_APP_CONTROLS.id];
 }

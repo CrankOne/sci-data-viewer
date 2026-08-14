@@ -10,6 +10,7 @@ import { install_layout_persistence } from './store/modules/layoutPersistence';
 import { install_connection_persistence, restore_persisted_sources } from './connectionPersistence';
 import { fetch_plugin_manifest } from './pluginManifest';
 import { create_scene_with_viewport } from './sceneCreation';
+import { apply_share_from_route } from './shareLink';
 
 const ACTIVE_SESSION_KEY = 'viewer.active-session-id';
 
@@ -54,29 +55,45 @@ async function resolve_default_context(store, module) {
 // flow (see connection.js), just with the default scene picked
 // automatically instead of via a picker (there's no UI to show one for
 // this, at boot). Not awaited by activate_session -- fire-and-forget, same
-// as this always behaved before sessions existed.
+// as this always behaved before sessions existed. The returned promise
+// still settles once every default source here has -- see
+// restore_persisted_sources (connectionPersistence.js) for why that's
+// useful despite the fire-and-forget call.
 async function seed_default_sources(store) {
     const manifest = await fetch_plugin_manifest();
     const defaultDataSources = collect_default_data_sources(manifest);
 
-    for(const [srcName, srcURL] of Object.entries(defaultDataSources)) {
+    const attempts = Object.entries(defaultDataSources).map(([srcName, srcURL]) =>
         store.dispatch('connection/add_resource', {name: srcName, endpoint: srcURL, load: false})
             .then(async () => {
                 const resource = store.state.connection.resources[srcName];
                 const module = get_module(resource?.type);
                 const contextId = await resolve_default_context(store, module);
                 await store.dispatch('connection/assign_resource_context', {name: srcName, contextId});
-                await store.dispatch('connection/load_resource_data', {name: srcName});
+                // An addressable source (doc/sources.rst) has no single
+                // default payload to fetch -- its data-url enumerates
+                // items instead. Leave it "ready" and let the user pick
+                // one from its widget (sourceListItems/addressable.vue).
+                if(!resource?.manifest?.addressable) {
+                    await store.dispatch('connection/load_resource_data', {name: srcName});
+                }
             })
-            .catch(error => console.error(`Failed to load default data source "${srcName}":`, error));
-    }
+            .catch(error => console.error(`Failed to load default data source "${srcName}":`, error))
+    );
+    return Promise.allSettled(attempts);
 }
 
 // Hydrates `sessionId`'s persisted state into `store`: layout, contexts,
 // widget instances, and cameras always; sources are either seeded from the
 // plugin's defaults (a brand-new session, `isNew`) or restored from what
 // was previously attached to this session.
-export async function activate_session(store, sessionId, {isNew = false} = {}) {
+//
+// `router`, if given, is used to apply and then strip a shared-link query
+// param (see shareLink.js) once this session's own resources are in place --
+// every caller has one (main.js at boot, SessionPickerModal.vue's pick/
+// create/import flows), so it's optional only for tests/callers that
+// genuinely have no router to hand.
+export async function activate_session(store, sessionId, {isNew = false, router = null} = {}) {
     sessionStorage.setItem(ACTIVE_SESSION_KEY, sessionId);
     const name = store.state.session.directory.byId[sessionId]?.name ?? null;
     store.commit('session/set_active', {id: sessionId, name});
@@ -85,10 +102,20 @@ export async function activate_session(store, sessionId, {isNew = false} = {}) {
     for(const mod of all_modules()) mod.installPersistence?.(store, sessionId);
     install_connection_persistence(store, sessionId);
 
-    if(isNew) {
-        seed_default_sources(store);
-    } else {
-        restore_persisted_sources(store, sessionId);
+    // Neither branch is awaited here -- a slow or dead remote shouldn't hold
+    // up the modal closing just below, same as always. Each still returns a
+    // promise that settles once every source it touches has, though: a
+    // shared link (see shareLink.js) targets these exact same resources, so
+    // applying it has to wait for this to *settle* first, or the two race
+    // to set the same resource's loaded item and whichever finishes last
+    // silently wins -- which used to happen, at least occasionally, before
+    // this sequencing existed.
+    const sourcesSettled = isNew ? seed_default_sources(store) : restore_persisted_sources(store, sessionId);
+
+    if(router) {
+        sourcesSettled
+            .then(() => apply_share_from_route(store, router))
+            .catch(error => console.error('Failed to apply shared link:', error));
     }
 
     store.commit('ui/close_modal');

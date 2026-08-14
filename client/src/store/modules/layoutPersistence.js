@@ -1,4 +1,4 @@
-import { read_stored, write_stored } from '@/store/persistence';
+import { read_stored, write_stored, register_session_key } from '@/store/persistence';
 import { build_default_root, migrate_legacy_root, restore_contexts_and_instances } from './layoutDefaults';
 
 const BASE_STORAGE_KEY = 'viewer.layout.v1';
@@ -27,6 +27,7 @@ const PERSIST_PREFIXES = ['layout/', 'contexts/', 'widgetInstances/'];
 // own independent layout/contexts/instances.
 export function install_layout_persistence(store, sessionId) {
     const storageKey = `${BASE_STORAGE_KEY}.${sessionId}`;
+    register_session_key(sessionId, storageKey);
     const stored = read_stored(storageKey, 'root');
 
     let root;

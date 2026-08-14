@@ -41,6 +41,7 @@ function install_view3d_context_persistence(store, contextId, sessionId) {
 
     install_persistence(store, {
         storageKey: `viewer.facet-presets.v1.${sessionId}.${contextId}`,
+        sessionId,
         requiredKey: 'presets',
         initMutation: `${ns}/initialize_facet_presets`,
         persistMutations: [
@@ -58,6 +59,7 @@ function install_view3d_context_persistence(store, contextId, sessionId) {
 
     install_persistence(store, {
         storageKey: `viewer.selection-sets.v1.${sessionId}.${contextId}`,
+        sessionId,
         requiredKey: 'sets',
         initMutation: `${ns}/initialize_selection_sets`,
         persistMutations: [

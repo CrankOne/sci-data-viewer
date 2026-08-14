@@ -44,6 +44,17 @@ async function fetch_json(url, {signal} = {}) {
     return response.json();
 }
 
+// Appends one path segment (an addressable resource's opaque item id, doc/
+// sources.rst) to a base URL. Encodes only the segment itself, never a
+// literal "/" the id may (legitimately) contain -- e.g. our own na58geom
+// plugin's ids are detectors.dat paths relative to a directory, such as
+// "2022/detectors.294553.transv.dat".
+function resource_item_url(dataURL, itemId) {
+    const base = dataURL.endsWith('/') ? dataURL : `${dataURL}/`;
+    const encoded = String(itemId).split('/').map(encodeURIComponent).join('/');
+    return new URL(encoded, base);
+}
+
 // validates manifest and resolves data URL wrt endpoint
 function normalize_manifest(manifest, manifestURL) {
     if(typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
@@ -146,7 +157,9 @@ const stateModule = {
         // flow. `contextId' defaults to unassigned; a contextual-type
         // resource with no contextId fails at apply_resource_data() below,
         // not silently.
-        async add_resource({commit, dispatch}, {name, endpoint, load = true, contextId = null, signal = undefined}) {
+        async add_resource({commit, dispatch}, {
+            name, endpoint, load = true, contextId = null, selectedItemId = null, page = 0, signal = undefined
+        }) {
             commit('new_resource', {
                 name,
                 endpoint,
@@ -160,7 +173,19 @@ const stateModule = {
                 // current values of the source's advertised query options
                 // (doc/sources.rst, "Query options"); populated with
                 // defaults once the manifest resolves, see below.
-                queryValues: {}
+                queryValues: {},
+                // For an addressable source (doc/sources.rst): the id of
+                // the item currently applied as this resource's data, or
+                // null before anything has been picked. Always null for a
+                // plain source. Passed in so a restored/persisted resource
+                // (see connectionPersistence.js) can carry over which item
+                // was loaded.
+                selectedItemId,
+                // Last page of the item listing the user was browsing (see
+                // sourceListItems/addressable.vue) -- a soft UX nicety, not
+                // part of the doc/sources.rst enumeration contract itself.
+                // Meaningless (left at 0) for a plain/non-enumerable source.
+                page
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
@@ -211,7 +236,20 @@ const stateModule = {
                     }
                 });
                 if(load) {
-                    await dispatch('load_resource_data', {name});
+                    // An addressable source's data-url now enumerates items
+                    // rather than being a fetchable payload itself (doc/
+                    // sources.rst) -- only fetch it as such when there's a
+                    // previously-selected item to restore (see
+                    // connectionPersistence.js); otherwise leave the
+                    // resource "ready" for the user to pick one via its
+                    // widget (sourceListItems/addressable.vue).
+                    if(manifest.addressable) {
+                        if(resource.selectedItemId) {
+                            await dispatch('load_resource_data', {name, itemId: resource.selectedItemId});
+                        }
+                    } else {
+                        await dispatch('load_resource_data', {name});
+                    }
                 }
                 return manifest;
             } catch(error) {
@@ -265,13 +303,21 @@ const stateModule = {
 
             commit('update_resource', {name, changes: {contextId}});
 
-            if(wasLoaded) await dispatch('load_resource_data', {name});
+            // Re-apply whichever item was loaded (if any -- addressable
+            // sources only) under the new context; a plain source has no
+            // selectedItemId and just re-fetches its one payload.
+            if(wasLoaded) {
+                await dispatch('load_resource_data', {
+                    name, ...(resource.selectedItemId ? {itemId: resource.selectedItemId} : {})
+                });
+            }
         },
 
         // Records a new value for one of the resource's advertised query
         // options (see SourceListItem/sourceListItems/static.vue) and, if
         // the resource has already been loaded at least once, re-fetches
-        // its data so the change takes effect immediately.
+        // its data (the same item, for an addressable source) so the
+        // change takes effect immediately.
         async set_resource_query_value({state, commit, dispatch}, {name, key, value}) {
             const resource = state.resources[name];
             if(!resource) {
@@ -279,12 +325,44 @@ const stateModule = {
             }
             commit('set_resource_query_value', {name, key, value});
             if(resource.status === 'loaded' || resource.status === 'error') {
-                await dispatch('load_resource_data', {name});
+                await dispatch('load_resource_data', {
+                    name, ...(resource.selectedItemId ? {itemId: resource.selectedItemId} : {})
+                });
             }
         },
 
-        // Fetch the payload for an already registered resource.
-        async load_resource_data({state, commit, dispatch}, {name, query = undefined, signal = undefined}) {
+        // Records which page of the item listing the user was last browsing
+        // (see sourceListItems/addressable.vue) -- purely a "soft" UX
+        // nicety (persisted the same way as everything else here, see
+        // connectionPersistence.js, so a reload resumes on the same page)
+        // rather than a doc/sources.rst concept, so it never triggers a
+        // re-fetch of the loaded item itself.
+        set_resource_page({state, commit}, {name, page}) {
+            if(!state.resources[name]) return;
+            commit('update_resource', {name, changes: {page}});
+        },
+
+        // Lists one page of an addressable+enumerable resource's available
+        // items (doc/sources.rst, "Enumeration"/"Pagination") -- e.g. for
+        // sourceListItems/addressable.vue's picker. Purely a read; does not
+        // touch the store, since the listing is cheap to re-fetch and page-
+        // scoped rather than resource-scoped state.
+        async list_resource_items({state}, {name, page = 0, pageSize = undefined, signal = undefined}) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            const url = new URL(resource.dataURL);
+            url.searchParams.set('page', String(page));
+            if(pageSize !== undefined) url.searchParams.set('page-size', String(pageSize));
+            return fetch_json(url.href, {signal});
+        },
+
+        // Fetch the payload for an already registered resource: its one
+        // (plain-source) payload, or -- when `itemId' is given -- one item
+        // of an addressable source, at GET {data-url}/{itemId} (doc/
+        // sources.rst, "Addressable capability").
+        async load_resource_data({state, commit, dispatch}, {name, itemId = undefined, query = undefined, signal = undefined}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
@@ -293,7 +371,9 @@ const stateModule = {
                 throw new Error(`Manifest for resource ${name} has not been loaded`);
             }
             console.debug(resource);  // XXX
-            const url = new URL(resource.dataURL);
+            const url = itemId !== undefined
+                ? resource_item_url(resource.dataURL, itemId)
+                : new URL(resource.dataURL);
             // Explicit `query' overrides the resource's stored option
             // values (see set_resource_query_value below) key-by-key,
             // rather than replacing them outright.
@@ -318,7 +398,12 @@ const stateModule = {
                 await dispatch('apply_resource_data', {resource, data});
                 commit('update_resource', {
                     name,
-                    changes: {status: 'loaded', dataSize: JSON.stringify(data).length, error: null}
+                    changes: {
+                        status: 'loaded',
+                        dataSize: JSON.stringify(data).length,
+                        error: null,
+                        ...(itemId !== undefined ? {selectedItemId: itemId} : {})
+                    }
                 });
                 return data;
             } catch(error) {
