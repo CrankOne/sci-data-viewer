@@ -8,6 +8,7 @@ import ThreeViewport from './components/ThreeViewport.vue';
 import SceneHelpers from './components/SceneHelpers.vue';
 import TransfGroupsPanel from './components/TransfGroupsPanel.vue';
 import ItemsTree from './components/ItemsTree';
+import SelectedMarkersPanel from './components/SelectedMarkersPanel.vue';
 
 import { make_view3D_module } from './store/view3D';
 import cameras from './store/cameras';
@@ -20,6 +21,12 @@ register_module({
     viewportComponent: ThreeViewport,
     sidePanelSections: [
         {id: 'geo3d:items-tree', title: 'Items', component: ItemsTree},
+        // Deliberately separate from the Items Tree: a scene can carry many
+        // thousands of individual point markers, so this panel only ever
+        // lists the (expected-small) current selection rather than every
+        // marker -- see the design discussion that led to per-marker
+        // picking (three/index.js's _toggle_marker_selection).
+        {id: 'geo3d:selected-markers', title: 'Selected markers', component: SelectedMarkersPanel},
         {id: 'geo3d:transf-groups', title: 'Transformation groups', component: TransfGroupsPanel},
         {id: 'geo3d:scene-helpers', title: 'Scene Helpers', component: SceneHelpers}
     ],

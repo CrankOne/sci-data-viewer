@@ -82,6 +82,15 @@ function normalize_manifest(manifest, manifestURL) {
     };
 }
 
+// True for a source advertising neither capability (doc/sources.rst) --
+// i.e. one whose data-url IS the fetchable payload. An addressable
+// source's data-url enumerates items instead, and a sequential source's
+// data-url is its principal resource (metadata), not an item -- neither is
+// safe to GET-and-render-as-data the way a plain source's is.
+export function is_plain_source(manifest) {
+    return !manifest.addressable && !manifest.sequential;
+}
+
 // Builds the {name: value} map of a resource's query options at their
 // advertised defaults (options without a default are left unset -- the
 // server decides what omitting them means).
@@ -146,7 +155,18 @@ const stateModule = {
         // Every resource currently assigned to a given context -- used to
         // warn before removing a context's last viewport (see Panel.vue).
         resourcesForContext: state => contextId =>
-            Object.values(state.resources).filter(r => r.contextId === contextId)
+            Object.values(state.resources).filter(r => r.contextId === contextId),
+
+        // Names of resources currently between "fetched" and "applied to
+        // their viewer module" (status 'loading-data') -- i.e. mid
+        // load_resource_data/create_resource_session/advance_resource_session.
+        // Drives the app-wide LoadingOverlay.vue: shown for exactly this
+        // window, covering both the network fetch and whatever synchronous
+        // work applying the payload triggers (e.g. GeometryManager rebuilding
+        // three.js objects), since the overlay only ever gets hidden again
+        // once status leaves 'loading-data'.
+        loadingResourceNames: state =>
+            Object.values(state.resources).filter(r => r.status === 'loading-data').map(r => r.name)
     },
     actions: {
         // Add and inspect a resource. `load' controls whether its payload is
@@ -185,7 +205,25 @@ const stateModule = {
                 // sourceListItems/addressable.vue) -- a soft UX nicety, not
                 // part of the doc/sources.rst enumeration contract itself.
                 // Meaningless (left at 0) for a plain/non-enumerable source.
-                page
+                page,
+                // Sequential capability (doc/sources.rst): absolute URL of
+                // the active traversal session, or null before one starts
+                // (see create_resource_session/sourceListItems/
+                // sequential.vue). Sessions are never persisted (in-memory
+                // server-side only, see plugins/sequential.py) -- always
+                // null on a freshly restored resource.
+                sessionURL: null,
+                // Opaque, display-only (doc/sources.rst forbids assigning
+                // meaning to it).
+                sessionId: null,
+                sessionFinished: false,
+                // Local "how many advances have I seen" UI counter -- NOT
+                // a server-side sequence number or item identifier.
+                sessionStep: 0,
+                // Last-applied `current` payload, kept so
+                // reassign_resource_context can re-deliver it to a new
+                // context without creating a new (non-replayable) session.
+                sessionLastData: null
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
@@ -247,9 +285,13 @@ const stateModule = {
                         if(resource.selectedItemId) {
                             await dispatch('load_resource_data', {name, itemId: resource.selectedItemId});
                         }
-                    } else {
+                    } else if(is_plain_source(manifest)) {
                         await dispatch('load_resource_data', {name});
                     }
+                    // else: sequential-only manifest -- GET data-url is its
+                    // principal resource (metadata), not an item, so there
+                    // is nothing to auto-fetch. Left "ready" for the user to
+                    // start a session (sourceListItems/sequential.vue).
                 }
                 return manifest;
             } catch(error) {
@@ -282,7 +324,15 @@ const stateModule = {
 
         remove_resource({state, commit}, name) {
             const resource = state.resources[name];
-            if(resource) clean_up_resource_data(commit, resource);
+            if(resource) {
+                // Best-effort, fire-and-forget release of an active
+                // sequential session (doc/sources.rst) -- not awaited, so a
+                // slow/dead server doesn't hold up resource removal.
+                if(resource.sessionURL) {
+                    fetch(resource.sessionURL, {method: 'DELETE'}).catch(() => {});
+                }
+                clean_up_resource_data(commit, resource);
+            }
             gManifestRequests.get(name)?.controller.abort();
             gManifestRequests.delete(name);
             commit('remove_resource', name);
@@ -303,10 +353,21 @@ const stateModule = {
 
             commit('update_resource', {name, changes: {contextId}});
 
-            // Re-apply whichever item was loaded (if any -- addressable
-            // sources only) under the new context; a plain source has no
-            // selectedItemId and just re-fetches its one payload.
-            if(wasLoaded) {
+            if(wasLoaded && resource.sessionURL) {
+                // A sequential session (doc/sources.rst) is resource-scoped
+                // and forward-only/non-replayable -- moving contexts must
+                // not start a new session or re-fetch (GET data-url isn't
+                // an item for a sequential source). Re-deliver the last
+                // item that was applied instead.
+                if(resource.sessionLastData !== null && resource.sessionLastData !== undefined) {
+                    await dispatch('apply_resource_data', {
+                        resource: state.resources[name], data: resource.sessionLastData
+                    });
+                }
+            } else if(wasLoaded) {
+                // Re-apply whichever item was loaded (if any -- addressable
+                // sources only) under the new context; a plain source has
+                // no selectedItemId and just re-fetches its one payload.
                 await dispatch('load_resource_data', {
                     name, ...(resource.selectedItemId ? {itemId: resource.selectedItemId} : {})
                 });
@@ -411,6 +472,118 @@ const stateModule = {
                 console.error(`Failed to load data for resource "${name}" from ${url}:`, error);
                 throw error;
             }
+        },
+
+        // Sequential capability (doc/sources.rst): creates a fresh
+        // traversal session and applies its initial item, if any. Mirrors
+        // load_resource_data's role for an addressable source, except
+        // there's no itemId -- the server decides the starting position.
+        async create_resource_session({state, commit, dispatch}, {name}) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            // 'loading-data' drives the app-wide LoadingOverlay (see the
+            // loadingResourceNames getter) -- set before the fetch, so the
+            // overlay is already painted by the time apply_resource_data's
+            // synchronous work (e.g. GeometryManager rebuilding three.js
+            // objects) runs.
+            commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
+            try {
+                const url = new URL('sessions', resource.dataURL.endsWith('/') ? resource.dataURL : `${resource.dataURL}/`);
+                const response = await fetch(url.href, {method: 'POST', headers: {Accept: 'application/json'}});
+                if(response.status !== 201) {
+                    throw new Error(`POST ${url} failed with HTTP ${response.status}`);
+                }
+                const location = response.headers.get('Location');
+                if(!location) {
+                    throw new Error(`Session creation response from ${url} carried no Location header`);
+                }
+                const sessionURL = new URL(location, resource.dataURL).href;
+                const body = await response.json();
+                commit('update_resource', {
+                    name,
+                    changes: {
+                        sessionURL,
+                        sessionId: location.split('/').filter(Boolean).pop(),
+                        sessionFinished: Boolean(body.finished),
+                        sessionStep: 0,
+                        sessionLastData: body.current ?? null
+                    }
+                });
+                if(body.current !== null && body.current !== undefined) {
+                    await dispatch('apply_resource_data', {resource: state.resources[name], data: body.current});
+                    commit('update_resource', {
+                        name,
+                        changes: {status: 'loaded', dataSize: JSON.stringify(body.current).length, error: null}
+                    });
+                } else {
+                    commit('update_resource', {name, changes: {status: 'ready', error: null}});
+                }
+            } catch(error) {
+                commit('update_resource', {name, changes: {status: 'error', error: String(error)}});
+                throw error;
+            }
+        },
+
+        // Advances an active session by exactly one item (doc/sources.rst)
+        // and applies the result the same way create_resource_session does.
+        async advance_resource_session({state, commit, dispatch}, {name}) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            if(!resource.sessionURL) {
+                throw new Error(`Resource "${name}" has no active session`);
+            }
+            // See create_resource_session's identical note on ordering this
+            // before the fetch, for LoadingOverlay's benefit.
+            commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
+            try {
+                const response = await fetch(resource.sessionURL, {method: 'POST', headers: {Accept: 'application/json'}});
+                if(!response.ok) {
+                    throw new Error(`POST ${resource.sessionURL} failed with HTTP ${response.status}`);
+                }
+                const body = await response.json();
+                commit('update_resource', {
+                    name,
+                    changes: {
+                        sessionFinished: Boolean(body.finished),
+                        sessionStep: (resource.sessionStep ?? 0) + 1,
+                        sessionLastData: body.current ?? null
+                    }
+                });
+                if(body.current !== null && body.current !== undefined) {
+                    await dispatch('apply_resource_data', {resource: state.resources[name], data: body.current});
+                    commit('update_resource', {
+                        name,
+                        changes: {status: 'loaded', dataSize: JSON.stringify(body.current).length, error: null}
+                    });
+                } else {
+                    commit('update_resource', {name, changes: {status: 'ready', error: null}});
+                }
+            } catch(error) {
+                commit('update_resource', {name, changes: {status: 'error', error: String(error)}});
+                throw error;
+            }
+        },
+
+        // Releases an active session (doc/sources.rst). Leaves whatever was
+        // last rendered on screen -- releasing ends the traversal, it
+        // doesn't clear the scene (mirrors an addressable resource keeping
+        // its last-picked item after unrelated actions).
+        async release_resource_session({state, commit}, {name}) {
+            const resource = state.resources[name];
+            if(!resource?.sessionURL) return;
+            try {
+                await fetch(resource.sessionURL, {method: 'DELETE'});
+            } catch(error) {
+                console.warn(`Failed to release session for resource "${name}":`, error);
+            }
+            commit('update_resource', {
+                name,
+                changes: {sessionURL: null, sessionId: null, sessionFinished: false, sessionStep: 0}
+            });
         },
 
         // fwd a resource payload to its type-specific viewer module.

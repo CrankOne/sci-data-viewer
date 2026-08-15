@@ -364,16 +364,13 @@ class GeometryManager {
 
     // Called on highlighted markers set change
     update_highlighted_markers(highlightedMarkers) {  // {{{
-        console.debug(highlightedMarkers);  // XXX
         highlightedMarkers.forEach((idxs, itemID) => {
-            console.log(itemID);  // XXX
             const item = this.get_geometry_item(itemID);
             if(!item) return;
             if(!item.threeJSGeo) return;
             if(!item.threeJSGeo.isGroup) return;
             // Handle point markers in a bit of special way -- update
             // colors of highlighted markers using indeces information
-            console.debug("updating highlightedMarkers...");  // XXX
             if(item.threeJSGeo.userData.handles.highlight.isPoints) {
                 const clrAttr = item.threeJSGeo.userData.handles.highlight.geometry.getAttribute('color');
                 if(clrAttr) {
@@ -387,6 +384,48 @@ class GeometryManager {
                 }
             } else {
                 console.warn("Ignoring unsupported by-index marker(?) item");
+            }
+        });
+        this._render();
+    }  // }}}
+
+    // Called on selected markers set change. Unlike update_highlighted_markers
+    // (which only *refines* an already-`.visible' highlight overlay -- see
+    // three/index.js: hovering a marker always also scene-hovers its whole
+    // containing item, so update_highlighted_graphics already turned that
+    // overlay on), a marker-only selection deliberately never touches
+    // `selectedGeoItemIDs' (toggle_hover_selection()/_toggle_marker_selection()),
+    // so this method owns `.visible' for the `selected' handle directly:
+    // on for any item present in `selectedMarkers' with a non-empty index
+    // Set, off otherwise -- including items that only just lost their last
+    // selected marker, hence needing `selectedMarkersOld' too.
+    update_selected_markers(selectedMarkers, selectedMarkersOld = new Map()) {  // {{{
+        const itemIDs = new Set([...selectedMarkers.keys(), ...selectedMarkersOld.keys()]);
+        itemIDs.forEach(itemID => {
+            const item = this.get_geometry_item(itemID);
+            if(!item) return;
+            if(!item.threeJSGeo) return;
+            if(!item.threeJSGeo.isGroup) return;
+            const selected = item.threeJSGeo.userData.handles.selected;
+            if(!selected?.isPoints) {
+                console.warn("Ignoring unsupported by-index marker(?) item");
+                return;
+            }
+            const idxs = selectedMarkers.get(itemID);
+            if(!idxs || idxs.size === 0) {
+                selected.visible = false;
+                return;
+            }
+            selected.visible = true;
+            const clrAttr = selected.geometry.getAttribute('color');
+            if(clrAttr) {
+                clrAttr.array.fill(0.0);
+                for(const idx of idxs) {
+                    clrAttr.array[3*idx    ] = 1.0;
+                    clrAttr.array[3*idx + 1] = 1.0;
+                    clrAttr.array[3*idx + 2] = 1.0;
+                }
+                clrAttr.needsUpdate = true;
             }
         });
         this._render();

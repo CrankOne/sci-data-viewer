@@ -1,10 +1,12 @@
 <template>
   <router-view></router-view>
   <ModalHost />
+  <LoadingOverlay />
 </template>
 
 <script setup>
 import ModalHost from './components/ModalHost.vue';
+import LoadingOverlay from './components/LoadingOverlay.vue';
 </script>
 
 <style>

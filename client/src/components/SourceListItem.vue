@@ -48,6 +48,7 @@ import FramedDisclosure from './FramedDisclosure.vue';
 import WaitingSourceListItem from './sourceListItems/waiting.vue'
 import StaticSourceListItem from './sourceListItems/static.vue'
 import AddressableSourceListItem from './sourceListItems/addressable.vue'
+import SequentialSourceListItem from './sourceListItems/sequential.vue'
 import { get_module } from '@/modules/registry'
 
 export default {
@@ -56,7 +57,8 @@ export default {
         FramedDisclosure,
         WaitingSourceListItem,
         StaticSourceListItem,
-        AddressableSourceListItem
+        AddressableSourceListItem,
+        SequentialSourceListItem
     },
     props: {
         name: String,
@@ -107,11 +109,12 @@ export default {
             return type && get_module(type)?.contextual ? type : null;
         },
 
-        // NOTE: "plain" sources (sequential=false, addressable=false) and
-        // "addressable + enumerable" ones (see doc/sources.rst) are
-        // implemented end-to-end; the sequential capability, and an
-        // addressable source with no enumeration, were never built out
-        // client-side and need a proper design before being introduced.
+        // NOTE: "plain" sources (sequential=false, addressable=false),
+        // "addressable + enumerable" ones, and "sequential-only" ones (see
+        // doc/sources.rst) are implemented end-to-end; a sequential+
+        // addressable source, and an addressable source with no
+        // enumeration, were never built out client-side and need a proper
+        // design before being introduced.
         concreteSourceItemComponent() {
             if(this.definition.manifest === null) {
                 return 'waiting-source-list-item';
@@ -120,13 +123,16 @@ export default {
             if(!sequential && !addressable) {
                 return 'static-source-list-item';
             }
+            if(sequential && !addressable) {
+                return 'sequential-source-list-item';
+            }
             if(!sequential && addressable && collection?.enumerable) {
                 return 'addressable-source-list-item';
             }
             throw new Error(
                 `Unsupported source capabilities (sequential=${sequential}, `
                 + `addressable=${addressable}, enumerable=${collection?.enumerable}): `
-                + `only plain and addressable+enumerable sources are supported`
+                + `only plain, sequential-only, and addressable+enumerable sources are supported`
             );
         }
     }

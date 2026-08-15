@@ -3,6 +3,7 @@
 // are always re-fetched live from their endpoint, same as
 // geoDataBySource/view3D are never written to storage either).
 import { read_stored, write_stored, register_session_key } from './store/persistence';
+import { is_plain_source } from './connection';
 
 const BASE_STORAGE_KEY = 'viewer.sources.v1';
 
@@ -68,7 +69,12 @@ export function restore_persisted_sources(store, sessionId) {
                     }
                     return; // enumerable source restored bare -- user re-picks a file
                 }
-                return store.dispatch('connection/load_resource_data', {name});
+                if(is_plain_source(manifest)) {
+                    return store.dispatch('connection/load_resource_data', {name});
+                }
+                // sequential-only source: sessions are never persisted (in-
+                // memory server-side only) -- restored bare, "ready" for
+                // the user to start a new one.
             })
             .catch(error => console.error(`Failed to restore source "${name}":`, error))
     );

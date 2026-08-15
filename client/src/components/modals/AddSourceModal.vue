@@ -55,6 +55,7 @@
 import { get_module } from '@/modules/registry';
 import { create_scene_with_viewport } from '@/sceneCreation';
 import { fetch_plugin_manifest } from '@/pluginManifest';
+import { is_plain_source } from '@/connection';
 
 export default {
     name: 'AddSourceModal',
@@ -181,10 +182,12 @@ export default {
             await this.$store.dispatch('connection/assign_resource_context', {name, contextId});
             // An addressable source (doc/sources.rst) has no single default
             // payload to fetch -- its data-url enumerates items instead.
-            // Leave it "ready" and let the user pick one from its widget
-            // (sourceListItems/addressable.vue) once the modal closes.
+            // Nor does a sequential source -- its data-url is metadata, not
+            // an item. Leave either "ready" and let the user pick/start one
+            // from its widget (sourceListItems/{addressable,sequential}.vue)
+            // once the modal closes.
             const resource = this.$store.state.connection.resources[name];
-            if(!resource?.manifest?.addressable) {
+            if(resource?.manifest && is_plain_source(resource.manifest)) {
                 try {
                     await this.$store.dispatch('connection/load_resource_data', {name});
                 } catch(error) {
