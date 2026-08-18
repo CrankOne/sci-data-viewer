@@ -453,6 +453,80 @@ string a client MAY show as a label or tooltip. Value constraints live under
 A source omitting ``query-options`` entirely accepts no query parameters
 beyond what pagination (above) already defines.
 
+Row-window pagination
+---------------------
+
+A source MAY additionally declare that the endpoint returning its actual
+data representation -- "Query options"'s same "whichever endpoint returns
+its actual data representation": ``GET /resource`` for a plain source, or
+``GET /resource/{id}`` for an addressable one -- itself supports windowed
+access into a large row set, rather than returning the complete
+representation in one response.
+
+This is a distinct concept from "Addressable capability"'s own
+``page``/``page-size`` pagination above, which enumerates which
+*addressable items* exist. Row-window pagination instead paginates *within*
+one already-identified dataset's own row content -- the shape a tabular
+client needs for efficient row scrolling over a potentially large table
+without a round-trip per row.
+
+A source declares this capability via an optional ``rows`` object in its
+descriptor:
+
+.. code-block:: json
+   :caption: Example of a plain source declaring row-window pagination.
+
+    {
+        "data-url": "/api/source/big-table",
+        "sequential": false,
+        "addressable": false,
+        "rows": {
+            "windowed": true,
+            "page-size": 500,
+            "max-page-size": 5000
+        }
+    }
+
+``rows.windowed``
+    Whether the data-representation endpoint accepts ``page``/``page-size``
+    query parameters for row windowing. Absent or ``false`` means the
+    endpoint always returns the complete row set in one response.
+
+``rows.page-size`` / ``rows.max-page-size``
+    Same meaning as "Addressable capability"'s ``collection.page-size``/
+    ``collection.max-page-size``, but scoped to row windowing instead of
+    item enumeration.
+
+When ``rows.windowed`` is ``true``, the endpoint accepts::
+
+    GET /resource?page={page}&page-size={page-size}                [plain]
+    GET /resource/{id}?page={page}&page-size={page-size}      [addressable]
+
+and returns:
+
+.. code-block:: json
+
+    {
+        "schema": { ... },
+        "rows": [ { ... }, { ... } ],
+        "page": 3,
+        "page-size": 500,
+        "total": 18342
+    }
+
+``schema`` is application-defined (this specification does not mandate its
+shape) and SHOULD be present at least in the first page's response;
+``total`` MAY be omitted when the row count is unknown or expensive to
+determine, mirroring "Addressable capability"'s own ``total``.
+
+A source that is both addressable+enumerable and row-windowed uses ``page``/
+``page-size`` for two different purposes depending on which endpoint
+they're sent to: the enumeration endpoint (``GET /resource``, listing item
+identifiers) versus one item's own data endpoint (``GET /resource/{id}``,
+windowing that item's rows). Clients MUST NOT confuse the two; a query
+parameter's meaning is always determined by which endpoint it is sent to,
+never by its name alone.
+
 HTTP conventions
 ----------------
 
@@ -510,6 +584,14 @@ Full summary::
     GET    /resource                         enumeration, if enumerable
            ?page=...
            &page-size=...                    if paginated
+
+    GET    /resource                         data representation, if plain
+           ?page=...                         and row-windowed (rows.windowed)
+           &page-size=...
+
+    GET    /resource/{id}                    item data, if addressable
+           ?page=...                         and row-windowed (rows.windowed)
+           &page-size=...
 
     POST   /resource/sessions                if sequential
     GET    /resource/sessions/{session}      if sequential

@@ -10,7 +10,7 @@
 import { register_module } from '../registry';
 
 import SinkViewport from './SinkViewport.vue';
-import { make_sink_inbox_module } from './store/sinkInbox';
+import { make_sink_inbox_module } from '@/store/sinkInbox';
 
 register_module({
     dataType: 'sink-view',

@@ -63,7 +63,16 @@
         </table>
         <p v-else class="empty-state">No scenes yet.</p>
 
-        <button v-if="contextualModule" type="button" @click="add_scene">+ Add scene</button>
+        <div v-if="contextualModules.length" class="add-scene-row">
+          <select
+            v-if="contextualModules.length > 1"
+            v-model="addSceneType"
+            aria-label="New scene type"
+          >
+            <option v-for="m in contextualModules" :key="m.dataType" :value="m.dataType">{{ m.label }}</option>
+          </select>
+          <button type="button" @click="add_scene">+ Add scene</button>
+        </div>
       </div>
 
       <div class="share-section">
@@ -97,7 +106,10 @@ export default {
       themes: ['bright', 'dark'/*, 'auto'*/],
       // 'copied' | 'error' | null -- transient feedback for copy_permalink,
       // cleared a couple seconds after either outcome.
-      copyStatus: null
+      copyStatus: null,
+      // Which contextual module's scene "+ Add scene" creates -- only
+      // exposed as a picker (template above) when more than one exists.
+      addSceneType: all_modules().find(mod => mod.contextual)?.dataType ?? null
     };
   },
 
@@ -115,10 +127,8 @@ export default {
       return this.$store.getters['contexts/list'];
     },
 
-    // v1 supports a single contextual module type (today: geo3d); a future
-    // second one would need a type picker in add_scene() below too.
-    contextualModule() {
-      return all_modules().find(mod => mod.contextual) ?? null;
+    contextualModules() {
+      return all_modules().filter(mod => mod.contextual);
     },
 
     // Whether there's anything a permalink could carry at all -- see
@@ -159,9 +169,8 @@ export default {
     // it regardless of the current tree shape. See sceneCreation.js: every
     // "New scene…" option in the app goes through the same helper.
     async add_scene() {
-      const module = this.contextualModule;
-      if(!module) return;
-      await create_scene_with_viewport(this.$store, {dataType: module.dataType});
+      if(!this.addSceneType) return;
+      await create_scene_with_viewport(this.$store, {dataType: this.addSceneType});
     },
 
     // Builds a permalink snapshotting which items are currently loaded
@@ -248,6 +257,12 @@ export default {
   color: var(--clr-fg-main-muted);
   font-style: italic;
   margin: .3em 0;
+}
+
+.add-scene-row {
+  display: flex;
+  align-items: center;
+  gap: .3em;
 }
 
 .share-section {

@@ -33,6 +33,17 @@ export function normalize_selection_asset(asset) {
     };
 }
 
+// Sub-item values are whatever a consumer's own type uses for "index within
+// an item" -- numeric point-cloud indices (three-view) today, but nothing
+// in this shared module requires that; a string columnId (a future tabular
+// module's cell selection, doc/ui-session.rst's "Selection model") is
+// equally valid. Numeric compare when both sides actually are numbers,
+// string compare otherwise, rather than assuming numeric.
+function compare_sub_item_values(lhs, rhs) {
+    if(typeof lhs === "number" && typeof rhs === "number") return lhs - rhs;
+    return String(lhs).localeCompare(String(rhs));
+}
+
 export function serialize_selection(selection) {
     return {
         itemIDs: [...selection.itemIDs].sort(),
@@ -41,7 +52,7 @@ export function serialize_selection(selection) {
             [...selection.subItems]
                 .filter(([, indices]) => indices.size !== 0)
                 .sort(([lhs], [rhs]) => lhs.localeCompare(rhs))
-                .map(([itemID, indices]) => [itemID, [...indices].sort((a, b) => a - b)])
+                .map(([itemID, indices]) => [itemID, [...indices].sort(compare_sub_item_values)])
         )
     };
 }

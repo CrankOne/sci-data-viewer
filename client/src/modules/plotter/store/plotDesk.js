@@ -10,7 +10,7 @@
 // replaced wholesale on every update, keyed by resource name so several
 // sources can share one desk without colliding -- the same "keyed by
 // contributor, wholesale replace" shape as a sink's landing zone (see
-// modules/sink-view/store/sinkInbox.js), hence sharing keyedCollection.js.
+// store/sinkInbox.js), hence sharing keyedCollection.js.
 import { make_keyed_collection } from '@/store/keyedCollection';
 
 export function make_plot_desk_module() {

@@ -419,6 +419,40 @@ const stateModule = {
             return fetch_json(url.href, {signal});
         },
 
+        // Fetches one page of row-window data (doc/sources.rst's "Row-window
+        // pagination") from a table-like resource's own data-representation
+        // endpoint -- GET {data-url} for a plain source, or GET
+        // {data-url}/{itemId} for one addressable item, mirroring
+        // load_resource_data's own dual-mode URL construction. Distinct from
+        // list_resource_items above, whose "page"/"page-size" enumerate
+        // which *items* an addressable source has -- this paginates *within*
+        // one already-identified dataset's own rows instead. Purely a read;
+        // does not touch the store, for the same reason list_resource_items
+        // doesn't (page-scoped, cheap to re-fetch, not resource-scoped state
+        // worth persisting here) -- doc/module-table.rst's TableController
+        // owns the accumulated row cache on the caller's side.
+        async fetch_row_window({state}, {
+            name, page = 0, pageSize = undefined, itemId = undefined,
+            sortColumn = undefined, sortDirection = undefined, signal = undefined
+        }) {
+            const resource = state.resources[name];
+            if(!resource) {
+                throw new Error(`Unknown resource ${name}`);
+            }
+            const url = itemId !== undefined
+                ? resource_item_url(resource.dataURL, itemId)
+                : new URL(resource.dataURL);
+            url.searchParams.set('page', String(page));
+            if(pageSize !== undefined) url.searchParams.set('page-size', String(pageSize));
+            // `sort-column`/`sort-direction`: a convention local to this
+            // random-access adapter and its demo backend (doc/module-table
+            // .rst's "Sorting"), not part of doc/sources.rst's own
+            // row-window pagination spec.
+            if(sortColumn !== undefined) url.searchParams.set('sort-column', sortColumn);
+            if(sortDirection !== undefined) url.searchParams.set('sort-direction', sortDirection);
+            return fetch_json(url.href, {signal});
+        },
+
         // Fetch the payload for an already registered resource: its one
         // (plain-source) payload, or -- when `itemId' is given -- one item
         // of an addressable source, at GET {data-url}/{itemId} (doc/

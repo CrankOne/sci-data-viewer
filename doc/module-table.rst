@@ -1,9 +1,15 @@
 Tabular View Module
-===================
+====================
 
-A tabular data view module is intended for inspecting structured
-tabular resources. It provides a uniform spreadsheet-like presentation for both
-small in-memory tables and potentially large remote datasets.
+A tabular data view module is intended for inspecting structured tabular
+resources -- a uniform spreadsheet-like presentation for both small
+in-memory tables and potentially large remote datasets. See also
+:doc:`module-3d-viewer`, :doc:`module-plotter`, :doc:`module-graph`.
+
+Session/context/module mechanics (what a "scene" is, how a viewport is
+created, how a module registers itself) are generic and covered by
+:doc:`ui-session`; this document only covers what is specific to the
+``table`` data type.
 
 Purpose
 -------
@@ -15,18 +21,16 @@ pivoting, and export.
 It is not intended to provide spreadsheet editing, formulas, arbitrary cell
 formatting, merged cells, or other office-spreadsheet features.
 
-The module shall integrate with the viewer's modular architecture in the same
-manner as the 3D viewer and function plotter, maintaining its own state and
-component hierarchy.
-
 Main use cases
 --------------
 
-The module shall support the following workflows.
+The module supports the following workflows.
 
 1. **Dataset browsing**
 
-   A tabular resource can be opened as the primary viewer.
+   A tabular resource can be opened as the primary viewer, attached the same
+   way any other contextual module's data source is (:doc:`ui-session`'s
+   "Data sources: seeding and restoration", ``AddSourceModal.vue``).
 
    The user shall be able to:
 
@@ -42,7 +46,14 @@ The module shall support the following workflows.
 2. **Selection view**
 
    Objects selected in another viewer module may be represented as rows in a
-   table shown in a secondary panel.
+   table shown in a secondary panel -- this is :doc:`ui-session`'s
+   cross-module "Selection sinks" mechanism (a context's ``sinkTargets``
+   pointer, manual one-shot ``send_selection_to_sink``), with this module as
+   the sink *target*: it registers ``receiveSinkMutation`` the same way
+   ``modules/sink-view/``'s dev stub does, but renders the routed-in rows
+   through the real ``TableView`` rather than dumping raw JSON. This is the
+   "real, styled sink consumer" :doc:`ui-session`'s "Selection sinks"
+   section names as the one item that mechanism still has open.
 
    Such tables are expected to be small.
 
@@ -56,7 +67,10 @@ The module shall support the following workflows.
 
    Plot rendering belongs to the plotting module. The tabular module only
    selects the relevant columns and dispatches the corresponding data request
-   or projection.
+   or projection -- a UI-level hook, not a functioning round trip yet:
+   :doc:`module-plotter` has no selection model or sink-consuming mechanism
+   of its own to receive such a dispatch (that module's own "Open questions"
+   still applies), so this stays a one-way stub until it does.
 
 4. **Pivoting**
 
@@ -79,7 +93,16 @@ The module shall support the following workflows.
 Architecture
 ------------
 
-The module should separate presentation from data acquisition::
+Like every contextual module, this one's own source/scope/view relation
+follows :doc:`ui-session`'s generic pattern -- the same one
+:doc:`module-3d-viewer`'s scene/viewport and :doc:`module-plotter`'s
+desk/plot are each their own instantiation of. ``dataType: 'table'``,
+registered via ``modules/registry.js``, with its own ``contextStoreModules``
+entries for whatever presentation state this document describes below.
+Several data sources may attach to the same table context simultaneously,
+each namespaced by resource name, the same as any other contextual module.
+
+Within that, the module should separate presentation from data acquisition::
 
     Tabular View Module
     │
@@ -112,6 +135,10 @@ Every tabular source shall expose a common logical interface consisting of:
 * row identity where available;
 * supported capabilities;
 * one or more row-access mechanisms.
+
+A tabular source's plain/addressable/sequential capabilities are exactly
+:doc:`sources`'s -- this module adds no new source-capability vocabulary,
+only its own logical row-access layer on top (see "Row access" below).
 
 A source may be:
 
@@ -160,8 +187,22 @@ A random-access source shall support fetching an arbitrary logical row interval.
 Conceptually:
 
     .. code-block:: js
-    
+
     fetch_range(start, count, options)
+
+**Not the same pagination as** :doc:`sources`'s **item enumeration.**
+:doc:`sources`'s ``page``/``page-size`` ("Pagination") enumerate which
+*addressable items* exist -- one ``GET /resource/{id}`` per item once
+picked. ``fetch_range`` here means windowing into the *rows of one
+already-loaded table*, which needs efficient scrolling over potentially many
+rows without a round-trip per row. This module's random-access adapter
+therefore reuses :doc:`sources`'s ``page``/``page-size`` *query-parameter
+names*, but against a plain or single addressable item's own data endpoint
+(``GET /resource`` or ``GET /resource/{id}``), returning ``{schema, rows,
+total}`` rather than ``{items, total}`` -- see :doc:`sources`'s "Row-window
+pagination" for the precise addendum this reuses. A thin ``connection.js``
+action alongside handles this fetch, distinct from ``list_resource_items``
+(whose contract is item-enumeration only).
 
 Pagination used by a backend is an implementation detail of the source adapter.
 
@@ -240,18 +281,30 @@ In particular::
 Selection
 ---------
 
-Selection shall use logical data coordinates rather than DOM elements.
+Selection reuses :doc:`ui-session`'s generic ``selection`` context module
+(that document's "Selection model") rather than a bespoke model of its own
+-- a row is a whole *item* (``selectedItemIDs``, row id = item id); cell
+selection is a *sub-item* of its row (``selectedSubItems``, keyed by row id,
+with the **column id** -- never a positional index -- as the sub-item
+value). This is structurally the same "one item standing in for numerous
+individually-selectable sub-elements" shape :doc:`module-3d-viewer` already
+uses for point-cloud markers, just with a string sub-item key instead of a
+numeric one; :doc:`ui-session`'s "Selection model" and
+``store/selectionAlgebra.js`` are field-name-neutral for exactly this
+reason.
 
-Where possible, rows shall be identified by stable opaque row IDs.
+Column id, not position, is required: column visibility and column order
+are independent view state (see "Table state" above) that must not silently
+invalidate a live cell selection if a column is hidden or reordered.
 
-Cell selection should use row identity and column identity:
+Reusing the shared module gets this table context facet-preset/
+selection-set persistence for free (``contexts.js``'s
+``install_selection_persistence``, gated generically on any module
+registering a ``selection`` context entry, not on this module's identity).
 
-    .. code-block:: js
-
-    {
-        rowId,
-        columnId
-    }
+Row identity: where possible, rows shall be identified by stable opaque row
+IDs, supplied by the source -- never derived from array position, which
+shifts under sorting/windowing.
 
 Range selections shall remain valid independently of DOM virtualisation.
 
@@ -316,7 +369,8 @@ The table may dispatch either:
 * a projection/aggregation request against the source.
 
 Plotting is considered an auxiliary reconnaissance workflow, not part of the
-core table renderer.
+core table renderer. See "Plot dispatch" above for this dispatch's current
+one-way-stub status.
 
 Export
 ------
@@ -332,6 +386,11 @@ the source abstraction.
 
 Export of arbitrary large datasets is not required to be performed by the
 browser.
+
+A Blob-download-and-click affordance already exists once, inline, in
+``SessionPickerModal.vue``'s ``export_to_file`` (JSON session export) --
+worth extracting into a small reusable helper for this module's CSV export
+to use, rather than a second inline copy.
 
 Rendering
 ---------
@@ -354,7 +413,10 @@ TanStack usage
 --------------
 
 The initial implementation should use **TanStack Virtual** for row
-virtualisation.
+virtualisation -- worth the dependency (none of this app's other hand-rolled
+views, e.g. :doc:`module-3d-viewer`'s Items tree or :doc:`module-plotter`'s
+canvas drawing, need it, but virtualisation correctness under dynamic row
+heights and scroll-anchoring is a solved problem not worth re-solving).
 
 TanStack Virtual is responsible only for determining which logical rows need to
 be represented in the DOM.
@@ -375,28 +437,41 @@ therefore be defined in terms of the Tabular View's own schema, controller,
 and source interfaces rather than exposing TanStack objects to the rest of the
 application.
 
-If TanStack Table proves to duplicate rather than simplify the module's own
-controller/state logic, the implementation may retain TanStack Virtual while
-replacing TanStack Table with a small custom table model.
+The initial implementation should start without it: sorting is
+server-driven (less state for a headless table model to own) and the
+"no TanStack objects leak past this module's own interfaces" constraint
+above means a small custom column-tree model is already required regardless
+of whether TanStack Table sits behind it. Add it later only if the custom
+model's own bookkeeping (visibility/sizing/ordering) grows enough to
+duplicate what TanStack Table would already give for free -- see "Open
+questions".
 
 Component structure
 -------------------
 
-A likely initial Vue structure is::
+A likely initial Vue structure, following :doc:`module-plotter`'s and
+:doc:`module-3d-viewer`'s own layout::
 
-    tabular/
-    ├── TabularModule.vue
-    ├── TableView.vue
+    table/
+    ├── index.js              module registration (:doc:`ui-session`)
+    ├── TableViewport.vue     viewportComponent
     ├── TableHeader.vue
     ├── TableBody.vue
     ├── TableToolbar.vue
     ├── controller.js
     ├── schema.js
-    ├── selection.js
+    ├── store/
+    │     tableDesk.js        directly-loaded rows, keyed by resource
+    │                         (``store/keyedCollection.js``, mirroring
+    │                         ``modules/plotter/store/plotDesk.js``)
     └── sources/
           local.js
           random-access.js
           sequential.js
+
+No module-local ``selection.js`` -- selection lives in the shared
+``store/selection.js`` (see "Selection" above), registered alongside
+``tableDesk`` in ``index.js``'s ``contextStoreModules``.
 
 The exact decomposition is implementation-specific.
 
@@ -430,9 +505,76 @@ The first implementation should provide:
 5. row/cell selection;
 6. server-driven sorting;
 7. CSV export for local tables;
-8. a minimal hook for dispatching selected columns to the plotting module.
+8. a minimal hook for dispatching selected columns to the plotting module
+   (see "Plot dispatch" above -- a UI-level stub, not a working round trip,
+   until :doc:`module-plotter` has something to receive it).
 
 Sequential browsing and pivot-source creation should be supported by the
 architecture from the beginning, but may follow in subsequent implementation
 stages.
 
+Implementation status
+----------------------
+
+**Built** (``modules/table/``): local and random-access sources
+(``sources/local.js``/``sources/randomAccess.js``, the latter exercising
+:doc:`sources`'s "Row-window pagination" against
+``demo.table-random-access-showroom``), ``controller.js``'s row window/
+cache/loading/error state, TanStack Virtual-driven row rendering with
+scroll-triggered prefetch, hierarchical column headers and column
+visibility/resizing (``schema.js``), and row/cell selection via the shared
+``selection`` context module exactly as decided above -- including its
+facet-preset/selection-set persistence, which needed no table-specific
+code to work. The module is also a real sink *target* (``sinkInbox``,
+shared with ``modules/sink-view/``'s stub), fulfilling the "Selection view"
+use case.
+
+Server-driven sorting (both source kinds -- client-side for `local`,
+``sort-column``/``sort-direction`` row-window query params for
+`random-access`, a convention local to this adapter and its demo backend,
+not part of :doc:`sources`'s own row-window spec), CSV export for local
+tables (``export.js``, using a Blob-download helper -- ``client/src/
+download.js`` -- extracted from ``SessionPickerModal.vue``'s prior inline
+copy so both have one place to share it), and a real (not faked) plot-
+dispatch hook are built too. The last of these reuses "Selection sinks"'
+delivery mechanism (``store/sinkDispatch.js``'s newly-extracted
+``deliver_to_sink()``) with its own payload -- a column projection, not a
+selection -- via ``send_table_projection_to_sink()``;
+``ConnectScopeModal.vue`` gained an optional ``dispatchFn`` prop so a
+non-selection dispatch flavor can still reuse its "pick or create a
+target scene" UI. Since :doc:`module-plotter` declares no
+``receiveSinkMutation`` yet, using it surfaces the same "cannot receive"
+error any other not-yet-ready sink target gets -- confirmed working as
+intended, not a bug to fix.
+
+**Not built yet**: sequential sources (``sources/sequential.js`` is shape
+-only, per "Row access" above), pivot-source creation, and backend-assisted
+export.
+
+Open questions
+---------------
+
+**Stub.** Left here rather than answered:
+
+* Whether TanStack Table ever gets adopted, or the module's own custom
+  column-tree model (see "TanStack usage") turns out sufficient
+  indefinitely -- built and proven against real hierarchical demo data
+  (``demo.table-showroom``'s "Fitted"/"Truth" grouping) without it so far,
+  but still deliberately not a final decision.
+* The random-access row-window wire convention (see "Row access" above,
+  :doc:`sources`'s "Row-window pagination") now has one working
+  client+server round trip (``connection.js``'s ``fetch_row_window``,
+  ``demo.table-random-access-showroom``) proving the shape holds up end to
+  end -- but still only the one backend; a second, independent
+  implementation would be a stronger test of the convention than this
+  module's own demo source can be alone.
+* Backend-assisted export's exact contract (a capability flag exists in
+  "Table data source" above, but no endpoint shape is specified) is
+  unaddressed until a concrete remote source needs it.
+* Pivot-source creation's query-string spec (see "Pivoting") is named but
+  not designed.
+* The column-visibility toggle lists a leaf column by its own label only
+  (``TableViewport.vue``), which is ambiguous for same-named leaves under
+  different groups (e.g. this module's own "Fitted x" vs. "Truth x" both
+  show as plain "x") -- a real "picker" UI, if one gets built, should
+  disambiguate by group path; the current toggle is intentionally minimal.

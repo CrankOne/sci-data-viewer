@@ -32,7 +32,17 @@ const props = defineProps({
     instanceId: {type: String, default: null},      // for kind === 'instance'
     originContextId: {type: String, default: null}, // for kind === 'sink'
     dataType: {type: String, required: true},       // which contextual dataType's scenes to offer
-    currentContextId: {type: String, default: null}
+    currentContextId: {type: String, default: null},
+    // Optional, for kind === 'sink' only: overrides send_selection_to_sink
+    // (store/sinkDispatch.js) -- a caller whose dispatch isn't "the
+    // origin's current selection" (e.g. modules/table/'s plot column-
+    // projection dispatch) supplies its own (store, {originContextId,
+    // targetDataType}) => void here instead.
+    dispatchFn: {type: Function, default: null},
+    // Optional override for the default per-kind subject line below --
+    // dispatchFn callers typically want one, since "Send selection to:" is
+    // inaccurate for a non-selection payload.
+    label: {type: String, default: null}
 });
 const emit = defineEmits(['close']);
 const store = useStore();
@@ -43,6 +53,7 @@ const error = ref(null);
 const scenesForType = computed(() => store.getters['contexts/listForType'](props.dataType));
 
 const subjectLabel = computed(() => {
+    if(props.label) return props.label;
     if(props.kind === 'resource') return `Assign "${props.name}" to a scene:`;
     if(props.kind === 'sink') return 'Send selection to:';
     return 'Connect this subpanel to a scene:';
@@ -68,7 +79,7 @@ async function submit() {
                 targetDataType: props.dataType,
                 targetContextId: contextId
             });
-            send_selection_to_sink(store, {originContextId: props.originContextId, targetDataType: props.dataType});
+            (props.dispatchFn ?? send_selection_to_sink)(store, {originContextId: props.originContextId, targetDataType: props.dataType});
         } else {
             store.commit('widgetInstances/set_instance_context', {instanceId: props.instanceId, contextId});
         }

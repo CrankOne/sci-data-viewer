@@ -68,6 +68,7 @@ import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { activate_session } from '@/sessionActivation';
 import { export_session, import_session } from '@/sessionExport';
+import { download_blob } from '@/download';
 
 const props = defineProps({
     // 'initial': fresh tab, blocking, nothing hydrated yet -- picking
@@ -141,12 +142,7 @@ function export_to_file(id, name) {
     try {
         const bundle = export_session(store, id);
         const blob = new Blob([JSON.stringify(bundle, null, 2)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${(name || 'session').replace(/[^\w.-]+/g, '_')}.viewer-session.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        download_blob(blob, `${(name || 'session').replace(/[^\w.-]+/g, '_')}.viewer-session.json`);
     } catch(e) {
         error.value = `Could not export "${name}": ${e.message}`;
     }

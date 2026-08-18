@@ -6,11 +6,15 @@
       <p>
         <label for="add-content-kind">Add</label>
         <select id="add-content-kind" v-model="addKind">
-          <option v-if="contextualModule" value="module">New viewport</option>
+          <option
+            v-for="m in contextualModules"
+            :key="`module:${m.dataType}`"
+            :value="`module:${m.dataType}`"
+          >New {{ m.label }} viewport</option>
           <option v-for="t in addableSubpanelTypes" :key="t.id" :value="t.id">{{ t.title }}</option>
         </select>
       </p>
-      <p v-if="addKindIsContextual">
+      <p v-if="addKindDataType">
         <label for="add-content-scene">Scene</label>
         <select id="add-content-scene" v-model="addContextId">
           <option value="">New scene&hellip;</option>
@@ -27,10 +31,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useStore } from 'vuex';
 import { all_side_panel_items } from '@/modules/panelItems';
-import { all_modules } from '@/modules/registry';
+import { all_modules, get_module } from '@/modules/registry';
 import { create_scene_with_viewport } from '@/sceneCreation';
 
 const props = defineProps({
@@ -40,24 +44,42 @@ const emit = defineEmits(['close']);
 
 const store = useStore();
 
-// v1 supports a single contextual module type (today: geo3d) offering a
-// viewport; a future second one would need a type picker here too.
-const contextualModule = all_modules().find(mod => mod.contextual) ?? null;
+// Every contextual module offers a "new viewport" option, encoded as
+// `module:<dataType>` in addKind below -- namespaced under a literal
+// "module:" prefix so it can't collide with a subpanel id, which already
+// uses a bare colon of its own (modules/panelItems.js's
+// "<dataType>:<section-id>" convention, see addKindDataType below).
+const contextualModules = computed(() => all_modules().filter(mod => mod.contextual));
 const addableSubpanelTypes = computed(() => all_side_panel_items());
 
-const addKind = ref(contextualModule ? 'module' : (addableSubpanelTypes.value[0]?.id ?? ''));
+const addKind = ref(
+    contextualModules.value[0]
+        ? `module:${contextualModules.value[0].dataType}`
+        : (addableSubpanelTypes.value[0]?.id ?? '')
+);
 const addContextId = ref(''); // '' means "create a new scene"
 const error = ref(null);
 
-const addKindIsContextual = computed(() => {
-    if(!contextualModule) return false;
-    if(addKind.value === 'module') return true;
-    return (contextualModule.sidePanelSections ?? []).some(section => section.id === addKind.value);
+// A stale scene choice from a previously-selected, different dataType
+// would otherwise linger and not match any option in the new list.
+watch(addKind, () => { addContextId.value = ''; });
+
+// Resolves which dataType (if any) `addKind` needs a scene for -- either
+// the explicitly chosen contextual module ("module:<dataType>"), or the
+// owning module of a chosen subpanel, recovered from its id's
+// "<dataType>:<section-id>" prefix -- only if that prefix actually names a
+// registered *contextual* module (a "core:*" subpanel's prefix, or a
+// future non-contextual module's, isn't).
+const addKindDataType = computed(() => {
+    if(addKind.value.startsWith('module:'))
+        return addKind.value.slice('module:'.length);
+    const [prefix] = addKind.value.split(':');
+    return get_module(prefix)?.contextual ? prefix : null;
 });
 
 const contextsForAddKind = computed(() => {
-    if(!contextualModule) return [];
-    return store.getters['contexts/listForType'](contextualModule.dataType);
+    if(!addKindDataType.value) return [];
+    return store.getters['contexts/listForType'](addKindDataType.value);
 });
 
 async function submit_add() {
@@ -67,7 +89,8 @@ async function submit_add() {
     try {
         let contextId = addContextId.value || null;
 
-        if(addKind.value === 'module') {
+        if(addKind.value.startsWith('module:')) {
+            const dataType = addKindDataType.value;
             // A brand-new viewport goes straight into the panel that
             // opened this modal; a "New scene" choice here places its
             // viewport there too (targetPanelId), rather than
@@ -75,13 +98,13 @@ async function submit_add() {
             // this empty panel is *for*.
             if(!contextId) {
                 const created = await create_scene_with_viewport(store, {
-                    dataType: contextualModule.dataType,
+                    dataType,
                     targetPanelId: props.toPanelId
                 });
                 contextId = created.contextId;
             } else {
                 const instanceId = await store.dispatch('widgetInstances/create_instance', {
-                    itemType: `${contextualModule.dataType}:module`,
+                    itemType: `${dataType}:module`,
                     contextId
                 });
                 store.commit('cameras/register_viewport', {viewportID: instanceId});
@@ -91,8 +114,8 @@ async function submit_add() {
             // The subpanel itself goes into this panel; a "New scene"
             // choice has no natural spot for the new *viewport* here, so
             // it's auto-placed via sceneCreation's wrap-the-tree fallback.
-            if(addKindIsContextual.value && !contextId) {
-                const created = await create_scene_with_viewport(store, {dataType: contextualModule.dataType});
+            if(addKindDataType.value && !contextId) {
+                const created = await create_scene_with_viewport(store, {dataType: addKindDataType.value});
                 contextId = created.contextId;
             }
             const instanceId = await store.dispatch('widgetInstances/create_instance', {

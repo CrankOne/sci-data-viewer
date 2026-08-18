@@ -519,11 +519,12 @@ snapshot builder is deliberately geo3d-specific (it reads the
 ``destruct_geo_id``, :doc:`module-3d-viewer`'s existing ``geoID@srcID``
 composite-id convention) -- a second origin type needs its own snapshot
 builder alongside it, not a change to ``contexts.js`` or the registry
-contract. ``modules/sink-view/`` is the one real sink *target*: a
-deliberately minimal, dev-only stub (``dataType: 'sink-view'``) that lists
-whatever lands in its inbox as raw JSON, existing purely to prove the
-mechanism -- not a step toward the real Tabular View module
-(:doc:`module-table`), which doesn't exist in this codebase yet.
+contract. ``modules/sink-view/`` remains a deliberately minimal, dev-only stub
+(``dataType: 'sink-view'``) that lists whatever lands in its inbox as raw
+JSON, existing purely to prove the mechanism in isolation --
+:doc:`module-table`'s real Tabular View module now exists alongside it and
+is the actual, styled sink *target* (``modules/table/``, sharing the same
+``store/sinkInbox.js`` factory under its own context).
 
 **Deliberately not done here** -- open for later, not overlooked:
 
@@ -547,12 +548,20 @@ mechanism -- not a step toward the real Tabular View module
 Known limitations
 -------------------
 
-* ``shareLink.js`` and ``AppControls.vue``'s "add scene" both assume a
-  single contextual module type at a time; a second needs a type picker and
-  a generalized share hook (above).
+* ``shareLink.js`` still assumes a single contextual module type (geo3d);
+  a second needs a generalized share hook (above) -- unlike the next point,
+  not a quick fix, since it needs a per-module snapshot builder, not just a
+  picker.
+* ``AppControls.vue``'s "add scene" (``all_modules().find(mod =>
+  mod.contextual)``) and ``AddContentModal.vue``'s "New viewport" kind
+  (same pattern) both silently offer only the first-registered contextual
+  module -- true today with two (geo3d, plot) and about to be more visibly
+  wrong with a third (:doc:`module-table`). Cheap fix: a type picker over
+  ``all_modules().filter(m => m.contextual)`` in both, mirroring the
+  "Scene" picker already next to it in each modal.
 * Default-source seeding issues every source's add/assign/load
   concurrently; two *different* contextual types both marked
   ``enabledByDefault`` could theoretically race for the same empty panel.
-  Not observable today (one contextual type registered) and falls back
-  safely (wrap-the-tree) if lost, but worth resolving before a second
-  contextual module ships.
+  Not observed in practice (no two contextual types have both shipped with
+  ``enabledByDefault: true`` sources at once yet), and falls back safely
+  (wrap-the-tree) if lost -- worth resolving before that changes.
