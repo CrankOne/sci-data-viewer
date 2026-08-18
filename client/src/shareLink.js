@@ -16,11 +16,12 @@
 // opening user's own environment decides what's available, this never
 // tries to create sources or scenes to make one fit.
 //
-// Only geo3d's (view3D) selection state is understood here -- there's only
-// one contextual module type today. A second one would need this
-// generalized (e.g. via a per-module "share" hook next to payloadMutation/
-// payload in modules/registry.js) rather than the hardcoded `view3D_${id}`
-// namespace below.
+// Only geo3d's own selection state (store/selection.js's generic
+// `selection_${id}` context module -- doc/ui-session.rst's "Selection
+// model") is understood here -- there's only one contextual module type
+// today. A second one would need this generalized (e.g. via a per-module
+// "share" hook next to payloadMutation/payload in modules/registry.js)
+// rather than the hardcoded `selection_${id}` namespace below.
 import { full_geo_id, destruct_geo_id } from './modules/three-view/utils';
 
 const FORMAT = 'viewer-share';
@@ -78,16 +79,16 @@ export function build_share_payload(store) {
     const sources = Object.values(store.state.connection.resources)
         .filter(is_shareable_resource)
         .map(resource => {
-            const contextState = store.state[`view3D_${resource.contextId}`];
+            const selectionState = store.state[`selection_${resource.contextId}`];
 
             const geoItemIDs = [];
             const markers = {};
-            if(contextState) {
-                for(const id of contextState.selectedGeoItemIDs) {
+            if(selectionState) {
+                for(const id of selectionState.selectedItemIDs) {
                     const [srcID, geoID] = destruct_geo_id(id);
                     if(srcID === resource.name) geoItemIDs.push(geoID);
                 }
-                for(const [id, indices] of contextState.selectedMarkers) {
+                for(const [id, indices] of selectionState.selectedSubItems) {
                     const [srcID, geoID] = destruct_geo_id(id);
                     if(srcID === resource.name && indices.size) markers[geoID] = [...indices].sort((a, b) => a - b);
                 }
@@ -137,12 +138,14 @@ async function apply_share_source_entry(store, entry) {
         return;
     }
 
-    const ns = `view3D_${resource.contextId}`;
+    const ns = `selection_${resource.contextId}`;
     if(entry.geoItemIDs?.length) {
-        store.commit(`${ns}/select_geo_items`, entry.geoItemIDs.map(geoID => full_geo_id(resource.name, geoID)));
+        store.commit(`${ns}/select_items`, entry.geoItemIDs.map(geoID => full_geo_id(resource.name, geoID)));
     }
     for(const [geoID, indices] of Object.entries(entry.markers ?? {})) {
-        if(indices?.length) store.commit(`${ns}/select_markers`, {geoID: full_geo_id(resource.name, geoID), indices});
+        if(indices?.length) {
+            store.commit(`${ns}/select_sub_items`, {itemID: full_geo_id(resource.name, geoID), indices});
+        }
     }
 }
 

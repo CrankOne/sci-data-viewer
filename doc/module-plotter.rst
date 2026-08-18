@@ -143,6 +143,14 @@ or programmatically-generated strokes and dithering.
 **Raster picture** (bitmap). See "Styling" below for a note on appearance
 limits anticipated for especially demanding raster content.
 
+**TODO**: :doc:`module-3d-viewer` implements an independent point-marker
+system of its own (``modules/three-view/markers.js``, WebGL sprite
+textures) that overlaps this module's shape vocabulary -- both call a cross
+marker ``xCross``/``x-cross`` -- without sharing any code with this module's
+directly-drawn Canvas2D paths (``modules/plotter/draw.js``). See that
+module's Markers section for the open question of whether shape
+definitions should be unified across the two rendering backends.
+
 A **bars marker** (a complex marker): from a simple line segment denoting an
 error bar, to a complex box with notch and whiskers plot, oriented vertically
 or horizontally.
@@ -242,22 +250,32 @@ Open questions
 
 **Stub.** Left here rather than answered:
 
-* Whether "a source updates a scope, a scope fans out to N dependent views"
-  should become one shared abstraction across contextual modules -- each
-  module (this one's desk/plot, :doc:`module-3d-viewer`'s scene/viewport, and
-  any future module alike) currently implements its own copy of the same
-  generic pattern. Still open -- unrelated to, and not resolved by, the
-  next point.
-* **Partially answered** -- :doc:`ui-session`'s "Selection sinks" now
-  provides the generic cross-module *dispatch* mechanism (a context's
-  ``sinkTargets`` pointer, manual one-shot send), so once this module has
-  its own selection, wiring dispatch *from* it is "write one snapshot
-  builder alongside geo3d's" rather than new architecture. But the plotter
-  still has no selection model of its own to dispatch *from* -- that part
-  of this bullet remains exactly as open as before: likely nearest-object
-  click selection, persisting until changed, independent of hover, adapted
-  for 2D specifics (e.g. what "shift+drag: data selection" actually
-  selects).
+* **Answered** -- "a source updates a scope, a scope fans out to N
+  dependent views" is already one shared abstraction: any contextual module
+  goes through :doc:`ui-session`'s ``contexts/create_context`` and
+  ``sceneCreation.js``'s ``create_scene_with_viewport`` (dataType-
+  parametrized despite the name), same as :doc:`module-3d-viewer`. Only the
+  vocabulary differs ("desk"/"plot" here, "scene"/"viewport" there), and
+  that's deliberate (see "Desks" above). What actually remained open here
+  was one level in -- the *content* of a context's own state -- covered by
+  the next point.
+* **Answered (shape, and now built), open (this module's UX)** --
+  :doc:`ui-session`'s "Selection sinks" provides the generic cross-module
+  *dispatch* mechanism (a context's ``sinkTargets`` pointer, manual one-shot
+  send); :doc:`ui-session`'s "Selection model" decides -- and, as of the
+  container itself, now implements -- the generic *shape* this module's own
+  selection state would take: a ``selection`` context module
+  (``store/selection.js``) three-view already registers itself as the first
+  consumer of, dataType-neutral fields, algebra in
+  ``store/selectionAlgebra.js``. This module would only need to register the
+  same ``contextStoreModules.selection`` entry to get it -- no new store
+  plumbing. Per-primitive-type sub-item-selection gating is not built yet
+  (still "Selection model"'s own open item), nor is this module's own UX on
+  top of the shape: likely nearest-object click selection, persisting until
+  changed, independent of hover, adapted for 2D specifics (e.g. what
+  "shift+drag: data selection" actually selects, and which of this module's
+  primitive types -- almost certainly ``markers``, unlikely paths/raster --
+  declare themselves open to sub-item selection at all).
 * The axis right-click menu (linear/log2/log10, zoom out) is a plot-local,
   component-level UI element; its exact trigger (including any modifier-key
   semantics) and contents are an implementation detail expected to change,

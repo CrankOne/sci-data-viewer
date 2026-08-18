@@ -1,85 +1,29 @@
-import {
-    normalize_selection_asset,
-    serialize_selection,
-    union_selections,
-    subtract_selections,
-    intersect_selections
-} from "./selectionSets.js";
-
-//                  * * *   * * *   * * *
-// Helpers (not state getters -- not computed or cached by themselves)
-
-const DEFAULT_FACET_PRESETS = {
-    "Source and transf.groups": {
-        facets: [
-            "source",
-            "transf.group"
-        ]
-    }
-    // ... other default grouping?
-};
-
-function normalize_ids(ids) {
-    if(ids === undefined || ids === null) return [];
-    return Array.isArray(ids) ? ids : [ids];
-}
-
-function clone_presets(presets) {
-    return Object.fromEntries(
-        Object.entries(presets).map(([name, preset]) => [
-            name,
-            {facets: [...(preset.facets ?? [])]}
-        ])
-    );
-}
-
-function current_selection(state) {
-    return {
-        geoItemIDs: state.selectedGeoItemIDs,
-        markers: state.selectedMarkers
-    };
-}
-
-function assign_selection(state, selection) {
-    state.selectedGeoItemIDs = new Set(selection.geoItemIDs);
-    state.selectedMarkers = new Map(
-        [...selection.markers].map(([geoID, indices]) => [geoID, new Set(indices)])
-    );
-}
-
-//                  * * *   * * *   * * *
 // Vuex state module -- a factory, not a singleton object, since one
 // instance is registered per context (see store/modules/contexts.js).
+//
+// Holds this module's own domain-specific state only: the loaded geometry
+// cache and marker-level (sub-item) hover, which stays here since it has
+// only one origin (scene raycast) and doesn't fit the generic "several
+// origins, unioned" hover shape. Whole-item hover, the
+// highlightAllUnderCursor behavior toggle, selection, hidden items, facet
+// presets, and selection sets used to live here too; they've moved to the
+// generic `selection` context module (store/selection.js), registered
+// alongside this one (modules/three-view/index.js) -- see doc/ui-session
+// .rst's "Selection model" for what moved and why.
 export function make_view3D_module() {
     return {
     namespaced: true,
     state: () => ({
         geoDataBySource: {},
 
-        // Behavior controls
+        // Behavior control -- specific to how a hidden-but-selected item's
+        // overlay renders in this module's own silhouette pass, unlike
+        // highlightAllUnderCursor (moved to the generic `selection` module,
+        // above) which governs pointer/hover semantics any graphical
+        // module shares.
         highlightHiddenSelection: false,
-        // When on, hovering the scene highlights (and shift+click selects)
-        // every geo item under the cursor at once (the historical behavior).
-        // When off, only one item at a time is highlighted -- cycled via the
-        // scroll wheel, which is otherwise reserved for camera zoom -- see
-        // ThreeView.update_pointer()/cycle_hover() and ThreeViewport.vue's
-        // wheel handler.
-        highlightAllUnderCursor: true,
 
-        //highlightedGeoItemIDs: new Set(),  // highlighted item IDs
-        treeHoveredGeoItemIDs: new Set(),  // hovered in tree vwr
-        sceneHoveredGeoItemIDs: new Set(),  // hovered on scene
-
-        highlightedMarkers: new Map(), // geoID -> Set(point indeces)
-        selectedGeoItemIDs: new Set(),  // selected item IDs
-        selectedMarkers: new Map(), // geoID -> Set(point indeces)
-        hiddenGeoItemIDs: new Set(),  // ... TODO?
-
-        facetPresets: clone_presets(DEFAULT_FACET_PRESETS),
-        activeFacetPresetName: "Source and transf.groups",
-
-        selectionSets: {},
-        activeSelectionSetName: null
+        highlightedMarkers: new Map() // geoID -> Set(point indeces)
     }),
     mutations: {
         // This mutation gets called from within the API's `add_data_source()'
@@ -112,28 +56,8 @@ export function make_view3D_module() {
             state.highlightHiddenSelection = value;
         },
 
-        toggle_highlight_all_under_cursor(state, value) {
-            state.highlightAllUnderCursor = value;
-        },
-
         //
-        // Highlighting {{{
-
-        set_tree_hover_geo_items(state, ids) {
-            state.treeHoveredGeoItemIDs = new Set(normalize_ids(ids));
-        },
-
-        clear_tree_hover_geo_items(state) {
-            state.treeHoveredGeoItemIDs = new Set();
-        },
-
-        set_scene_hover_geo_items(state, ids) {
-            state.sceneHoveredGeoItemIDs = new Set(normalize_ids(ids));
-        },
-
-        clear_scene_hover_geo_items(state) {
-            state.sceneHoveredGeoItemIDs = new Set();
-        },
+        // Marker (sub-item) hover {{{
 
         highlight_markers(state, {geoID, indices}) {
             const next = new Map(state.highlightedMarkers);
@@ -152,192 +76,6 @@ export function make_view3D_module() {
             if(geoID === null) next.clear();
             else next.delete(geoID);
             state.highlightedMarkers = next;
-        },
-        // }}}
-
-        //
-        // Selection (basic) {{{
-
-        select_geo_items(state, ids) {
-            const next = new Set(state.selectedGeoItemIDs);
-            if(typeof ids === "string") {
-                next.add(ids);
-            } else {
-                for(const id of ids) next.add(id);
-            }
-            state.selectedGeoItemIDs = next;
-        },
-
-        unselect_geo_items(state, ids) {
-            const next = new Set(state.selectedGeoItemIDs);
-            if(typeof ids === "string") {
-                next.delete(ids);
-            } else {
-                for(const id of ids) next.delete(id);
-            }
-            state.selectedGeoItemIDs = next;
-        },
-
-        select_markers(state, {geoID, indices}) {
-            const next = new Map(state.selectedMarkers);
-            next.set(geoID, new Set(indices));
-            state.selectedMarkers = next;
-        },
-
-        clear_selected_markers(state, geoID = null) {
-            const next = new Map(state.selectedMarkers);
-            if(geoID === null) next.clear();
-            else next.delete(geoID);
-            state.selectedMarkers = next;
-        },
-
-        clear_geo_items_selection(state) {
-            state.selectedGeoItemIDs = new Set();
-            state.selectedMarkers = new Map();
-        },
-        // }}}
-
-        //
-        // Visibility {{{
-
-        set_geo_items_visibility(state, {ids, visible}) {
-            const next = new Set(state.hiddenGeoItemIDs);
-            for(const id of normalize_ids(ids)) {
-                if(visible) next.delete(id);
-                else next.add(id);
-            }
-            state.hiddenGeoItemIDs = next;
-        },
-        // }}}
-
-        //
-        // Facets  {{{
-
-        initialize_facet_presets(state, {presets, activePresetName}) {
-            const normalized = clone_presets(
-                presets && Object.keys(presets).length ? presets : DEFAULT_FACET_PRESETS
-            );
-            state.facetPresets = normalized;
-            if(activePresetName && Object.hasOwn(normalized, activePresetName))
-                state.activeFacetPresetName = activePresetName;
-            else
-                state.activeFacetPresetName = Object.keys(normalized)[0];
-        },
-
-        activate_facet_preset(state, name) {
-            if(Object.hasOwn(state.facetPresets, name))
-                state.activeFacetPresetName = name;
-        },
-
-        set_active_facet_preset_facets(state, facets) {
-            const name = state.activeFacetPresetName;
-            if(!name) return;
-            state.facetPresets = {
-                ...state.facetPresets,
-                [name]: {facets: [...new Set(facets)]}
-            };
-        },
-
-        save_facet_preset(state, {name, facets}) {
-            const trimmedName = name.trim();
-            if(!trimmedName) return;
-
-            state.facetPresets = {
-                ...state.facetPresets,
-                [trimmedName]: {facets: [...new Set(facets)]}
-            };
-
-            state.activeFacetPresetName = trimmedName;
-        },
-
-        delete_facet_preset(state, name) {
-            const names = Object.keys(state.facetPresets);
-            if(names.length <= 1 || !Object.hasOwn(state.facetPresets, name)) return;
-
-            const next = {...state.facetPresets};
-            delete next[name];
-            state.facetPresets = next;
-
-            if(state.activeFacetPresetName === name)
-                state.activeFacetPresetName = Object.keys(next)[0];
-        },
-        // }}}
-
-        //
-        // Selection sets {{{
-        initialize_selection_sets(state, {sets, activeSetName}) {
-            state.selectionSets = sets && typeof sets === "object" ? structuredClone(sets) : {};
-            state.activeSelectionSetName =
-                activeSetName && Object.hasOwn(state.selectionSets, activeSetName)
-                    ? activeSetName
-                    : null;
-        },
-
-        activate_selection_set(state, name) {
-            if(name === null || name === "") {
-                state.activeSelectionSetName = null;
-                return;
-            }
-            if(Object.hasOwn(state.selectionSets, name))
-                state.activeSelectionSetName = name;
-        },
-
-        save_selection_set(state, name) {
-            const trimmedName = name.trim();
-            if(!trimmedName) return;
-            state.selectionSets = {
-                ...state.selectionSets,
-                [trimmedName]: serialize_selection(current_selection(state))
-            };
-            state.activeSelectionSetName = trimmedName;
-        },
-
-        update_active_selection_set(state) {
-            const name = state.activeSelectionSetName;
-            if(!name) return;
-            state.selectionSets = {
-                ...state.selectionSets,
-                [name]: serialize_selection(current_selection(state))
-            };
-        },
-
-        delete_selection_set(state, name) {
-            if(!Object.hasOwn(state.selectionSets, name)) return;
-            const next = {...state.selectionSets};
-            delete next[name];
-            state.selectionSets = next;
-
-            if(state.activeSelectionSetName === name)
-                state.activeSelectionSetName = null;
-        },
-
-        apply_selection_set(state, {name, operation}) {
-            const serialized = state.selectionSets[name];
-            if(!serialized) return;
-            const current = current_selection(state);
-            const saved = normalize_selection_asset(serialized);
-            let result;
-            switch(operation) {
-                case "replace":
-                    result = saved;
-                    break;
-                case "union":
-                    result = union_selections(current, saved);
-                    break;
-                case "subtract-saved":
-                    result = subtract_selections(current, saved);
-                    break;
-                case "intersection":
-                    result = intersect_selections(current, saved);
-                    break;
-                case "saved-minus-current":
-                    result = subtract_selections(saved, current);
-                    break;
-                default:
-                    console.warn(`Unknown selection-set operation "${operation}"`);
-                    return;
-            }
-            assign_selection(state, result);
         }
         // }}}
     },  // mutations
@@ -351,37 +89,8 @@ export function make_view3D_module() {
         ),
 
         highlightHiddenSelection: state => state.highlightHiddenSelection,
-        highlightAllUnderCursor: state => state.highlightAllUnderCursor,
 
-        treeHoveredGeoItemIDs: state => state.treeHoveredGeoItemIDs,
-
-        sceneHoveredGeoItemIDs: state => state.sceneHoveredGeoItemIDs,
-
-        highlightedGeoItemIDs: state =>
-            new Set([...state.treeHoveredGeoItemIDs, ...state.sceneHoveredGeoItemIDs]),
-
-        highlightedMarkers: state => state.highlightedMarkers,
-
-        selectedGeoItemIDs: state => state.selectedGeoItemIDs,
-        selectedMarkers: state => state.selectedMarkers,
-
-        hiddenGeoItemIDs: state => state.hiddenGeoItemIDs,
-        facetPresets: state => state.facetPresets,
-
-        activeFacetPresetName: state => state.activeFacetPresetName,
-
-        activeFacetPreset: state => state.facetPresets[state.activeFacetPresetName] ?? {facets: []},
-
-        //
-        // Selection sets
-        selectionSets: state => state.selectionSets,
-        activeSelectionSetName: state => state.activeSelectionSetName,
-
-        activeSelectionSet: state => {
-            const name = state.activeSelectionSetName;
-            return name ? state.selectionSets[name] ?? null : null;
-        }
-
+        highlightedMarkers: state => state.highlightedMarkers
     }  // getters
     };  // view3D module
 }

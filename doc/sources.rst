@@ -54,7 +54,8 @@ Descriptor resource
 The descriptor document above (containing ``data-url``, ``sequential``,
 ``addressable`` and any additional properties) is itself served from a
 source-specific endpoint, external to this specification — for example, an
-entry in an application's plugin or catalog manifest. That endpoint's
+entry in an application's plugin or catalog manifest (see :doc:`plugins` for
+how a server-side plugin contributes such an entry). That endpoint's
 response body is the descriptor; it is distinct from the principal resource
 described below.
 
@@ -87,6 +88,24 @@ data have changed.
 
 Sequential capability
 ---------------------
+
+.. note::
+   Terminology clash: "session" here names a per-traversal iterator/cursor
+   over one data source -- unrelated to :doc:`ui-session`'s "session" (a
+   user's whole persisted workspace: layout, sources, saved state). The two
+   share a word purely by historical accident; nothing said about
+   "session" in this document carries over any of that document's meaning,
+   or vice versa.
+
+   **TODO**: rename this document's "session" -- and its client-side
+   mirror, ``connection.js``'s ``sessionURL``/``sessionStep``/
+   ``sessionFinished``/``sessionLastData`` state and
+   ``create_resource_session``/``advance_resource_session``/
+   ``release_resource_session`` actions, plus the wire paths themselves
+   (``/resource/sessions``, ``/resource/sessions/{session}``) -- to
+   "iterator" or "cursor" throughout, to remove the clash. Not done here:
+   it's a breaking change to both the wire contract and every call site,
+   better done as one deliberate pass than piecemeal.
 
 A sequential source provides forward traversal through explicit session
 resources.

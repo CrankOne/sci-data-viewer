@@ -43,6 +43,16 @@ export function make_geometry(geoType, materials, geoDef, userData, context = {}
         base.userData[udKey] = udVal;
     }
     base.userData.pickable = (geoDef._pickable !== false);
+    // Type-level, not instance-level: whether this geometry type's
+    // individual sub-elements (e.g. PointMarkers' points) are themselves
+    // pickable, distinct from and subordinate to `pickable` above -- an
+    // item with `_pickable: false` has no pickable sub-elements either,
+    // regardless of this flag (doc/ui-session.rst's "Selection model").
+    // Declared once by the type module (e.g. geometry/pointMarkers.js),
+    // never by a data source's own per-item `_pickable`-style property --
+    // whether sub-elements can be individually selected is a property of
+    // the drawable *type*, not something a payload opts into per instance.
+    base.userData.subItemPickable = !!definition.subItemPickable;
     base.userData.role = 'base';
 
     group.add(base);

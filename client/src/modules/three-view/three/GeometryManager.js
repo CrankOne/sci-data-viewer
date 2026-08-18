@@ -111,6 +111,11 @@ class GeometryManager {
         this._vuexStore = store;
         this._contextId = contextId;
         this._view3D = `view3D_${contextId}`;
+        // Generic per-context selection state (doc/ui-session.rst's
+        // "Selection model", store/selection.js) -- separate from _view3D
+        // above, which only holds geo3d's own geometry cache and
+        // raycast-hover behavior.
+        this._selection = `selection_${contextId}`;
         this._transfGroups = `transfGroups_${contextId}`;
         this._materialManager = materialManager;
         this._render = render;
@@ -468,14 +473,15 @@ class GeometryManager {
 
     sync_hidden_items_highlight() {  // {{{
         const view3D = this._vuexStore.state[this._view3D];
+        const selection = this._vuexStore.state[this._selection];
         const hiddenAreVisible = view3D.highlightHiddenSelection;
         // iterate over all threeJS geometry instances that have
         // userData.handles.base
         this.for_each_geometry_entry((srcID, geoID, item) => {
             if(item.threeJSGeo.userData.handles.selected) {
                 const fullGeoID = Utils.full_geo_id(srcID, geoID);
-                if(view3D.selectedGeoItemIDs.has(fullGeoID)) {
-                    if(view3D.hiddenGeoItemIDs.has(fullGeoID)) {
+                if(selection.selectedItemIDs.has(fullGeoID)) {
+                    if(selection.hiddenItemIDs.has(fullGeoID)) {
                         item.threeJSGeo.userData.handles.selected.visible = hiddenAreVisible;
                     }
                 }
@@ -502,7 +508,7 @@ class GeometryManager {
     sync_hidden_items() {  // {{{
         this.for_each_geometry_entry((srcID, geoID, item) => {
             const itemID = Utils.full_geo_id(srcID, geoID);
-            if(this._vuexStore.state[this._view3D].hiddenGeoItemIDs.has(itemID))
+            if(this._vuexStore.state[this._selection].hiddenItemIDs.has(itemID))
                 item.threeJSGeo.userData.handles.base.visible = false;
             else
                 item.threeJSGeo.userData.handles.base.visible = true;
@@ -524,7 +530,7 @@ class GeometryManager {
     // Expands `box' to enclose the base representation of every item that
     // isn't currently hidden. Returns `box' for chaining.
     expand_box_by_visible_items(box) {  // {{{
-        const hiddenIDs = this._vuexStore.state[this._view3D].hiddenGeoItemIDs;
+        const hiddenIDs = this._vuexStore.state[this._selection].hiddenItemIDs;
         this.for_each_geometry_entry((srcID, geoID, item) => {
             const itemID = Utils.full_geo_id(srcID, geoID);
             if(hiddenIDs.has(itemID)) return;

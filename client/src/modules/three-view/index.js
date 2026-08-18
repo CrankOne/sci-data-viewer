@@ -14,6 +14,7 @@ import { make_view3D_module } from './store/view3D';
 import cameras from './store/cameras';
 import { make_transf_groups_module } from './store/transfGroups';
 import { install_camera_preset_persistence } from './store/cameraPresetPersistence';
+import { make_selection_module } from '@/store/selection';
 
 register_module({
     dataType: 'geo3d',
@@ -32,14 +33,19 @@ register_module({
     ],
     // `cameras` is a single statically-registered module whose internal
     // `viewports` dict is keyed dynamically by widget-instance id (see
-    // store/cameras.js); `view3D`/`transfGroups` are contextual -- see below
-    // -- and registered dynamically per context instead, by
-    // store/modules/contexts.js.
+    // store/cameras.js); `view3D`/`transfGroups`/`selection` are contextual
+    // -- see below -- and registered dynamically per context instead, by
+    // store/modules/contexts.js. `selection` (store/selection.js) is the
+    // generic item-selection/facet-preset/selection-set state any
+    // contextual module may register under that fixed name (doc/ui-session
+    // .rst's "Selection model"); `view3D` keeps only what's geo3d-specific
+    // (loaded geometry, raycast-hover behavior).
     storeModules: {cameras},
     contextual: true,
     contextStoreModules: {
         view3D: make_view3D_module,
-        transfGroups: make_transf_groups_module
+        transfGroups: make_transf_groups_module,
+        selection: make_selection_module
     },
     // Same {mutation, payload} shape connection.js's RESOURCE_TYPE_HANDLERS
     // used to hardcode -- now owned by the module instead of by core.

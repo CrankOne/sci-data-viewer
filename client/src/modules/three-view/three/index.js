@@ -54,6 +54,11 @@ class ThreeView {
     _bind_watchers() {  // {{{
         // NOTE: the `cameras/' store subscription lives inside CameraManager.
         const view3D = this._view3D;
+        // Generic per-context selection state (doc/ui-session.rst's
+        // "Selection model", store/selection.js) -- separate from view3D
+        // above, which only holds geo3d's own geometry cache and
+        // raycast-hover behavior.
+        const selection = this._selection;
 
         // Geometry update watcher
         //  This function is triggered when geometry data indexed by source
@@ -63,14 +68,14 @@ class ThreeView {
              );
 
         // Highlighted items updater
-        watch( () => this._vuexStore.getters[`${view3D}/highlightedGeoItemIDs`]
+        watch( () => this._vuexStore.getters[`${selection}/highlightedItemIDs`]
              , (hlItems, hlItemsOld) => {
                    this._geometryManager.update_highlighted_graphics(hlItems, hlItemsOld);
                    this._render();
                }
              );
         // Selected items updater
-        watch( () => this._vuexStore.getters[`${view3D}/selectedGeoItemIDs`]
+        watch( () => this._vuexStore.getters[`${selection}/selectedItemIDs`]
              , (hlItems, hlItemsOld) => {
                    this._geometryManager.update_selected_graphics(hlItems, hlItemsOld);
                    this._render();
@@ -86,19 +91,19 @@ class ThreeView {
         // Selected markers -- unlike highlighted markers (whose `.visible'
         // is owned by the whole-item highlight watcher above, since
         // hovering a marker always also scene-hovers its containing item),
-        // a marker-only selection never touches `selectedGeoItemIDs' (see
+        // a marker-only selection never touches `selectedItemIDs' (see
         // toggle_hover_selection()), so update_selected_markers owns
         // `.visible' for the `selected' handle directly -- passing both
         // the new and old maps so it can tell which items' selected
         // overlays to turn back off.
-        watch( () => this._vuexStore.getters[`${view3D}/selectedMarkers`]
+        watch( () => this._vuexStore.getters[`${selection}/selectedSubItems`]
              , (selMarkers, selMarkersOld) => {
                    this._geometryManager.update_selected_markers(selMarkers, selMarkersOld);
                    this._render();
                }
              );
         // Visibility
-        watch( () => this._vuexStore.getters[`${view3D}/hiddenGeoItemIDs`]
+        watch( () => this._vuexStore.getters[`${selection}/hiddenItemIDs`]
              , () => {
                    this._geometryManager.sync_hidden_items();
                    this._render();
@@ -117,6 +122,9 @@ class ThreeView {
         this._viewportID = viewportID;
         this._contextId = contextId;
         this._view3D = `view3D_${contextId}`;
+        // Generic per-context selection state (doc/ui-session.rst's
+        // "Selection model", store/selection.js).
+        this._selection = `selection_${contextId}`;
         this._vuexStore = store;
         this._container = element;
         // create raycaster and pointer vec
@@ -223,7 +231,7 @@ class ThreeView {
         }
         const items2highlight = intersects.filter(item => item.object.userData?.pickable);
         const markers2highlight = intersects.filter(
-            item => item.object.userData?.pickable && item.object.userData?.isPointCloud
+            item => item.object.userData?.pickable && item.object.userData?.subItemPickable
         );
         let hasSome = false;
         if(items2highlight && items2highlight.length) {
@@ -238,10 +246,10 @@ class ThreeView {
             this._hoverStack = ids2highlight;
             this._hoverCycleIndex = 0;
 
-            const highlightAllUnderCursor = this._vuexStore.state[this._view3D].highlightAllUnderCursor;
+            const highlightAllUnderCursor = this._vuexStore.state[this._selection].highlightAllUnderCursor;
             this._vuexStore.commit(
-                `${this._view3D}/set_scene_hover_geo_items`,
-                highlightAllUnderCursor ? ids2highlight : [ids2highlight[0]]
+                `${this._selection}/set_hover`,
+                {origin: 'scene', ids: highlightAllUnderCursor ? ids2highlight : [ids2highlight[0]]}
             );
             hasSome = true;
         } else {
@@ -285,7 +293,7 @@ class ThreeView {
             // `highlightedMarkers` was left stale until some other marker
             // item was hovered (clear_pointer(), below, already clears
             // both -- this path just hadn't matched it).
-            this._vuexStore.commit(`${this._view3D}/clear_scene_hover_geo_items`);
+            this._vuexStore.commit(`${this._selection}/clear_hover`, 'scene');
             this._vuexStore.commit(`${this._view3D}/clear_highlighted_markers`);
         }
     }  // }}}
@@ -293,7 +301,7 @@ class ThreeView {
         this._hoverStack = [];
         this._hoverCycleIndex = 0;
         this._nearestMarkerHit = null;
-        this._vuexStore.commit(`${this._view3D}/clear_scene_hover_geo_items`);
+        this._vuexStore.commit(`${this._selection}/clear_hover`, 'scene');
         this._vuexStore.commit(`${this._view3D}/clear_highlighted_markers`);
     }  // }}}
 
@@ -306,8 +314,8 @@ class ThreeView {
         if(n === 0) return;
         this._hoverCycleIndex = ((this._hoverCycleIndex + direction) % n + n) % n;
         this._vuexStore.commit(
-            `${this._view3D}/set_scene_hover_geo_items`,
-            [this._hoverStack[this._hoverCycleIndex]]
+            `${this._selection}/set_hover`,
+            {origin: 'scene', ids: [this._hoverStack[this._hoverCycleIndex]]}
         );
     }  // }}}
 
@@ -319,7 +327,7 @@ class ThreeView {
     // toggling, no controls reconstruction): normal zoom behavior when
     // `highlightAllUnderCursor' is on is completely unaffected.
     handle_wheel(event) {  // {{{
-        if(this._vuexStore.state[this._view3D].highlightAllUnderCursor) return false;
+        if(this._vuexStore.state[this._selection].highlightAllUnderCursor) return false;
         this.cycle_hover(event.deltaY > 0 ? 1 : -1);
         return true;
     }  // }}}
@@ -335,19 +343,20 @@ class ThreeView {
     // PointMarkers item's own (whole-item) selection -- a scene with many
     // thousands of markers would make per-marker Items-Tree entries
     // impractical, so marker selection is tracked entirely separately
-    // (store/view3D.js's `selectedMarkers`, surfaced by its own side-panel
-    // section rather than the Items Tree). Whole-item selection remains
-    // available for a PointMarkers item exactly as for any other type --
-    // just not by clicking one of its individual markers in the 3D view.
+    // (store/selection.js's `selectedSubItems`, surfaced by its own
+    // side-panel section rather than the Items Tree). Whole-item selection
+    // remains available for a PointMarkers item exactly as for any other
+    // type -- just not by clicking one of its individual markers in the 3D
+    // view.
     toggle_hover_selection() {  // {{{
         if(this._nearestMarkerHit) {
             this._toggle_marker_selection(...this._nearestMarkerHit);
             return;
         }
-        const hovered = this._vuexStore.getters[`${this._view3D}/sceneHoveredGeoItemIDs`];
+        const hovered = this._vuexStore.getters[`${this._selection}/hoveredIDs`]('scene');
         if(hovered.size === 0) return;
 
-        const selected = this._vuexStore.getters[`${this._view3D}/selectedGeoItemIDs`];
+        const selected = this._vuexStore.getters[`${this._selection}/selectedItemIDs`];
         const toSelect = [];
         const toUnselect = [];
         for(const id of hovered) {
@@ -355,29 +364,29 @@ class ThreeView {
             else toSelect.push(id);
         }
 
-        if(toUnselect.length) this._vuexStore.commit(`${this._view3D}/unselect_geo_items`, toUnselect);
-        if(toSelect.length) this._vuexStore.commit(`${this._view3D}/select_geo_items`, toSelect);
+        if(toUnselect.length) this._vuexStore.commit(`${this._selection}/unselect_items`, toUnselect);
+        if(toSelect.length) this._vuexStore.commit(`${this._selection}/select_items`, toSelect);
     }  // }}}
 
     // Toggles exactly one marker (identified by its containing item's
-    // geoID + its index within that item) in/out of `selectedMarkers`.
-    // `select_markers' replaces a geoID's whole index Set rather than
+    // geoID + its index within that item) in/out of `selectedSubItems`.
+    // `select_sub_items' replaces a geoID's whole index Set rather than
     // toggling a single member, so the updated Set is computed here and
     // committed whole; an emptied Set is dropped from the Map entirely
-    // (clear_selected_markers) rather than committed as an empty Set, for
+    // (clear_selected_sub_items) rather than committed as an empty Set, for
     // the same reason clear_highlighted_markers(geoID) exists -- keeps
     // the side panel (and selection-set save/restore) from carrying
     // around empty entries.
     _toggle_marker_selection(geoID, index) {  // {{{
-        const selectedMarkers = this._vuexStore.getters[`${this._view3D}/selectedMarkers`];
+        const selectedMarkers = this._vuexStore.getters[`${this._selection}/selectedSubItems`];
         const current = new Set(selectedMarkers.get(geoID) ?? []);
         if(current.has(index)) current.delete(index);
         else current.add(index);
 
         if(current.size) {
-            this._vuexStore.commit(`${this._view3D}/select_markers`, {geoID, indices: current});
+            this._vuexStore.commit(`${this._selection}/select_sub_items`, {itemID: geoID, indices: current});
         } else {
-            this._vuexStore.commit(`${this._view3D}/clear_selected_markers`, geoID);
+            this._vuexStore.commit(`${this._selection}/clear_selected_sub_items`, geoID);
         }
     }  // }}}
 
@@ -425,8 +434,8 @@ class ThreeView {
     frame_selected_or_visible() {  // {{{
         this._scene.updateMatrixWorld(true);
 
-        const selectedGeoItemIDs = this._vuexStore.getters[`${this._view3D}/selectedGeoItemIDs`];
-        const selectedMarkers = this._vuexStore.getters[`${this._view3D}/selectedMarkers`];
+        const selectedGeoItemIDs = this._vuexStore.getters[`${this._selection}/selectedItemIDs`];
+        const selectedMarkers = this._vuexStore.getters[`${this._selection}/selectedSubItems`];
         const selectedMarkerCount = [...selectedMarkers.values()].reduce((n, indices) => n + indices.size, 0);
 
         if(selectedGeoItemIDs.size === 0 && selectedMarkerCount === 1) {

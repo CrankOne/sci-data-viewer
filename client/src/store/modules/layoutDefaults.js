@@ -58,7 +58,7 @@ export function build_default_root(store) {
 // is itself persisted directly; both are runtime-only and rebuilt each load
 // by re-issuing the same create_context/create_instance calls that created
 // them originally (idempotent, and for contexts this is also what
-// re-registers their dynamic view3D_*/transfGroups_* modules and reseeds
+// re-registers their dynamic view3D_*/transfGroups_*/selection_* modules and reseeds
 // their own persistence -- a raw state copy would skip all of that).
 // Contexts first, since instances reference them.
 export function restore_contexts_and_instances(store, {contexts, instances}) {

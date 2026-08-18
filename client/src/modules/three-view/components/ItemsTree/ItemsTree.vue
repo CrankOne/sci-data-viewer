@@ -202,24 +202,32 @@ export default {
             return `view3D_${this.contextId}`;
         },
 
+        // Generic per-context selection/facet-preset/selection-set state
+        // (doc/ui-session.rst's "Selection model", store/selection.js) --
+        // separate from view3DNS above, which now only holds geo3d's own
+        // geometry cache and raycast-hover behavior.
+        selectionNS() {
+            return `selection_${this.contextId}`;
+        },
+
         geoData() {
             return this.$store.getters[`${this.view3DNS}/geoData`];
         },
 
         selectedGeoItemIDs() {
-            return this.$store.getters[`${this.view3DNS}/selectedGeoItemIDs`];
+            return this.$store.getters[`${this.selectionNS}/selectedItemIDs`];
         },
 
         highlightedGeoItemIDs() {
-            return this.$store.getters[`${this.view3DNS}/highlightedGeoItemIDs`];
+            return this.$store.getters[`${this.selectionNS}/highlightedItemIDs`];
         },
 
         hiddenGeoItemIDs() {
-            return this.$store.getters[`${this.view3DNS}/hiddenGeoItemIDs`];
+            return this.$store.getters[`${this.selectionNS}/hiddenItemIDs`];
         },
 
         facetPresets() {
-            return this.$store.getters[`${this.view3DNS}/facetPresets`];
+            return this.$store.getters[`${this.selectionNS}/facetPresets`];
         },
 
         facetPresetNames() {
@@ -227,15 +235,15 @@ export default {
         },
 
         activeFacetPresetName() {
-            return this.$store.getters[`${this.view3DNS}/activeFacetPresetName`];
+            return this.$store.getters[`${this.selectionNS}/activeFacetPresetName`];
         },
 
         activeFacets() {
-            return this.$store.getters[`${this.view3DNS}/activeFacetPreset`]?.facets ?? [];
+            return this.$store.getters[`${this.selectionNS}/activeFacetPreset`]?.facets ?? [];
         },
 
         sceneHoveredGeoItemIDs() {
-            return this.$store.getters[`${this.view3DNS}/sceneHoveredGeoItemIDs`];
+            return this.$store.getters[`${this.selectionNS}/hoveredIDs`]('scene');
         },
 
         availableItems() {
@@ -342,7 +350,7 @@ export default {
         // Selection sets
 
         selectionSets() {
-            return this.$store.getters[`${this.view3DNS}/selectionSets`];
+            return this.$store.getters[`${this.selectionNS}/selectionSets`];
         },
 
         selectionSetNames() {
@@ -350,11 +358,11 @@ export default {
         },
 
         activeSelectionSetName() {
-            return this.$store.getters[`${this.view3DNS}/activeSelectionSetName`];
+            return this.$store.getters[`${this.selectionNS}/activeSelectionSetName`];
         },
 
         selectedMarkers() {
-            return this.$store.getters[`${this.view3DNS}/selectedMarkers`];
+            return this.$store.getters[`${this.selectionNS}/selectedSubItems`];
         },
 
         selectedMarkerCount() {
@@ -367,7 +375,7 @@ export default {
         },
 
         activeSelectionSet() {
-            return this.$store.getters[`${this.view3DNS}/activeSelectionSet`];
+            return this.$store.getters[`${this.selectionNS}/activeSelectionSet`];
         },
 
         selectionHasUnsavedChanges() {
@@ -415,9 +423,9 @@ export default {
 
         toggle_item_selection(id) {
             if (this.selectedGeoItemIDs.has(id))
-                this.$store.commit(`${this.view3DNS}/unselect_geo_items`, [id]);
+                this.$store.commit(`${this.selectionNS}/unselect_items`, [id]);
             else
-                this.$store.commit(`${this.view3DNS}/select_geo_items`, [id]);
+                this.$store.commit(`${this.selectionNS}/select_items`, [id]);
         },
 
         select_all() {
@@ -429,48 +437,48 @@ export default {
         },
 
         hover_item(ids) {
-            this.$store.commit(`${this.view3DNS}/set_tree_hover_geo_items`, ids);
+            this.$store.commit(`${this.selectionNS}/set_hover`, {origin: 'tree', ids});
         },
 
         unhover_item() {
-            this.$store.commit(`${this.view3DNS}/clear_tree_hover_geo_items`);
+            this.$store.commit(`${this.selectionNS}/clear_hover`, 'tree');
         },
 
         set_visibility({ ids, visible }) {
-            this.$store.commit(`${this.view3DNS}/set_geo_items_visibility`, {
+            this.$store.commit(`${this.selectionNS}/set_items_visibility`, {
                 ids,
                 visible
             });
         },
 
         activate_preset(name) {
-            this.$store.commit(`${this.view3DNS}/activate_facet_preset`, name);
+            this.$store.commit(`${this.selectionNS}/activate_facet_preset`, name);
         },
 
         set_active_facets(facets) {
-            this.$store.commit(`${this.view3DNS}/set_active_facet_preset_facets`, facets);
+            this.$store.commit(`${this.selectionNS}/set_active_facet_preset_facets`, facets);
         },
 
         save_preset(name) {
-            this.$store.commit(`${this.view3DNS}/save_facet_preset`, {
+            this.$store.commit(`${this.selectionNS}/save_facet_preset`, {
                 name,
                 facets: this.activeFacets
             });
         },
 
         update_preset() {
-            this.$store.commit(`${this.view3DNS}/save_facet_preset`, {
+            this.$store.commit(`${this.selectionNS}/save_facet_preset`, {
                 name: this.activeFacetPresetName,
                 facets: this.activeFacets
             });
         },
 
         delete_preset(name) {
-            this.$store.commit(`${this.view3DNS}/delete_facet_preset`, name);
+            this.$store.commit(`${this.selectionNS}/delete_facet_preset`, name);
         },
 
         select_items(ids) {
-            this.$store.commit(`${this.view3DNS}/select_geo_items`, ids);
+            this.$store.commit(`${this.selectionNS}/select_items`, ids);
         },
 
         invert_items_selection(ids) {
@@ -485,18 +493,18 @@ export default {
             }
 
             if (toUnselect.length)
-                this.$store.commit(`${this.view3DNS}/unselect_geo_items`, toUnselect);
+                this.$store.commit(`${this.selectionNS}/unselect_items`, toUnselect);
 
             if (toSelect.length)
-                this.$store.commit(`${this.view3DNS}/select_geo_items`, toSelect);
+                this.$store.commit(`${this.selectionNS}/select_items`, toSelect);
         },
 
         clear_selection() {
-            this.$store.commit(`${this.view3DNS}/unselect_geo_items`, [...this.selectedGeoItemIDs]);
+            this.$store.commit(`${this.selectionNS}/unselect_items`, [...this.selectedGeoItemIDs]);
         },
 
         clear_items_selection(ids) {
-            this.$store.commit(`${this.view3DNS}/unselect_geo_items`, ids);
+            this.$store.commit(`${this.selectionNS}/unselect_items`, ids);
         },
 
         show_selected() {
@@ -540,30 +548,30 @@ export default {
         //
         // Selection sets
         activate_selection_set(name) {
-            this.$store.commit(`${this.view3DNS}/activate_selection_set`, name);
+            this.$store.commit(`${this.selectionNS}/activate_selection_set`, name);
         },
 
         save_selection_set(name) {
-            this.$store.commit(`${this.view3DNS}/save_selection_set`, name);
+            this.$store.commit(`${this.selectionNS}/save_selection_set`, name);
         },
 
         update_selection_set() {
-            this.$store.commit(`${this.view3DNS}/update_active_selection_set`);
+            this.$store.commit(`${this.selectionNS}/update_active_selection_set`);
         },
 
         delete_selection_set(name) {
-            this.$store.commit(`${this.view3DNS}/delete_selection_set`, name);
+            this.$store.commit(`${this.selectionNS}/delete_selection_set`, name);
         },
 
         apply_selection_set(payload) {
-            this.$store.commit(`${this.view3DNS}/apply_selection_set`, payload);
+            this.$store.commit(`${this.selectionNS}/apply_selection_set`, payload);
         },
 
         selection_equals_saved_set(saved) {
             if (!saved)
                 return false;
 
-            const savedGeoIDs = new Set(saved.geoItemIDs ?? []);
+            const savedGeoIDs = new Set(saved.itemIDs ?? []);
 
             if (savedGeoIDs.size !== this.selectedGeoItemIDs.size)
                 return false;
@@ -573,7 +581,7 @@ export default {
                     return false;
             }
 
-            const savedMarkers = saved.markers ?? {};
+            const savedMarkers = saved.subItems ?? {};
 
             const currentMarkerGeoIDs = [...this.selectedMarkers.entries()]
                 .filter(([, indices]) => indices.size !== 0)

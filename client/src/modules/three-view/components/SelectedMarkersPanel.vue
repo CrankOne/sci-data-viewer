@@ -60,8 +60,11 @@ const store = useStore();
 // ItemsTree.vue.
 const contextId = computed(() => store.getters['contexts/listForType']('geo3d')[0]?.id ?? null);
 const view3DNS = computed(() => `view3D_${contextId.value}`);
+// Generic per-context selection state (doc/ui-session.rst's "Selection
+// model", store/selection.js) -- separate from view3DNS above.
+const selectionNS = computed(() => `selection_${contextId.value}`);
 
-const selectedMarkers = computed(() => store.getters[`${view3DNS.value}/selectedMarkers`]);
+const selectedMarkers = computed(() => store.getters[`${selectionNS.value}/selectedSubItems`]);
 const geoData = computed(() => store.getters[`${view3DNS.value}/geoData`]);
 
 // Resolves one (geoID, index) pair against the raw source payload -- the
@@ -108,14 +111,14 @@ function remove(geoID, index) {
     const current = new Set(selectedMarkers.value.get(geoID) ?? []);
     current.delete(index);
     if(current.size) {
-        store.commit(`${view3DNS.value}/select_markers`, {geoID, indices: current});
+        store.commit(`${selectionNS.value}/select_sub_items`, {itemID: geoID, indices: current});
     } else {
-        store.commit(`${view3DNS.value}/clear_selected_markers`, geoID);
+        store.commit(`${selectionNS.value}/clear_selected_sub_items`, geoID);
     }
 }
 
 function clear_all() {
-    store.commit(`${view3DNS.value}/clear_selected_markers`);
+    store.commit(`${selectionNS.value}/clear_selected_sub_items`);
 }
 </script>
 

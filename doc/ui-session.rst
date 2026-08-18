@@ -6,8 +6,8 @@ lets a user's workspace -- which panels are open, which scenes exist, which
 data sources are attached to them, camera/facet/selection state -- survive a
 reload, be switched between named alternatives, and be exported/imported or
 shared as a link. It complements :doc:`sources` (the wire contract a data
-source implements) and :doc:`module-plotter` (a future consumer of the
-extension points described here).
+source implements) and :doc:`module-plotter` (one of the concrete consumers
+of the extension points described here, alongside :doc:`module-3d-viewer`).
 
 File references below are relative to ``client/src``.
 
@@ -19,6 +19,13 @@ Core concepts
     browser tab (``store/modules/session.js``). A directory entry (id, name,
     timestamps) plus a scattered set of id-namespaced ``localStorage``
     entries -- see "Storage layout".
+
+    Unrelated to :doc:`sources`' own use of "session" (a per-traversal
+    iterator/cursor over one sequential data source, ``POST
+    /resource/sessions`` etc.) -- the two collide purely by historical
+    accident, sharing nothing else. See that document's "Sequential
+    capability" section for the TODO to rename its sense of the word away
+    from this clash.
 
 ``layout``
     A binary tree of resizable splits/panels (``store/modules/layout.js``).
@@ -168,7 +175,8 @@ items rather than being one fetchable payload -- :doc:`sources` -- so it's
 left ``ready`` for the user to pick one from its widget).
 
 **New session** -- ``seed_default_sources()`` fetches ``GET /api/plugins``
-(``pluginManifest.js``) and adds every source with ``enabledByDefault: true``.
+(:doc:`plugins`, ``pluginManifest.js``) and adds every source with
+``enabledByDefault: true``.
 A contextual one reuses an existing context of its ``dataType`` if any
 already exists, otherwise creates one via ``create_scene_with_viewport``,
 targeting the still-empty main panel above.
@@ -329,6 +337,117 @@ nothing above is aware of any specific module:
     that isn't a per-context facet/selection preset (handled generically by
     ``contexts.js``).
 
+Selection model
+---------------
+
+Resolves :doc:`module-3d-viewer`'s and :doc:`module-plotter`'s open
+questions on generalizing per-context highlight/selection -- the direction
+"Selection sinks" below previously recorded as "validated in discussion but
+not what got built." **The state container is now built and three-view is
+its first consumer** (``store/selection.js``, ``store/selectionAlgebra.js``,
+``modules/three-view/index.js``); what remains open is a second consumer --
+this module's design here is validated only against the one contextual
+module that exists today, and :doc:`module-plotter` has no selection UX of
+its own yet to register it against (see that document's "Open questions").
+
+A contextual module that wants item selection registers a
+``contextStoreModules`` entry under the fixed name ``selection`` -- as
+opposed to any other, dataType-specific entry it may also register (e.g.
+three-view's own ``view3D``, which now holds only its loaded-geometry cache,
+marker-level hover, and the hidden-selection rendering toggle). Generic by
+convention, not by any one module's
+name: ``contexts.js``'s ``install_selection_persistence`` gates on
+``contextStoreModules?.selection`` -- not on any dataType or module name --
+installing the same facet-preset/selection-set persistence for whichever
+module supplies it, mirroring how ``sinkTargets`` persistence (above)
+already installs unconditionally for any context rather than being gated to
+a hardcoded dataType.
+
+The shared module (``store/selection.js``) owns, generically (dataType-
+neutral field names, unlike three-view's former ``geoItemIDs``):
+
+* a set of selected whole-item IDs (``selectedItemIDs``);
+* a set of hidden item IDs (``hiddenItemIDs``);
+* facet presets (name -> list of facet keys) and the active preset -- the
+  mutations here were already fully generic before the move (three-view's
+  own state never actually inspected a facet's *value*, only its name);
+* selection sets (named, saved selections) with union/subtract/intersect
+  set-algebra against the current selection (``store/selectionAlgebra.js``,
+  generalized off the old three-view-local ``selectionSets.js`` -- same
+  algorithm, field names renamed from ``geoItemIDs``/``markers`` to
+  ``itemIDs``/``subItems``).
+
+Three-view is this module's first consumer, registering it alongside its
+own ``view3D`` (``modules/three-view/index.js``); every former
+``view3D_<ctx>``-namespaced selection/facet/selection-set getter and
+mutation now lives under ``selection_<ctx>`` instead (``ItemsTree.vue``,
+``SelectedMarkersPanel.vue``, ``GeometryManager.js``, ``three/index.js``,
+``shareLink.js``, ``sinkDispatch.js``). Whole-item hover and the
+``highlightAllUnderCursor`` behavior toggle moved too, below; only marker
+(sub-item) hover (``highlightedMarkers``) and ``highlightHiddenSelection``
+(a rendering-technique detail of this module's own silhouette pass, not a
+property other graphical modules share) stayed on ``view3D``.
+
+Sub-item selection (one item standing in for numerous individually-pickable
+sub-elements, e.g. a point cloud's markers) is supported by the same shared
+container -- a set of selected sub-indices per parent item. *Whether* an
+item type participates at that level is a property of the item/primitive
+type, declared by the owning module's own type registry, alongside
+``_pickable`` (:doc:`module-3d-viewer`'s per-item opt-out) --
+``geometry/registry.js``'s ``make_geometry()`` stamps a type's declared
+``subItemPickable`` (default false) onto every instance's ``userData``
+exactly as it already did for ``pickable``, so raycasting/hit-testing reads
+one flag rather than hardcoding a per-type check; ``PointMarkers`` is the
+one type that currently declares it (``geometry/pointMarkers.js``). Three
+shapes an item type may declare, motivating the split:
+
+1. individually pickable, standalone items, appearing in the common
+   selection tree as themselves -- ``subItemPickable`` false (the default);
+2. a *group* of numerous pickable sub-elements, individually selectable but
+   deliberately not enumerated in the common tree (too expensive at the
+   population sizes points/markers reach) -- ``subItemPickable`` true;
+3. content closed to sub-selection entirely, non-pickable below the whole
+   item (e.g. a server-baked raster scatterplot of billions of points) --
+   ``subItemPickable`` false, same as (1); no such type exists in the
+   codebase yet, so this shape is reserved rather than exercised.
+
+This is a hard constraint on the primitive type, expected to also shape how
+that type is drawn and highlighted -- not merely a selection-model detail.
+
+Hover-highlighting is a set unioned from possibly several origins -- the
+shared module's ``hoveredByOrigin`` (keyed by origin, a generic
+``Map<origin, Set<id>>``) with a ``highlightedItemIDs`` getter unioning
+across all of them and a ``hoveredIDs(origin)`` getter for reading one
+origin alone. Three-view supplies two origins today (``'tree'`` row-hover,
+``'scene'`` raycast-hover) via generic ``set_hover``/``clear_hover``
+mutations, replacing its former ``view3D``-specific
+``set_tree_hover_geo_items``/``set_scene_hover_geo_items`` pair. A module
+that only ever has one origin (the plotter's canvas pointer, until it grows
+a side panel with its own row-hover) simply never commits a second key --
+the shape costs nothing unused.
+
+A behavior toggle equivalent to three-view's former
+``highlightAllUnderCursor`` (everything-under-the-cursor vs.
+single-nearest-cycle-by-wheel) now lives in the shared module too --
+meaningful to any "graphical depiction" module (three-view, the plotter, a
+future graph/block-diagram module) but not to a non-graphical one (a future
+tabular/object-browser module). No subpanel widget exposes it outside
+three-view yet -- the plotter has none designed (:doc:`module-plotter`) --
+so it stays wired to its default there, present but unreachable from that
+module's UI until such a widget exists.
+
+What stays per-module, deliberately not generalized:
+
+* rendering the highlight itself (three-view's WebGL silhouette-pass-and-
+  composite, ``hl-overlay.js``, has no Canvas2D equivalent and vice versa);
+* hit-testing/picking (raycasting vs. D3-scale/geometric pixel-distance
+  testing);
+* ``sinkDispatch.js``'s snapshot builder -- resolving a selected ID into a
+  self-contained payload snapshot is inherently type-specific (three.js
+  geometry vs. plot primitives' ``subjectData``); generalizing the
+  selection *state* only shrinks this to "read the generic selected-IDs
+  getter, then run a per-module resolver," not eliminates it.
+
 Selection sinks
 ----------------
 
@@ -388,13 +507,14 @@ precedent (clean up a cross-reference at the removal site):
   declared ``removeIncomingOrigin`` (above) gets a chance to drop that
   origin's entries from its own landing zone.
 
-**What exists today, concretely:** geo3d (``view3D.js``'s
-``selectedGeoItemIDs``) is the one real sink *origin* -- a "Send selection to
-sink" button in ``ItemsTree.vue`` opens the existing ``ConnectScopeModal.vue``
-(now with a third ``kind: 'sink'`` branch alongside its ``'resource'``/
-``'instance'`` ones) to pick or create a target, then calls
-``send_selection_to_sink``. ``sinkDispatch.js``'s snapshot builder is
-deliberately geo3d-specific (it reads ``view3D``'s own ``selectedGeoItemIDs``/
+**What exists today, concretely:** geo3d (the shared ``selection`` module's
+``selectedItemIDs``, see "Selection model" above) is the one real sink
+*origin* -- a "Send selection to sink" button in ``ItemsTree.vue`` opens the
+existing ``ConnectScopeModal.vue`` (now with a third ``kind: 'sink'`` branch
+alongside its ``'resource'``/``'instance'`` ones) to pick or create a
+target, then calls ``send_selection_to_sink``. ``sinkDispatch.js``'s
+snapshot builder is deliberately geo3d-specific (it reads the
+``selection_<ctx>`` module's ``selectedItemIDs`` and ``view3D_<ctx>``'s
 ``geoData`` getters and recovers an accurate source id via
 ``destruct_geo_id``, :doc:`module-3d-viewer`'s existing ``geoID@srcID``
 composite-id convention) -- a second origin type needs its own snapshot
@@ -413,13 +533,16 @@ mechanism -- not a step toward the real Tabular View module
 * The plotter as a sink *origin* -- it has no selection model of its own
   yet (:doc:`module-plotter`'s "Open questions" still applies); dispatch
   *from* the plotter needs that designed first.
-* Marker-level dispatch (``view3D``'s ``selectedMarkers``) -- whole geo-item
-  selection only, for now.
-* Generalizing highlight/selection themselves into a per-context primitive
-  (rather than each module's own bespoke state, as geo3d's remains today)
-  was the direction validated in discussion but is not what got built --
-  ``sinkDispatch.js``'s geo3d-specific snapshot builder is the pragmatic
-  bridge in place of that generalization.
+* Marker-level dispatch (the ``selection`` module's ``selectedSubItems``) --
+  whole geo-item selection only, for now.
+* Generalizing selection into a per-context primitive (rather than each
+  module's own bespoke state) -- **done** for the selection/hidden-items/
+  facet-preset/selection-set container itself, see "Selection model" above;
+  hover-highlighting and the raycast behavior toggles are unmoved, still
+  three-view-bespoke on ``view3D``. ``sinkDispatch.js``'s snapshot builder
+  stays geo3d-specific regardless (it still resolves an id to a geometry
+  payload, an inherently per-dataType step) -- the move only relocated
+  *which* module its id-set getter reads from.
 
 Known limitations
 -------------------

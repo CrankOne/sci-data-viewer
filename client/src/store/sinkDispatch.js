@@ -20,9 +20,13 @@ import { destruct_geo_id } from '@/modules/three-view/utils';
 // a second origin type's own snapshot builder would live alongside this,
 // not inside contexts.js or the registry.
 function build_geo_selection_snapshot(store, originContextId) {
-    const ns = `view3D_${originContextId}`;
-    const selectedIds = store.getters[`${ns}/selectedGeoItemIDs`];
-    const geoData = store.getters[`${ns}/geoData`]; // {[srcID]: {materials, geometry}} -- view3D.js's own getter
+    const view3DNS = `view3D_${originContextId}`;
+    // Generic per-context selection state (doc/ui-session.rst's "Selection
+    // model", store/selection.js) -- separate from view3DNS above, which
+    // only holds geo3d's own geometry cache.
+    const selectionNS = `selection_${originContextId}`;
+    const selectedIds = store.getters[`${selectionNS}/selectedItemIDs`];
+    const geoData = store.getters[`${view3DNS}/geoData`]; // {[srcID]: {materials, geometry}} -- view3D.js's own getter
 
     return [...selectedIds].map(fullId => {
         const [srcID, itemId] = destruct_geo_id(fullId);

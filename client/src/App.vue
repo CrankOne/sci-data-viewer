@@ -37,6 +37,8 @@ input {
   font-size: 7.5pt;
   padding: 2pt 5pt;
   margin: 2pt 5pt;
+  border-radius: .25em;
+  font-family: monospace;
 }
 
 button, select {

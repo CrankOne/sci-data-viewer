@@ -8,7 +8,12 @@
 //
 // This module knows nothing about geo3d, view3D, or three.js -- it only
 // orchestrates registerModule/unregisterModule against whatever a given
-// dataType's viewer module declares.
+// dataType's viewer module declares. Two exceptions, generic across any
+// dataType rather than geo3d-specific: sinkTargets persistence (always
+// installed) and `selection`-module persistence (installed when declared,
+// see install_selection_persistence below) -- both cross-cutting concerns
+// this module owns directly rather than deferring to the per-dataType
+// module.
 import { get_module } from '@/modules/registry';
 import { install_persistence } from '@/store/persistence';
 
@@ -26,11 +31,13 @@ function mk_default_name(state, dataType) {
 }
 
 // Installs persistence for the facet-preset / selection-set slices of a
-// freshly-registered per-context view3D module instance. Reuses the
-// generic install_persistence() unchanged -- the only thing that varies
-// per context is the storage key and the (fully-qualified, namespaced)
-// mutation-type strings passed in, so no changes to store/persistence.js
-// itself are needed.
+// freshly-registered per-context `selection` module instance (doc/ui-
+// session.rst's "Selection model", store/selection.js) -- generic across
+// any contextual module that registers one, not gated to geo3d/view3D.
+// Reuses the generic install_persistence() unchanged -- the only thing
+// that varies per context is the storage key and the (fully-qualified,
+// namespaced) mutation-type strings passed in, so no changes to
+// store/persistence.js itself are needed.
 //
 // `sessionId` scopes this to one saved session (see
 // store/modules/session.js) -- each session's contexts persist their facet
@@ -40,13 +47,13 @@ function mk_default_name(state, dataType) {
 // "selection sink" mechanism -- an origin context's own pointer to which
 // other context its selection of a given dataType routes into, see
 // doc/ui-session.rst's "Extension points"). Unlike
-// install_view3d_context_persistence above, this installs unconditionally
+// install_selection_persistence above, this installs unconditionally
 // for *every* context regardless of dataType -- sinkTargets is a generic,
 // cross-cutting property of any context, not a per-module concern gated to
-// whichever dataType happens to declare a view3D-shaped module.
+// whichever dataType happens to declare a `selection`-shaped module.
 //
 // `contexts` itself is one shared singleton module (not a dynamically
-// registered per-context module like view3D_<ctx>), so unlike that
+// registered per-context module like selection_<ctx>), so unlike that
 // function's serialize(), this one must carry `contextId` in its own
 // payload -- the init mutation needs to know *which* context's record to
 // update.
@@ -63,8 +70,8 @@ function install_sink_targets_persistence(store, contextId, sessionId) {
     });
 }
 
-function install_view3d_context_persistence(store, contextId, sessionId) {
-    const ns = `view3D_${contextId}`;
+function install_selection_persistence(store, contextId, sessionId) {
+    const ns = `selection_${contextId}`;
 
     install_persistence(store, {
         storageKey: `viewer.facet-presets.v1.${sessionId}.${contextId}`,
@@ -79,8 +86,8 @@ function install_view3d_context_persistence(store, contextId, sessionId) {
             `${ns}/delete_facet_preset`
         ],
         serialize(rootState) {
-            const view3D = rootState[ns];
-            return {presets: view3D.facetPresets, activePresetName: view3D.activeFacetPresetName};
+            const selectionState = rootState[ns];
+            return {presets: selectionState.facetPresets, activePresetName: selectionState.activeFacetPresetName};
         }
     });
 
@@ -202,13 +209,16 @@ export default {
             for(const [moduleName, makeModule] of Object.entries(module.contextStoreModules ?? {})) {
                 this.registerModule([`${moduleName}_${id}`], makeModule());
             }
-            // view3D is the one dynamic module with persisted sub-state
-            // (facet presets, selection sets) today; transfGroups has none
-            // (groups are derived from loaded geometry, not persisted).
-            if(module.contextStoreModules?.view3D) {
-                install_view3d_context_persistence(this, id, rootState.session.activeId);
+            // `selection` (doc/ui-session.rst's "Selection model") is the
+            // one dynamic module with persisted sub-state (facet presets,
+            // selection sets) today; transfGroups has none (groups are
+            // derived from loaded geometry, not persisted). Gated on the
+            // fixed module *name* any contextual module registers under,
+            // not on geo3d/view3D specifically -- generic by convention.
+            if(module.contextStoreModules?.selection) {
+                install_selection_persistence(this, id, rootState.session.activeId);
             }
-            // Generic, unlike the view3D gate above: every context, of any
+            // Generic, unlike the selection gate above: every context, of any
             // dataType, can be a sink origin and/or target, so this installs
             // unconditionally.
             install_sink_targets_persistence(this, id, rootState.session.activeId);

@@ -31,9 +31,13 @@ export default {
             get() { return this.$store.state[`view3D_${this.contextId}`].highlightHiddenSelection; },
             set(value) { this.$store.commit(`view3D_${this.contextId}/toggle_highlight_hidden`, value); }
         },
+        // Generic per-context behavior toggle (doc/ui-session.rst's
+        // "Selection model", store/selection.js) -- moved off view3D since
+        // it's a property any "graphical depiction" module shares, not
+        // geo3d-specific.
         highlightAllUnderCursor: {
-            get() { return this.$store.state[`view3D_${this.contextId}`].highlightAllUnderCursor; },
-            set(value) { this.$store.commit(`view3D_${this.contextId}/toggle_highlight_all_under_cursor`, value); }
+            get() { return this.$store.state[`selection_${this.contextId}`].highlightAllUnderCursor; },
+            set(value) { this.$store.commit(`selection_${this.contextId}/toggle_highlight_all_under_cursor`, value); }
         }
     }
 }

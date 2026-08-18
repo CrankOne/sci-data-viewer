@@ -2,6 +2,15 @@ import * as THREE from "three";
 
 export const type = "PointMarkers";
 
+// Type-level declaration (geometry/registry.js's make_geometry(), which
+// stamps this onto userData.subItemPickable): a PointMarkers item's
+// individual points are themselves pickable/selectable, tracked separately
+// from ordinary whole-item selection (doc/ui-session.rst's "Selection
+// model" -- one of the three shapes an item type may declare: this is the
+// "group of numerous pickable sub-elements, not enumerated in the common
+// tree" one).
+export const subItemPickable = true;
+
 export function make_geometry(material, geoDef, context = {}) {
     const geometry = new THREE.BufferGeometry();
     const positions = [];
@@ -17,9 +26,7 @@ export function make_geometry(material, geoDef, context = {}) {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions.flat(), 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors.flat(), 3));
     geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
-    const geo = new THREE.Points(geometry, material);
-    geo.userData.isPointCloud = true;
-    return geo;
+    return new THREE.Points(geometry, material);
 }
 
 export function make_highlight_overlay_geometry(material, geoDef, context={}) {

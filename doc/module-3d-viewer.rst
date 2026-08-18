@@ -4,7 +4,7 @@
 The 3D viewer (``client/src/modules/three-view``, data type ``geo3d``) renders
 static and streamed spatial geometry -- detector layouts, tracks, hits, and
 similar scientific 3D content -- using three.js. See also :doc:`module-plotter`,
-:doc:`module-table`, :doc:`module-block-diagram`.
+:doc:`module-table`, :doc:`module-graph`.
 
 Session/context/module mechanics (what a "scene" is, how a viewport is
 created, how a module registers itself) are generic and covered by
@@ -139,17 +139,27 @@ generic, type-agnostic silhouette pass (``hl-overlay.js``): the relevant
 handle is put on a dedicated camera layer, rendered to a mask target,
 dilated, and composited as an outline.
 
-Hover comes from two independent sources -- raycasting in the 3D view and
-row-hover in the Items panel -- unioned into one highlighted set. Selection
-(shift+click in the 3D view, or the Items panel) is independent of hover and
-persists until changed. Both can additionally be grouped/filtered by
+Hover comes from two independent sources -- raycasting in the 3D view
+(origin ``'scene'``) and row-hover in the Items panel (origin ``'tree'``) --
+unioned into one highlighted set by the generic ``selection`` context
+module any contextual viewer module can register (:doc:`ui-session`'s
+"Selection model", ``store/selection.js``) -- geo3d is its first consumer,
+registered alongside this module's own ``view3D`` (``modules/three-view/
+index.js``), which keeps only its loaded-geometry cache, marker-level
+(sub-item) hover, and the hidden-selection rendering toggle. Selection
+(shift+click in the 3D view, or the Items panel) is independent of hover
+and persists until changed. Both can additionally be grouped/filtered by
 ``_facets``/``_classifiers`` via saved facet presets, and items can be
-hidden (``hiddenGeoItemIDs``) without being deselected.
+hidden (``hiddenItemIDs``) without being deselected. Whether hovering (and
+shift+click) affects every pickable item under the cursor at once, or only
+the single nearest -- cycled by wheel -- is a shared behavior toggle
+(``highlightAllUnderCursor``) the ``selection`` module also owns, not
+specific to this rendering technique.
 
 Whole-selection state (selected items *and* selected markers together, see
 below) can be saved under a name and later re-applied with set semantics
-(replace/union/intersect/subtract) -- ``store/selectionSets.js``, used by
-``view3D.js``'s selection-set mutations.
+(replace/union/intersect/subtract) -- ``store/selectionAlgebra.js``,
+dataType-neutral, used by ``store/selection.js``'s selection-set mutations.
 
 Markers
 -------
@@ -183,6 +193,14 @@ the Items panel is one row per named item, and a single marker item can
 carry far more points than is reasonable to list there. The markers panel
 instead only ever lists the current (expected small) selection.
 
+**TODO**: :doc:`module-plotter` implements an independent point-marker
+system (``modules/plotter/draw.js``, plain Canvas2D) that overlaps this
+module's shape vocabulary -- both call a cross marker ``x-cross``/``xCross``
+-- without sharing any code: this module's shapes are WebGL sprite textures
+(``markers.js``, ``shaders/markers.js``), the plotter's are directly-drawn
+paths. Whether and how to unify shape definitions across the two rendering
+backends is open; flagged here rather than attempted blind.
+
 Cross-module interaction
 --------------------------
 
@@ -199,14 +217,13 @@ than answered:
   though whole-item only -- ``selectedMarkers`` (per-marker selection)
   dispatch remains unimplemented, and the one real sink target is a
   dev-only stub, not the real tabular view.
-* :doc:`sources`' ``ResolverDeclaration`` ("associated data for objects
+* :doc:`plugins`' ``ResolverDeclaration`` ("associated data for objects
   picked on the scene, for detailed inspection") has a server-side contract
-  (``viewer_server/plugins/contracts.py``) but no client-side consumer yet --
-  it is unclear how a picked item's or marker's resolved data would surface
-  in this module's UI, or whether that surfacing belongs to this module at
-  all rather than to whatever displays the resolved data (e.g. a future
-  tabular view).
-* ``ClientExtensionDeclaration`` (plugin-supplied prebuilt ES modules) is
-  likewise declared server-side with no client-side loader -- relevant if a
-  plugin ever wants to contribute a new geometry/material type without a
-  core rebuild.
+  but no client-side consumer yet -- it is unclear how a picked item's or
+  marker's resolved data would surface in this module's UI, or whether that
+  surfacing belongs to this module at all rather than to whatever displays
+  the resolved data (e.g. a future tabular view).
+* :doc:`plugins`' ``ClientExtensionDeclaration`` (plugin-supplied prebuilt ES
+  modules) is likewise declared server-side with no client-side loader --
+  relevant if a plugin ever wants to contribute a new geometry/material type
+  without a core rebuild.
