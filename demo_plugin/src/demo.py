@@ -22,6 +22,51 @@ def source_descriptor():
         extra={"type": "geo3d"},  # mandatory for 3D viewer
     ).to_json())
 
+@blueprint.get("/plot-source")
+def plot_source_descriptor():
+    # Same shape as source_descriptor() above, but for the plotter module
+    # (doc/module-plotter.rst) instead of the 3D viewer -- a plain source,
+    # `GET data-url` returns the plot payload directly.
+    return jsonify(SourceDescriptor(
+        data_url=url_for(__name__ + '.plot_data'),
+        extra={"type": "plot"},  # mandatory for the plotter module
+    ).to_json())
+
+@blueprint.get("/plot-data")
+def plot_data():
+    # Matches doc/module-plotter.rst's "Data" section: a `plotData` envelope
+    # holding `primitives` (`subjectData` has no shape decided yet -- see
+    # the doc's "Open questions" -- so it's omitted here rather than guessed
+    # at). Values mirror client/src/modules/plotter/sample-data.js so the
+    # two stay easy to compare while the plotter module isn't wired up to
+    # consume this yet.
+    return jsonify({
+        "plotData": {
+            "primitives": [
+                {
+                    "_type": "markers",
+                    "_facets": {"series": "alpha"},
+                    "_transfDomain": "main",
+                    "marker-type": "x-cross",
+                    "data": [
+                        [0.5, 1.2], [1.8, 3.4], [3.2, 0.8], [4.7, 4.1],
+                        [6.1, 2.0], [7.5, 3.8], [8.9, 1.4],
+                    ],
+                },
+                {
+                    "_type": "polyline",
+                    "_facets": {"series": "beta"},
+                    "_transfDomain": "main",
+                    "closed": False,
+                    "data": [
+                        [0, 0.5], [2, 1.5], [4, 1.0],
+                        [6, 3.2], [8, 2.4], [10, 4.0],
+                    ],
+                },
+            ],
+        },
+    })
+
 @blueprint.get("/geometry")
 def geometry():
     # Later, query parameters can select an event, time slice,
@@ -221,6 +266,12 @@ class DemoViewerPlugin:
                 #     outside of app ctx, so resolution is postponed
                 label="Testing geometry showroom",
                 enabledByDefault=False,  # TODO: enable for dev/debug?
+            ),
+            DataSourceDeclaration(
+                id="demo.plot-showroom",
+                url=__name__ + '.plot_source_descriptor',
+                label="Testing plot showroom",
+                enabledByDefault=False,
             ),
         )
     def resolvers(self):

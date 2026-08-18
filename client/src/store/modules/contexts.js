@@ -36,6 +36,33 @@ function mk_default_name(state, dataType) {
 // store/modules/session.js) -- each session's contexts persist their facet
 // presets/selection sets independently, even if they happen to share a
 // contextId format.
+// Installs persistence for one context's sinkTargets (the cross-module
+// "selection sink" mechanism -- an origin context's own pointer to which
+// other context its selection of a given dataType routes into, see
+// doc/ui-session.rst's "Extension points"). Unlike
+// install_view3d_context_persistence above, this installs unconditionally
+// for *every* context regardless of dataType -- sinkTargets is a generic,
+// cross-cutting property of any context, not a per-module concern gated to
+// whichever dataType happens to declare a view3D-shaped module.
+//
+// `contexts` itself is one shared singleton module (not a dynamically
+// registered per-context module like view3D_<ctx>), so unlike that
+// function's serialize(), this one must carry `contextId` in its own
+// payload -- the init mutation needs to know *which* context's record to
+// update.
+function install_sink_targets_persistence(store, contextId, sessionId) {
+    install_persistence(store, {
+        storageKey: `viewer.sink-targets.v1.${sessionId}.${contextId}`,
+        sessionId,
+        requiredKey: 'sinkTargets',
+        initMutation: 'contexts/initialize_sink_targets',
+        persistMutations: ['contexts/set_sink_target', 'contexts/clear_sink_target'],
+        serialize(rootState) {
+            return {contextId, sinkTargets: rootState.contexts.byId[contextId]?.sinkTargets ?? {}};
+        }
+    });
+}
+
 function install_view3d_context_persistence(store, contextId, sessionId) {
     const ns = `view3D_${contextId}`;
 
@@ -88,12 +115,21 @@ export default {
         listForType: state => dataType => state.order
             .map(id => state.byId[id])
             .filter(ctx => ctx.dataType === dataType),
-        context: state => id => state.byId[id] ?? null
+        context: state => id => state.byId[id] ?? null,
+        // The cross-module "selection sink" mechanism (doc/ui-session.rst's
+        // "Extension points"): a context's own map of targetDataType ->
+        // targetContextId, i.e. "this context's selection of targetDataType
+        // routes into that other context". At most one target per
+        // (context, targetDataType) pair; several different origin contexts
+        // may point at the *same* target -- that's how reuse/aggregation
+        // happens, with no separate named "sink" entity needed.
+        sinkTargets: state => contextId => state.byId[contextId]?.sinkTargets ?? {},
+        sinkTarget: state => (contextId, targetDataType) => state.byId[contextId]?.sinkTargets?.[targetDataType] ?? null
     },
 
     mutations: {
         add_context(state, {id, name, dataType}) {
-            state.byId = {...state.byId, [id]: {id, name, dataType}};
+            state.byId = {...state.byId, [id]: {id, name, dataType, sinkTargets: {}}};
             state.order = [...state.order, id];
         },
 
@@ -103,6 +139,30 @@ export default {
             const trimmed = name?.trim();
             if(!trimmed) return;
             state.byId = {...state.byId, [id]: {...context, name: trimmed}};
+        },
+
+        set_sink_target(state, {contextId, targetDataType, targetContextId}) {
+            const context = state.byId[contextId];
+            if(!context) return;
+            state.byId = {
+                ...state.byId,
+                [contextId]: {...context, sinkTargets: {...context.sinkTargets, [targetDataType]: targetContextId}}
+            };
+        },
+
+        clear_sink_target(state, {contextId, targetDataType}) {
+            const context = state.byId[contextId];
+            if(!context || !Object.hasOwn(context.sinkTargets, targetDataType)) return;
+            const sinkTargets = {...context.sinkTargets};
+            delete sinkTargets[targetDataType];
+            state.byId = {...state.byId, [contextId]: {...context, sinkTargets}};
+        },
+
+        // Persistence-restore only -- replaces one context's whole map at once.
+        initialize_sink_targets(state, {contextId, sinkTargets}) {
+            const context = state.byId[contextId];
+            if(!context) return;
+            state.byId = {...state.byId, [contextId]: {...context, sinkTargets: sinkTargets ?? {}}};
         },
 
         remove_context(state, id) {
@@ -148,6 +208,10 @@ export default {
             if(module.contextStoreModules?.view3D) {
                 install_view3d_context_persistence(this, id, rootState.session.activeId);
             }
+            // Generic, unlike the view3D gate above: every context, of any
+            // dataType, can be a sink origin and/or target, so this installs
+            // unconditionally.
+            install_sink_targets_persistence(this, id, rootState.session.activeId);
 
             return id;
         },
@@ -162,6 +226,35 @@ export default {
             }
 
             dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
+
+            // `id` may be a sink *target* some other context's sinkTargets
+            // points at -- drop those pointers so they don't dangle (same
+            // "clean up a cross-reference at the removal site" shape as
+            // reassign_context_sources above, just for the sink mechanism).
+            for(const otherId of state.order) {
+                if(otherId === id) continue;
+                const other = state.byId[otherId];
+                for(const targetDataType of Object.keys(other.sinkTargets ?? {})) {
+                    if(other.sinkTargets[targetDataType] === id) {
+                        commit('clear_sink_target', {contextId: otherId, targetDataType});
+                    }
+                }
+            }
+
+            // `id` may be a sink *origin* some other context's landing-zone
+            // module is holding routed-in entries for -- let that module
+            // (if it opts in via the optional, additive removeIncomingOrigin
+            // field) drop them, mirroring how removeMutation lets a module
+            // react to a *resource* going away (connection.js).
+            for(const otherId of state.order) {
+                if(otherId === id) continue;
+                const otherModule = get_module(state.byId[otherId].dataType);
+                if(!otherModule?.removeIncomingOrigin) continue;
+                const mutation = typeof otherModule.removeIncomingOrigin === 'function'
+                    ? otherModule.removeIncomingOrigin(otherId)
+                    : otherModule.removeIncomingOrigin;
+                commit(mutation, id, {root: true});
+            }
 
             const module = get_module(context.dataType);
             for(const moduleName of Object.keys(module?.contextStoreModules ?? {})) {

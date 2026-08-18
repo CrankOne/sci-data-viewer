@@ -102,6 +102,17 @@
             >
               <span class="vi vi-eye-stroked" aria-hidden="true"/>
             </button>
+
+            <span class="toolbar-separator" />
+
+            <button
+              type="button"
+              title="Send selection to sink"
+              :disabled="selectedGeoItemIDs.size === 0"
+              @click="open_sink_picker"
+            >
+              <span class="vi vi-save" aria-hidden="true"/>
+            </button>
           </div>
         </div>
 
@@ -505,6 +516,24 @@ export default {
             this.set_visibility({
                 ids: [...this.selectedGeoItemIDs],
                 visible: false
+            });
+        },
+
+        // Cross-module "selection sink" mechanism (doc/ui-session.rst's
+        // "Extension points") -- opens the same connect-scope modal every
+        // other "pick or create a scene" affordance in the app uses, in its
+        // 'sink' mode. 'sink-view' is v1's one known sink-consumer data
+        // type, hardcoded here the same way AddContentModal.vue already
+        // hardcodes "the" single contextual module elsewhere.
+        open_sink_picker() {
+            this.$store.commit('ui/open_modal', {
+                name: 'connect-scope',
+                props: {
+                    kind: 'sink',
+                    originContextId: this.contextId,
+                    dataType: 'sink-view',
+                    currentContextId: this.$store.getters['contexts/sinkTarget'](this.contextId, 'sink-view')
+                }
             });
         },
 

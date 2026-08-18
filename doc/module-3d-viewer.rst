@@ -190,11 +190,15 @@ Cross-module interaction
 viewer modules is not yet designed. Known open points, left here rather
 than answered:
 
-* :doc:`module-table`'s "Selection view" use case expects to render another
-  module's selection as table rows, "regardless of which module the
-  selection originated from" -- no such generic cross-module selection
-  contract exists yet. Today, ``selectedGeoItemIDs``/``selectedMarkers`` are
-  private to this module's own per-context Vuex state.
+* **Answered** -- :doc:`module-table`'s "Selection view" use case (render
+  another module's selection "regardless of which module the selection
+  originated from") and the lack of a dispatch equivalent to its "Plot
+  dispatch" are both now covered by :doc:`ui-session`'s "Selection sinks":
+  geo3d is that mechanism's one real sink *origin* today
+  (``selectedGeoItemIDs`` via ``ItemsTree.vue``'s "Send selection to sink"),
+  though whole-item only -- ``selectedMarkers`` (per-marker selection)
+  dispatch remains unimplemented, and the one real sink target is a
+  dev-only stub, not the real tabular view.
 * :doc:`sources`' ``ResolverDeclaration`` ("associated data for objects
   picked on the scene, for detailed inspection") has a server-side contract
   (``viewer_server/plugins/contracts.py``) but no client-side consumer yet --
@@ -206,6 +210,3 @@ than answered:
   likewise declared server-side with no client-side loader -- relevant if a
   plugin ever wants to contribute a new geometry/material type without a
   core rebuild.
-* No dispatch equivalent to :doc:`module-table`'s "Plot dispatch" exists for
-  sending a selection (items or markers) to another module for further
-  analysis.

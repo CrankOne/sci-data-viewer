@@ -24,11 +24,13 @@
 import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
 import { create_scene_with_viewport } from '@/sceneCreation';
+import { send_selection_to_sink } from '@/store/sinkDispatch';
 
 const props = defineProps({
-    kind: {type: String, required: true},          // 'resource' | 'instance'
+    kind: {type: String, required: true},          // 'resource' | 'instance' | 'sink'
     name: {type: String, default: null},            // for kind === 'resource'
     instanceId: {type: String, default: null},      // for kind === 'instance'
+    originContextId: {type: String, default: null}, // for kind === 'sink'
     dataType: {type: String, required: true},       // which contextual dataType's scenes to offer
     currentContextId: {type: String, default: null}
 });
@@ -40,9 +42,11 @@ const error = ref(null);
 
 const scenesForType = computed(() => store.getters['contexts/listForType'](props.dataType));
 
-const subjectLabel = computed(() => props.kind === 'resource'
-    ? `Assign "${props.name}" to a scene:`
-    : `Connect this subpanel to a scene:`);
+const subjectLabel = computed(() => {
+    if(props.kind === 'resource') return `Assign "${props.name}" to a scene:`;
+    if(props.kind === 'sink') return 'Send selection to:';
+    return 'Connect this subpanel to a scene:';
+});
 
 // "New scene…" here goes through the same shared helper every other
 // picker in the app uses (see sceneCreation.js) -- a scene never comes
@@ -58,6 +62,13 @@ async function submit() {
 
         if(props.kind === 'resource') {
             await store.dispatch('connection/reassign_resource_context', {name: props.name, contextId});
+        } else if(props.kind === 'sink') {
+            store.commit('contexts/set_sink_target', {
+                contextId: props.originContextId,
+                targetDataType: props.dataType,
+                targetContextId: contextId
+            });
+            send_selection_to_sink(store, {originContextId: props.originContextId, targetDataType: props.dataType});
         } else {
             store.commit('widgetInstances/set_instance_context', {instanceId: props.instanceId, contextId});
         }

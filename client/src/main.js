@@ -18,6 +18,13 @@ import { get_active_session_id_for_tab, activate_session } from './sessionActiva
 
 import { all_modules } from './modules/registry';
 import './modules/three-view';  // registers itself as a viewer module (dataType: 'geo3d')
+import './modules/plotter';  // registers itself as a viewer module (dataType: 'plot')
+// Dev-only stub proving the cross-module "selection sink" mechanism end to
+// end (doc/ui-session.rst's "Extension points") -- deliberately last, so
+// layoutDefaults.js's ensure_default_context() (which picks the first
+// registered contextual module for legacy-layout bootstrap) still lands on
+// geo3d, unaffected by this third contextual type.
+import './modules/sink-view';
 // import './modules/fsm-view';  // <- future viewer modules just add a line here
 
 async function main() {

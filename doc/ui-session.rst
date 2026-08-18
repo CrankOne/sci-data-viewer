@@ -312,10 +312,114 @@ nothing above is aware of any specific module:
 ``payloadMutation`` / ``payload``, ``removeMutation`` / ``removePayload``
     How a loaded/removed resource's data reaches/leaves this module's state
     -- ``connection.js``'s only hook into module internals.
+``receiveSinkMutation``
+    Optional; a function of the receiving context's id (or a bare mutation
+    type string), symmetric to ``payloadMutation`` but for the cross-module
+    "selection sink" mechanism instead of a data source's own resource
+    pipeline (``store/sinkDispatch.js``'s only hook into module internals) --
+    lets a module declare it can be a sink *target* for routed-in selections.
+``removeIncomingOrigin``
+    Optional; a function of the receiving context's id (or a bare mutation
+    type string), symmetric to ``removeMutation`` -- ``contexts.js``'s
+    ``remove_context`` calls it on every other context's module when a
+    context that may have been a sink *origin* is removed, so a sink
+    target's landing zone can drop that origin's entries rather than dangle.
 ``installPersistence(store, sessionId)``
     Optional; called once per ``activate_session``, for module-owned state
     that isn't a per-context facet/selection preset (handled generically by
     ``contexts.js``).
+
+Selection sinks
+----------------
+
+Answers :doc:`module-3d-viewer`'s and :doc:`module-plotter`'s "Cross-module
+interaction"/"Open questions" stubs on how one context's selection reaches
+another context, "regardless of which module the selection originated
+from" (:doc:`module-table`'s "Selection view" use case).
+
+A **sink** is not a separately-named, independently-managed entity. It is
+simply a pointer an *origin* context holds on itself:
+
+.. code-block:: js
+
+    // contexts.js's own per-context record
+    {id, name, dataType, sinkTargets: {[targetDataType]: targetContextId}}
+
+-- "this context's selection of ``targetDataType`` routes into that other
+context." At most one target per (origin, ``targetDataType``) pair. Several
+different origins may point at the *same* target id -- that is how
+reuse/aggregation happens, with no separate pool of named "sink" objects
+needed. ``contexts.js`` owns this state directly (``set_sink_target``/
+``clear_sink_target``/``initialize_sink_targets`` mutations, ``sinkTargets``/
+``sinkTarget`` getters, generic per-context persistence installed
+unconditionally in ``create_context`` -- unlike ``view3D``'s facet-preset
+persistence, this is not gated to any one ``dataType``) because it is a
+cross-cutting property of any context, not a per-module concern.
+
+Dispatch is **manual and one-shot**: ``store/sinkDispatch.js``'s
+``send_selection_to_sink(store, {originContextId, targetDataType})`` is the
+one sanctioned orchestration path (mirrors ``sceneCreation.js``'s role for
+context creation) -- it snapshots the *current* selection and sends it once.
+``sinkTargets`` only makes *where a future click goes* durable across
+reloads; it does not subscribe to future selection changes (a clean,
+separable follow-up if ever wanted).
+
+The dispatched payload is **reference + snapshot**, not a bare pointer: each
+item carries an identifying reference (its id, plus the source/resource id
+it came from) *and* a snapshot of whatever data was already at hand at
+dispatch time -- self-contained, no live re-fetch needed to display it, and
+it still shows something even if the origin context is later removed.
+
+The payload lands in the target context's own **separate sub-state**,
+keyed by origin context id, never merged into the target's own
+directly-loaded items. This is the same "keyed by contributor, wholesale
+replace on update, delete on removal" shape a context's own
+data-source-driven item list already needs (e.g. the plotter's
+``primitivesByResource``) -- pulled into one shared factory,
+``store/keyedCollection.js``, rather than hand-rolled per module.
+
+Cleanup on removal runs both directions from ``contexts.js``'s
+``remove_context``, mirroring its existing ``reassign_context_sources``
+precedent (clean up a cross-reference at the removal site):
+
+* Removed context was a sink *target* -- any other context's dangling
+  ``sinkTargets`` pointer to it is cleared.
+* Removed context was a sink *origin* -- any other context's module that
+  declared ``removeIncomingOrigin`` (above) gets a chance to drop that
+  origin's entries from its own landing zone.
+
+**What exists today, concretely:** geo3d (``view3D.js``'s
+``selectedGeoItemIDs``) is the one real sink *origin* -- a "Send selection to
+sink" button in ``ItemsTree.vue`` opens the existing ``ConnectScopeModal.vue``
+(now with a third ``kind: 'sink'`` branch alongside its ``'resource'``/
+``'instance'`` ones) to pick or create a target, then calls
+``send_selection_to_sink``. ``sinkDispatch.js``'s snapshot builder is
+deliberately geo3d-specific (it reads ``view3D``'s own ``selectedGeoItemIDs``/
+``geoData`` getters and recovers an accurate source id via
+``destruct_geo_id``, :doc:`module-3d-viewer`'s existing ``geoID@srcID``
+composite-id convention) -- a second origin type needs its own snapshot
+builder alongside it, not a change to ``contexts.js`` or the registry
+contract. ``modules/sink-view/`` is the one real sink *target*: a
+deliberately minimal, dev-only stub (``dataType: 'sink-view'``) that lists
+whatever lands in its inbox as raw JSON, existing purely to prove the
+mechanism -- not a step toward the real Tabular View module
+(:doc:`module-table`), which doesn't exist in this codebase yet.
+
+**Deliberately not done here** -- open for later, not overlooked:
+
+* Live auto-resend on every future selection change (see "manual and
+  one-shot" above).
+* A real, styled sink consumer (the actual Tabular View module).
+* The plotter as a sink *origin* -- it has no selection model of its own
+  yet (:doc:`module-plotter`'s "Open questions" still applies); dispatch
+  *from* the plotter needs that designed first.
+* Marker-level dispatch (``view3D``'s ``selectedMarkers``) -- whole geo-item
+  selection only, for now.
+* Generalizing highlight/selection themselves into a per-context primitive
+  (rather than each module's own bespoke state, as geo3d's remains today)
+  was the direction validated in discussion but is not what got built --
+  ``sinkDispatch.js``'s geo3d-specific snapshot builder is the pragmatic
+  bridge in place of that generalization.
 
 Known limitations
 -------------------
