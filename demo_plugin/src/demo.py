@@ -217,6 +217,97 @@ def table_random_data():
         },
     })
 
+@blueprint.get("/graph-source")
+def graph_source_descriptor():
+    # Same shape as source_descriptor()/plot_source_descriptor()/
+    # table_source_descriptor() above, but for the block diagram module
+    # (doc/module-graph.rst) -- a plain source, `GET data-url` returns the
+    # graph payload directly.
+    return jsonify(SourceDescriptor(
+        data_url=url_for(__name__ + '.graph_data'),
+        extra={"type": "graph"},  # mandatory for the block diagram module
+    ).to_json())
+
+@blueprint.get("/graph-data")
+def graph_data():
+    # Matches doc/module-graph.rst's "Data" section: a `graphData` envelope
+    # holding an optional `layout` hint plus `nodes`/`edges`. A small FSM --
+    # states as nodes, transitions as labeled directed edges, including one
+    # back-edge (Paused -> Running on "resume") so the demo exercises
+    # dagre's cycle-breaking, not just a tree. Each node/edge carries a
+    # small illustrative `subjectData` purely so "Selection and forwarding"
+    # has something concrete to snapshot and dispatch, even while the
+    # plotter side of that dispatch remains a stub.
+    return jsonify({
+        "graphData": {
+            "layout": {"direction": "TB"},
+            "nodes": [
+                {
+                    "_id": "idle", "label": "Idle", "shape": "rounded",
+                    "_facets": {"kind": "state"},
+                    "subjectData": {"meanDurationMs": 0, "samples": []},
+                },
+                {
+                    "_id": "running", "label": "Running", "shape": "rounded",
+                    "_facets": {"kind": "state"},
+                    "subjectData": {"meanDurationMs": 842, "samples": [720, 810, 905, 880, 895]},
+                },
+                {
+                    "_id": "paused", "label": "Paused", "shape": "rounded",
+                    "_facets": {"kind": "state"},
+                    "subjectData": {"meanDurationMs": 1350, "samples": [900, 1400, 1800, 1250]},
+                },
+                {
+                    "_id": "stopped", "label": "Stopped", "shape": "ellipse",
+                    "_facets": {"kind": "final-state"},
+                    "subjectData": {"meanDurationMs": 0, "samples": []},
+                },
+                {
+                    "_id": "error", "label": "Error", "shape": "diamond",
+                    "_facets": {"kind": "final-state"},
+                    "subjectData": {"meanDurationMs": 0, "samples": []},
+                },
+            ],
+            "edges": [
+                {
+                    "_id": "t-idle-running", "from": "idle", "to": "running", "label": "start",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 214},
+                },
+                {
+                    "_id": "t-running-paused", "from": "running", "to": "paused", "label": "pause",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 96},
+                },
+                {
+                    "_id": "t-paused-running", "from": "paused", "to": "running", "label": "resume",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 88},
+                },
+                {
+                    "_id": "t-running-stopped", "from": "running", "to": "stopped", "label": "stop",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 118},
+                },
+                {
+                    "_id": "t-paused-stopped", "from": "paused", "to": "stopped", "label": "stop",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 8},
+                },
+                {
+                    "_id": "t-running-error", "from": "running", "to": "error", "label": "fault",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 5},
+                },
+                {
+                    "_id": "t-error-idle", "from": "error", "to": "idle", "label": "reset",
+                    "_facets": {"kind": "transition"},
+                    "subjectData": {"count": 5},
+                },
+            ],
+        },
+    })
+
 @blueprint.get("/geometry")
 def geometry():
     # Later, query parameters can select an event, time slice,
@@ -433,6 +524,12 @@ class DemoViewerPlugin:
                 id="demo.table-random-access-showroom",
                 url=__name__ + '.table_random_source_descriptor',
                 label="Testing table showroom (random-access, row-windowed)",
+                enabledByDefault=False,
+            ),
+            DataSourceDeclaration(
+                id="demo.graph-showroom",
+                url=__name__ + '.graph_source_descriptor',
+                label="Testing block diagram showroom (FSM)",
                 enabledByDefault=False,
             ),
         )

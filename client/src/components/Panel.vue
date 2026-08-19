@@ -178,6 +178,10 @@ async function remove_module() {
     store.commit('layout/clear_instance_from_leaf', {instanceId});
     store.commit('widgetInstances/remove_instance', instanceId);
     store.commit('cameras/unregister_viewport', instanceId);
+    // Same cleanup, for modules/graph's own per-viewport layout state
+    // (doc/module-graph.rst's "Diagrams") -- harmless no-op for any other
+    // (non-graph) viewport id, same as the cameras call above.
+    store.commit('graphLayout/unregister_viewport', instanceId);
 
     if(contextId) {
         const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)

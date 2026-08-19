@@ -20,11 +20,12 @@ import { all_modules } from './modules/registry';
 import './modules/three-view';  // registers itself as a viewer module (dataType: 'geo3d')
 import './modules/plotter';  // registers itself as a viewer module (dataType: 'plot')
 import './modules/table';  // registers itself as a viewer module (dataType: 'table')
+import './modules/graph';  // registers itself as a viewer module (dataType: 'graph')
 // Dev-only stub proving the cross-module "selection sink" mechanism end to
 // end (doc/ui-session.rst's "Extension points") -- deliberately last, so
 // layoutDefaults.js's ensure_default_context() (which picks the first
 // registered contextual module for legacy-layout bootstrap) still lands on
-// geo3d, unaffected by this fourth contextual type.
+// geo3d, unaffected by this fifth contextual type.
 import './modules/sink-view';
 // import './modules/fsm-view';  // <- future viewer modules just add a line here
 

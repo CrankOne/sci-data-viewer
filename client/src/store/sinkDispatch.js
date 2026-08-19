@@ -15,6 +15,7 @@
 // wanted).
 import { get_module } from '@/modules/registry';
 import { destruct_geo_id } from '@/modules/three-view/utils';
+import { destruct_selection_id } from '@/modules/graph/ids';
 
 // Builds a self-contained snapshot of the given context's current geo3d
 // selection: a reference (itemId + srcID, both recovered accurately from
@@ -83,4 +84,34 @@ export function send_selection_to_sink(store, {originContextId, targetDataType})
 // first" -- receiving is the same kind of not-yet-done).
 export function send_table_projection_to_sink(store, {originContextId, targetDataType, items}) {
     deliver_to_sink(store, {originContextId, targetDataType, type: 'table-projection', items});
+}
+
+// doc/module-graph.rst's "Selection and forwarding": a second sink
+// *origin* type, alongside geo3d above -- this module's board keeps its
+// raw, per-resource node/edge data (store/graphBoard.js's own
+// dataByResource, not the merged/composite-id'd getters DiagramViewport.vue
+// itself reads) accessed directly via the dynamically-registered module's
+// state, the same way build_geo_selection_snapshot above reads view3D's.
+// A selected id is this module's own `node:<resource>::<id>`/
+// `edge:<resource>::<id>` composite (modules/graph/ids.js), which already
+// carries everything needed to resolve back to the source item without a
+// second addressing scheme.
+function build_graph_selection_snapshot(store, originContextId) {
+    const boardNS = `graphBoard_${originContextId}`;
+    const selectionNS = `selection_${originContextId}`;
+    const selectedIds = store.getters[`${selectionNS}/selectedItemIDs`];
+    const dataByResource = store.state[boardNS]?.dataByResource ?? {};
+
+    return [...selectedIds].map(compositeId => {
+        const {kind, resourceName, localId} = destruct_selection_id(compositeId);
+        const resource = dataByResource[resourceName];
+        const collection = kind === 'node' ? resource?.nodes : resource?.edges;
+        const item = collection?.find(entry => entry._id === localId) ?? null;
+        return {itemId: localId, srcID: resourceName, snapshot: item && {...item, _kind: kind}};
+    });
+}
+
+export function send_graph_selection_to_sink(store, {originContextId, targetDataType}) {
+    const items = build_graph_selection_snapshot(store, originContextId);
+    deliver_to_sink(store, {originContextId, targetDataType, type: 'graph', items});
 }
