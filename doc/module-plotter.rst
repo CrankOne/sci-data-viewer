@@ -140,6 +140,12 @@ enclosed or open polygon, filling can be set up to one of four plot edges.
 Filling can have color, alpha channel and pattern -- one of pre-defined tiles
 or programmatically-generated strokes and dithering.
 
+A polyline may set its own stroke style via ``dash``: a Canvas
+``setLineDash``-compatible array of numbers (e.g. ``[6, 3]``); omitted or
+empty means solid. This is the primitive's own explicit choice -- the
+broader facet-based styling sub-panel "Styling" above anticipates is
+separate, larger, and still undesigned.
+
 **Raster picture** (bitmap). See "Styling" below for a note on appearance
 limits anticipated for especially demanding raster content.
 

@@ -9,8 +9,8 @@
         v-if="contextualDataType"
         type="button"
         class="header-action"
-        title="Connect to scene"
-        aria-label="Connect to scene"
+        title="Connect to scope"
+        aria-label="Connect to scope"
         @click="open_connect_scope"
       >
         <span class="vi vi-cube" aria-hidden="true" />

@@ -119,8 +119,8 @@
   border: 1px solid var(--clr-border-inactive);
   border-radius: 0.2rem;
 
-  background: var(--clr-bg-options);
-  color: var(--clr-fg-options);
+  background: var(--clr-bg-button);
+  color: var(--clr-fg-button);
 
   cursor: pointer;
 }

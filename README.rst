@@ -2,13 +2,23 @@ WUI for Scientific Applications
 -------------------------------
 
 .. warning::
-    Project is in early draft state. Albeit a generalized scenario is implied,
-    its current focus now is 3D visualization only.
+    Project is in a working prototype state. Interface and some major API
+    may be heavily changed.
 
 The goal of this project is to provide a generalized data viewer for
 scientific applications, residing in the web browser and able to
 communicate with (local or remote) server application by the means of HTTP
 protocol.
+
+Despite there are quite some tools well-developed tools on the market, this
+project tries to cover a practically-important case when one form of
+non-trivial data representation maps onto another form on a per-element basis.
+
+For instance, having rather complex 3D geometry we want certain elements of it
+to be mapped to a bulk tabular data. Another example is to associate complex
+plots with the elements of the block diagram. While modern JS plotters offer
+a plausible look and good interactivity means for the plots, inter-connecting
+between them is often a nuisance still.
 
 Usage Scenario
 ==============
@@ -21,6 +31,7 @@ examples are:
 * spatial field visualizations
 * non-stationary finite-difference differential-equations
 * frame-based data analysis
+* numerical model evaluation within complex multi-staged algorithms
 
 The Project does not provide feature-rich sophisticated visualization tools by
 itself, instead letting user to create their own representation layers and
@@ -126,13 +137,13 @@ need virtualenv with Flask, flask-restful from ``requirements.txt``, etc) with:
 
     $ source venv/bin/activate
     $ python3 -m pip install -e server_py
-    $ sci-viewer-server --debug
+    $ cp server_py/config.example.yaml my-config.yaml   # then edit as needed
+    $ sci-viewer-server --config my-config.yaml --debug
 
-The Flask-native launcher also works:
-
-.. code-block:: shell
-
-    $ flask --app sci_viewer_server:create_app run --debug
+A YAML config file is mandatory (``server_py/config.example.yaml`` is a
+starting point); it also lists which installed plugins to load and their
+parameters -- run ``sci-viewer-server --list-plugins`` to see what's
+installed, and see :doc:`doc/plugins` for the config file format.
 
 Then you should able to see the viewer running at ``http://127.0.0.1:5000/``.
 

@@ -20,12 +20,11 @@ Core concepts
     timestamps) plus a scattered set of id-namespaced ``localStorage``
     entries -- see "Storage layout".
 
-    Unrelated to :doc:`sources`' own use of "session" (a per-traversal
-    iterator/cursor over one sequential data source, ``POST
-    /resource/sessions`` etc.) -- the two collide purely by historical
-    accident, sharing nothing else. See that document's "Sequential
-    capability" section for the TODO to rename its sense of the word away
-    from this clash.
+    Unrelated to :doc:`sources`' "cursor" (a per-traversal iterator over
+    one sequential data source, ``POST /resource/cursors`` etc.) -- that
+    document used to call it "session" too, purely by historical accident,
+    sharing nothing else with this sense of the word; it's since been
+    renamed away from the clash.
 
 ``layout``
     A binary tree of resizable splits/panels (``store/modules/layout.js``).
@@ -121,10 +120,11 @@ is the single hydration path, used both at boot and from
    persistence, every registered module's own ``installPersistence`` hook,
    and data-source persistence -- in that order, since sources reference
    context ids that must already exist.
-2. Seed the plugin manifest's default sources (``isNew``) or restore this
-   session's previously-attached ones (below). Not *awaited* here (a
-   slow/dead remote must not block the modal closing), but each path
-   returns a promise that settles once every source it touched has.
+2. For an existing session, restore its previously-attached sources
+   (below); a brand-new one (``isNew``) starts with none. Not *awaited*
+   here (a slow/dead remote must not block the modal closing), but the
+   restore path returns a promise that settles once every source it
+   touched has.
 3. If a ``router`` was given, chain a shared-link application
    (``shareLink.js``) after that settlement, then close whichever modal
    triggered this.
@@ -158,37 +158,35 @@ A brand-new session's default tree is deliberately minimal::
 
 No scene/viewport and no other core subpanel is pre-created -- both are now
 user-initiated, reachable via shift-click "add content" on the empty panel.
-Consequently, a *default-enabled* source that turns out to need a scene
-(below) must create one on demand; ``layout/firstEmptyItemsLeafId`` (first
-panel with no module and no items) lets it land in that still-empty main
-panel instead of ``sceneCreation.js``'s wrap-the-whole-tree fallback, which
-is only actually needed once no empty panel remains to reuse.
+A brand-new session starts with no sources either (below); the first one
+the user adds interactively (``AddSourceModal.vue``) is what actually
+creates the first scene, via ``sceneCreation.js``'s
+``create_scene_with_viewport``.
 
-Data sources: seeding and restoration
---------------------------------------
+Data sources: restoration
+--------------------------
 
-A session's attached sources come from two origins depending on ``isNew``,
-both converging on the same per-resource sequence: ``connection/add_resource``
-(manifest only) → resolve/assign a context if the type is contextual → fetch
-the data, unless the source is *addressable* (its ``data-url`` enumerates
-items rather than being one fetchable payload -- :doc:`sources` -- so it's
-left ``ready`` for the user to pick one from its widget).
+A brand-new session (``isNew``) starts with no attached sources -- the user
+adds them interactively via ``AddSourceModal.vue``, which itself reads
+``GET /api/plugins`` (:doc:`plugins`, ``pluginManifest.js``) to offer known
+sources alongside free-form URL entry. Plugin-declared sources used to be
+auto-seeded into every new session (an ``enabledByDefault`` flag on
+``DataSourceDeclaration``); removed once persistent sessions meant this
+only fired once per session's lifetime rather than on every reload, which
+was the point of it while developing a plugin's client-side handling.
 
-**New session** -- ``seed_default_sources()`` fetches ``GET /api/plugins``
-(:doc:`plugins`, ``pluginManifest.js``) and adds every source with
-``enabledByDefault: true``.
-A contextual one reuses an existing context of its ``dataType`` if any
-already exists, otherwise creates one via ``create_scene_with_viewport``,
-targeting the still-empty main panel above.
-
-**Existing session** -- ``restore_persisted_sources()``
-(``connectionPersistence.js``) replays ``viewer.sources.v1.<sess>``: name,
-endpoint, ``contextId``, and -- for an addressable source -- its last
-``selectedItemId``/``page``, so a reload resumes the same file.
-
-Both paths run every source concurrently, returning
-``Promise.allSettled(...)``: one unreachable source must not prevent the
-rest of the session from loading.
+An *existing* session's sources come from ``restore_persisted_sources()``
+(``connectionPersistence.js``), which replays ``viewer.sources.v1.<sess>``:
+name, endpoint, ``contextId``, and -- for an addressable source -- its last
+``selectedItemId``/``page``, so a reload resumes the same file. Each
+resource goes through the same per-resource sequence as adding one
+interactively would: ``connection/add_resource`` (manifest only) →
+resolve/assign its context → fetch the data, unless the source is
+*addressable* (its ``data-url`` enumerates items rather than being one
+fetchable payload -- :doc:`sources` -- so it's left ``ready`` for the user
+to pick one from its widget). All of a session's sources restore
+concurrently, returning ``Promise.allSettled(...)``: one unreachable
+source must not prevent the rest of the session from loading.
 
 Contexts and widget instances
 -------------------------------
@@ -320,12 +318,22 @@ nothing above is aware of any specific module:
 ``payloadMutation`` / ``payload``, ``removeMutation`` / ``removePayload``
     How a loaded/removed resource's data reaches/leaves this module's state
     -- ``connection.js``'s only hook into module internals.
-``receiveSinkMutation``
-    Optional; a function of the receiving context's id (or a bare mutation
-    type string), symmetric to ``payloadMutation`` but for the cross-module
-    "selection sink" mechanism instead of a data source's own resource
-    pipeline (``store/sinkDispatch.js``'s only hook into module internals) --
-    lets a module declare it can be a sink *target* for routed-in selections.
+``receiveSinkMutation`` / ``acceptsPayloadTypes``
+    Optional, but mandatory together (``register_module`` throws if only
+    one is set). ``receiveSinkMutation`` is a function of the receiving
+    context's id (or a bare mutation type string), symmetric to
+    ``payloadMutation`` but for the cross-module "selection sink" mechanism
+    instead of a data source's own resource pipeline
+    (``store/sinkDispatch.js``'s only hook into module internals) -- lets a
+    module declare it can be a sink *target*. ``acceptsPayloadTypes`` is
+    that target's closed vocabulary (``string[]`` or the wildcard ``'*'``)
+    a *link* (see "Selection sinks" below) must name one of.
+``buildSinkSnapshot(store, contextId) -> [{itemId, srcID, payloadType,
+snapshot}]``
+    Optional; the *origin* side of the same mechanism -- how this module's
+    current selection becomes sink items. See "Selection sinks" below for
+    the full contract (per-item ``payloadType``, no separate producer-side
+    vocabulary).
 ``removeIncomingOrigin``
     Optional; a function of the receiving context's id (or a bare mutation
     type string), symmetric to ``removeMutation`` -- ``contexts.js``'s
@@ -457,37 +465,77 @@ another context, "regardless of which module the selection originated
 from" (:doc:`module-table`'s "Selection view" use case).
 
 A **sink** is not a separately-named, independently-managed entity. It is
-simply a pointer an *origin* context holds on itself:
+simply a *link* record an *origin* context holds on itself:
 
 .. code-block:: js
 
     // contexts.js's own per-context record
-    {id, name, dataType, sinkTargets: {[targetDataType]: targetContextId}}
+    {id, name, dataType, sinkTargets: {[targetDataType]: link}}
+    // link: {targetContextId, payloadType, facetsSelector}
 
 -- "this context's selection of ``targetDataType`` routes into that other
-context." At most one target per (origin, ``targetDataType``) pair. Several
-different origins may point at the *same* target id -- that is how
-reuse/aggregation happens, with no separate pool of named "sink" objects
-needed. ``contexts.js`` owns this state directly (``set_sink_target``/
+context, as ``payloadType``, optionally filtered by ``facetsSelector``." At
+most one link per (origin, ``targetDataType``) pair. Several different
+origins may point at the *same* target id -- that is how reuse/aggregation
+happens, with no separate pool of named "sink" objects needed.
+``contexts.js`` owns this state directly (``set_sink_target``/
 ``clear_sink_target``/``initialize_sink_targets`` mutations, ``sinkTargets``/
 ``sinkTarget`` getters, generic per-context persistence installed
 unconditionally in ``create_context`` -- unlike ``view3D``'s facet-preset
 persistence, this is not gated to any one ``dataType``) because it is a
 cross-cutting property of any context, not a per-module concern.
 
-Dispatch is **manual and one-shot**: ``store/sinkDispatch.js``'s
-``send_selection_to_sink(store, {originContextId, targetDataType})`` is the
-one sanctioned orchestration path (mirrors ``sceneCreation.js``'s role for
-context creation) -- it snapshots the *current* selection and sends it once.
-``sinkTargets`` only makes *where a future click goes* durable across
-reloads; it does not subscribe to future selection changes (a clean,
-separable follow-up if ever wanted).
+A link's two extra fields, alongside the target itself:
+
+``payloadType`` (mandatory)
+    One of the *target* module's own declared ``acceptsPayloadTypes``
+    (``modules/registry.js``, see below) -- or the literal ``'*'`` when the
+    target itself accepts anything. Chosen from the target's list at
+    link-creation time (``ConnectScopeModal.vue``'s "Payload type" picker),
+    never from any list the *origin* declares: an origin module isn't
+    required to pre-declare what it can produce (a graph selection, for
+    instance, can mix ``'graph-node'`` and ``'graph-edge'`` items in one
+    go -- see ``buildSinkSnapshot`` below) -- only the *receiving* side's
+    vocabulary is closed and checked. At delivery
+    (``store/sinkDispatch.js``'s ``deliver_to_sink``), only items whose own
+    ``payloadType`` matches the link's (or the link is ``'*'``) pass
+    through.
+
+``facetsSelector`` (optional)
+    ``null``, or a plain ``{[facetKey]: value}`` object every one of whose
+    entries an item's own ``_facets`` must equal (AND) to pass through this
+    link -- an item with no ``_facets`` at all fails any non-empty
+    selector, never matches by omission. Narrows *which* selected items
+    this particular link forwards, e.g. only nodes tagged
+    ``{kind: 'state'}`` to one target while everything else still reaches
+    a different one. The UI (``ConnectScopeModal.vue``) currently edits
+    only a single key/value pair -- the underlying data model is a full
+    object so a richer picker can be dropped in later without touching
+    delivery.
+
+Dispatch is **update-by-snapshot, no longer one-shot**:
+``store/sinkDispatch.js``'s ``send_selection_to_sink(store,
+{originContextId, targetDataType})`` is the one sanctioned orchestration
+path (mirrors ``sceneCreation.js``'s role for context creation) -- it still
+snapshots the *current* selection and sends it, the payload is never a live
+pointer. What changed: ``store/sinkAutoDispatch.js`` installs one global
+``store.subscribe`` (``main.js``, once, independent of any session) that
+watches every ``selection_<ctx>`` module's selection-changing mutations
+(``select_items``/``unselect_items``/``clear_selection``/
+``apply_selection_set``) and calls ``send_selection_to_sink`` again, for
+every active link on that context, whenever the selection actually changes
+-- so a link, once created, stays current without the user re-clicking
+"Send selection to sink" after every click in the origin. A stale link
+(its target's registry declaration changed since the link was created, or
+it was persisted under the pre-payloadType shape) fails that resend with a
+caught, logged warning rather than breaking every other active link.
 
 The dispatched payload is **reference + snapshot**, not a bare pointer: each
 item carries an identifying reference (its id, plus the source/resource id
-it came from) *and* a snapshot of whatever data was already at hand at
-dispatch time -- self-contained, no live re-fetch needed to display it, and
-it still shows something even if the origin context is later removed.
+it came from), its own ``payloadType``, *and* a snapshot of whatever data
+was already at hand at dispatch time -- self-contained, no live re-fetch
+needed to display it, and it still shows something even if the origin
+context is later removed.
 
 The payload lands in the target context's own **separate sub-state**,
 keyed by origin context id, never merged into the target's own
@@ -502,48 +550,57 @@ Cleanup on removal runs both directions from ``contexts.js``'s
 precedent (clean up a cross-reference at the removal site):
 
 * Removed context was a sink *target* -- any other context's dangling
-  ``sinkTargets`` pointer to it is cleared.
+  ``sinkTargets`` link pointing at it (``link.targetContextId``) is
+  cleared.
 * Removed context was a sink *origin* -- any other context's module that
   declared ``removeIncomingOrigin`` (above) gets a chance to drop that
   origin's entries from its own landing zone.
 
-**What exists today, concretely:** geo3d (the shared ``selection`` module's
-``selectedItemIDs``, see "Selection model" above) is the one real sink
-*origin* -- a "Send selection to sink" button in ``ItemsTree.vue`` opens the
-existing ``ConnectScopeModal.vue`` (now with a third ``kind: 'sink'`` branch
-alongside its ``'resource'``/``'instance'`` ones) to pick or create a
-target, then calls ``send_selection_to_sink``. ``sinkDispatch.js``'s
-snapshot builder is deliberately geo3d-specific (it reads the
-``selection_<ctx>`` module's ``selectedItemIDs`` and ``view3D_<ctx>``'s
-``geoData`` getters and recovers an accurate source id via
-``destruct_geo_id``, :doc:`module-3d-viewer`'s existing ``geoID@srcID``
-composite-id convention) -- a second origin type needs its own snapshot
-builder alongside it, not a change to ``contexts.js`` or the registry
-contract. ``modules/sink-view/`` remains a deliberately minimal, dev-only stub
-(``dataType: 'sink-view'``) that lists whatever lands in its inbox as raw
-JSON, existing purely to prove the mechanism in isolation --
-:doc:`module-table`'s real Tabular View module now exists alongside it and
-is the actual, styled sink *target* (``modules/table/``, sharing the same
-``store/sinkInbox.js`` factory under its own context).
+**The registry contract** (``modules/registry.js``), extended for both
+sides of a link:
+
+``acceptsPayloadTypes: string[] | '*'`` (mandatory alongside
+``receiveSinkMutation``)
+    A target's closed vocabulary -- ``register_module`` throws if one is
+    declared without the other. Most modules declare a short, specific
+    list (the plotter: ``['graph-node', 'graph-edge', 'table-projection']``
+    -- the shapes it actually knows how to turn into primitives, see
+    :doc:`module-plotter`); a module that doesn't discriminate at all
+    (``sink-view``'s dev stub, or graph/table's own generic "list whatever
+    landed" inboxes) declares ``'*'``.
+
+``buildSinkSnapshot: (store, contextId) => [{itemId, srcID, payloadType,
+snapshot}]`` (optional)
+    An origin's own selection-to-items builder, replacing what used to be
+    hardcoded, per-dataType functions inside ``sinkDispatch.js`` itself.
+    geo3d's (``modules/three-view/index.js``) reads ``view3D_<ctx>``'s
+    ``geoData`` and recovers an accurate source id via ``destruct_geo_id``
+    (:doc:`module-3d-viewer`'s ``geoID@srcID`` composite-id convention),
+    tagging every item ``payloadType: 'geo-item'``. graph's
+    (``modules/graph/index.js``) reads ``graphBoard_<ctx>``'s
+    ``dataByResource`` directly (not ``DiagramViewport.vue``'s own merged
+    getters) and tags each item ``'graph-node'`` or ``'graph-edge'``
+    depending on which the composite selection id (``modules/graph/ids.js``)
+    names -- a single module producing more than one payload type is
+    exactly why payload type is per-*item*, not a fixed property of the
+    module. A module with no ``buildSinkSnapshot`` (table's own "Plot
+    dispatch" -- a column *projection*, not a selection) simply isn't a
+    selection-based sink origin: nothing calls it, and
+    ``sinkAutoDispatch.js`` skips such a context's changes entirely.
 
 **Deliberately not done here** -- open for later, not overlooked:
 
-* Live auto-resend on every future selection change (see "manual and
-  one-shot" above).
-* A real, styled sink consumer (the actual Tabular View module).
+* A live *bare pointer* instead of a resent snapshot -- the payload is
+  still a snapshot on every resend (see "update-by-snapshot" above), a
+  deliberate choice over binding the target directly to the origin's live
+  state.
 * The plotter as a sink *origin* -- it has no selection model of its own
   yet (:doc:`module-plotter`'s "Open questions" still applies); dispatch
   *from* the plotter needs that designed first.
 * Marker-level dispatch (the ``selection`` module's ``selectedSubItems``) --
   whole geo-item selection only, for now.
-* Generalizing selection into a per-context primitive (rather than each
-  module's own bespoke state) -- **done** for the selection/hidden-items/
-  facet-preset/selection-set container itself, see "Selection model" above;
-  hover-highlighting and the raycast behavior toggles are unmoved, still
-  three-view-bespoke on ``view3D``. ``sinkDispatch.js``'s snapshot builder
-  stays geo3d-specific regardless (it still resolves an id to a geometry
-  payload, an inherently per-dataType step) -- the move only relocated
-  *which* module its id-set getter reads from.
+* A facets-selector UI beyond a single key/value pair (see
+  ``facetsSelector`` above) -- the data model already supports more.
 
 Known limitations
 -------------------
@@ -559,9 +616,3 @@ Known limitations
   wrong with a third (:doc:`module-table`). Cheap fix: a type picker over
   ``all_modules().filter(m => m.contextual)`` in both, mirroring the
   "Scene" picker already next to it in each modal.
-* Default-source seeding issues every source's add/assign/load
-  concurrently; two *different* contextual types both marked
-  ``enabledByDefault`` could theoretically race for the same empty panel.
-  Not observed in practice (no two contextual types have both shipped with
-  ``enabledByDefault: true`` sources at once yet), and falls back safely
-  (wrap-the-tree) if lost -- worth resolving before that changes.

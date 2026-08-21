@@ -59,7 +59,11 @@ def create_app(
     api = Api(app)
     register_resources(api, CORE_RESOURCES)
 
-    registry = load_plugins(strict=app.config.get("PLUGIN_LOAD_STRICT", True))
+    registry = load_plugins(
+        enabled=app.config.get("PLUGINS_ENABLED", []),
+        plugin_configs=app.config.get("PLUGIN_CONFIGS", {}),
+        strict=app.config.get("PLUGIN_LOAD_STRICT", True),
+    )
     app.extensions["viewer_plugins"] = registry
     app.register_blueprint(plugins_blueprint)
     for plugin in registry.plugins:

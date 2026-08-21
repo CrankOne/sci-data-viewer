@@ -159,7 +159,7 @@ const stateModule = {
 
         // Names of resources currently between "fetched" and "applied to
         // their viewer module" (status 'loading-data') -- i.e. mid
-        // load_resource_data/create_resource_session/advance_resource_session.
+        // load_resource_data/create_resource_cursor/advance_resource_cursor.
         // Drives the app-wide LoadingOverlay.vue: shown for exactly this
         // window, covering both the network fetch and whatever synchronous
         // work applying the payload triggers (e.g. GeometryManager rebuilding
@@ -207,23 +207,23 @@ const stateModule = {
                 // Meaningless (left at 0) for a plain/non-enumerable source.
                 page,
                 // Sequential capability (doc/sources.rst): absolute URL of
-                // the active traversal session, or null before one starts
-                // (see create_resource_session/sourceListItems/
-                // sequential.vue). Sessions are never persisted (in-memory
+                // the active traversal cursor, or null before one starts
+                // (see create_resource_cursor/sourceListItems/
+                // sequential.vue). Cursors are never persisted (in-memory
                 // server-side only, see plugins/sequential.py) -- always
                 // null on a freshly restored resource.
-                sessionURL: null,
+                cursorURL: null,
                 // Opaque, display-only (doc/sources.rst forbids assigning
                 // meaning to it).
-                sessionId: null,
-                sessionFinished: false,
+                cursorId: null,
+                cursorFinished: false,
                 // Local "how many advances have I seen" UI counter -- NOT
                 // a server-side sequence number or item identifier.
-                sessionStep: 0,
+                cursorStep: 0,
                 // Last-applied `current` payload, kept so
                 // reassign_resource_context can re-deliver it to a new
-                // context without creating a new (non-replayable) session.
-                sessionLastData: null
+                // context without creating a new (non-replayable) cursor.
+                cursorLastData: null
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
@@ -291,7 +291,7 @@ const stateModule = {
                     // else: sequential-only manifest -- GET data-url is its
                     // principal resource (metadata), not an item, so there
                     // is nothing to auto-fetch. Left "ready" for the user to
-                    // start a session (sourceListItems/sequential.vue).
+                    // start a cursor (sourceListItems/sequential.vue).
                 }
                 return manifest;
             } catch(error) {
@@ -326,10 +326,10 @@ const stateModule = {
             const resource = state.resources[name];
             if(resource) {
                 // Best-effort, fire-and-forget release of an active
-                // sequential session (doc/sources.rst) -- not awaited, so a
+                // sequential cursor (doc/sources.rst) -- not awaited, so a
                 // slow/dead server doesn't hold up resource removal.
-                if(resource.sessionURL) {
-                    fetch(resource.sessionURL, {method: 'DELETE'}).catch(() => {});
+                if(resource.cursorURL) {
+                    fetch(resource.cursorURL, {method: 'DELETE'}).catch(() => {});
                 }
                 clean_up_resource_data(commit, resource);
             }
@@ -353,15 +353,15 @@ const stateModule = {
 
             commit('update_resource', {name, changes: {contextId}});
 
-            if(wasLoaded && resource.sessionURL) {
-                // A sequential session (doc/sources.rst) is resource-scoped
+            if(wasLoaded && resource.cursorURL) {
+                // A sequential cursor (doc/sources.rst) is resource-scoped
                 // and forward-only/non-replayable -- moving contexts must
-                // not start a new session or re-fetch (GET data-url isn't
+                // not start a new cursor or re-fetch (GET data-url isn't
                 // an item for a sequential source). Re-deliver the last
                 // item that was applied instead.
-                if(resource.sessionLastData !== null && resource.sessionLastData !== undefined) {
+                if(resource.cursorLastData !== null && resource.cursorLastData !== undefined) {
                     await dispatch('apply_resource_data', {
-                        resource: state.resources[name], data: resource.sessionLastData
+                        resource: state.resources[name], data: resource.cursorLastData
                     });
                 }
             } else if(wasLoaded) {
@@ -509,10 +509,10 @@ const stateModule = {
         },
 
         // Sequential capability (doc/sources.rst): creates a fresh
-        // traversal session and applies its initial item, if any. Mirrors
+        // traversal cursor and applies its initial item, if any. Mirrors
         // load_resource_data's role for an addressable source, except
         // there's no itemId -- the server decides the starting position.
-        async create_resource_session({state, commit, dispatch}, {name}) {
+        async create_resource_cursor({state, commit, dispatch}, {name}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
@@ -524,25 +524,25 @@ const stateModule = {
             // objects) runs.
             commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
             try {
-                const url = new URL('sessions', resource.dataURL.endsWith('/') ? resource.dataURL : `${resource.dataURL}/`);
+                const url = new URL('cursors', resource.dataURL.endsWith('/') ? resource.dataURL : `${resource.dataURL}/`);
                 const response = await fetch(url.href, {method: 'POST', headers: {Accept: 'application/json'}});
                 if(response.status !== 201) {
                     throw new Error(`POST ${url} failed with HTTP ${response.status}`);
                 }
                 const location = response.headers.get('Location');
                 if(!location) {
-                    throw new Error(`Session creation response from ${url} carried no Location header`);
+                    throw new Error(`Cursor creation response from ${url} carried no Location header`);
                 }
-                const sessionURL = new URL(location, resource.dataURL).href;
+                const cursorURL = new URL(location, resource.dataURL).href;
                 const body = await response.json();
                 commit('update_resource', {
                     name,
                     changes: {
-                        sessionURL,
-                        sessionId: location.split('/').filter(Boolean).pop(),
-                        sessionFinished: Boolean(body.finished),
-                        sessionStep: 0,
-                        sessionLastData: body.current ?? null
+                        cursorURL,
+                        cursorId: location.split('/').filter(Boolean).pop(),
+                        cursorFinished: Boolean(body.finished),
+                        cursorStep: 0,
+                        cursorLastData: body.current ?? null
                     }
                 });
                 if(body.current !== null && body.current !== undefined) {
@@ -560,31 +560,31 @@ const stateModule = {
             }
         },
 
-        // Advances an active session by exactly one item (doc/sources.rst)
-        // and applies the result the same way create_resource_session does.
-        async advance_resource_session({state, commit, dispatch}, {name}) {
+        // Advances an active cursor by exactly one item (doc/sources.rst)
+        // and applies the result the same way create_resource_cursor does.
+        async advance_resource_cursor({state, commit, dispatch}, {name}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
             }
-            if(!resource.sessionURL) {
-                throw new Error(`Resource "${name}" has no active session`);
+            if(!resource.cursorURL) {
+                throw new Error(`Resource "${name}" has no active cursor`);
             }
-            // See create_resource_session's identical note on ordering this
+            // See create_resource_cursor's identical note on ordering this
             // before the fetch, for LoadingOverlay's benefit.
             commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
             try {
-                const response = await fetch(resource.sessionURL, {method: 'POST', headers: {Accept: 'application/json'}});
+                const response = await fetch(resource.cursorURL, {method: 'POST', headers: {Accept: 'application/json'}});
                 if(!response.ok) {
-                    throw new Error(`POST ${resource.sessionURL} failed with HTTP ${response.status}`);
+                    throw new Error(`POST ${resource.cursorURL} failed with HTTP ${response.status}`);
                 }
                 const body = await response.json();
                 commit('update_resource', {
                     name,
                     changes: {
-                        sessionFinished: Boolean(body.finished),
-                        sessionStep: (resource.sessionStep ?? 0) + 1,
-                        sessionLastData: body.current ?? null
+                        cursorFinished: Boolean(body.finished),
+                        cursorStep: (resource.cursorStep ?? 0) + 1,
+                        cursorLastData: body.current ?? null
                     }
                 });
                 if(body.current !== null && body.current !== undefined) {
@@ -602,21 +602,21 @@ const stateModule = {
             }
         },
 
-        // Releases an active session (doc/sources.rst). Leaves whatever was
+        // Releases an active cursor (doc/sources.rst). Leaves whatever was
         // last rendered on screen -- releasing ends the traversal, it
         // doesn't clear the scene (mirrors an addressable resource keeping
         // its last-picked item after unrelated actions).
-        async release_resource_session({state, commit}, {name}) {
+        async release_resource_cursor({state, commit}, {name}) {
             const resource = state.resources[name];
-            if(!resource?.sessionURL) return;
+            if(!resource?.cursorURL) return;
             try {
-                await fetch(resource.sessionURL, {method: 'DELETE'});
+                await fetch(resource.cursorURL, {method: 'DELETE'});
             } catch(error) {
-                console.warn(`Failed to release session for resource "${name}":`, error);
+                console.warn(`Failed to release cursor for resource "${name}":`, error);
             }
             commit('update_resource', {
                 name,
-                changes: {sessionURL: null, sessionId: null, sessionFinished: false, sessionStep: 0}
+                changes: {cursorURL: null, cursorId: null, cursorFinished: false, cursorStep: 0}
             });
         },
 

@@ -21,9 +21,10 @@
   sinkInbox sub-state (store/sinkInbox.js) -- the "Selection view" use
   case, this module's real styled sink-target consumer, as opposed to
   modules/sink-view/'s raw-JSON dev stub. Deliberately origin-agnostic: it
-  only ever assumes the generic {itemId, srcID, snapshot} envelope
-  send_selection_to_sink's snapshot builders produce (store/sinkDispatch.js),
-  never anything specific to geo3d or any other one origin type.
+  only ever assumes the generic {itemId, srcID, payloadType, snapshot}
+  envelope send_selection_to_sink's snapshot builders produce (store/
+  sinkDispatch.js), never anything specific to geo3d or any other one
+  origin type.
 -->
 <template>
   <div class="table-viewport">
@@ -127,7 +128,7 @@
 
     <div v-if="incomingList.length" class="table-viewport__sink-section">
       <h4 v-for="entry in incomingList" :key="entry.originContextId">
-        Routed in from {{ entry.originContextId }} ({{ entry.type }})
+        Routed in from {{ entry.originContextId }} ({{ entry.payloadType }})
       </h4>
       <table class="table-viewport__table">
         <thead>
@@ -248,6 +249,7 @@ function open_plot_dispatch() {
     if(!contextId.value || !plotXColumnId.value || !plotYColumnId.value) return;
     const xColumn = plotXColumnId.value;
     const yColumn = plotYColumnId.value;
+    const link = store.getters['contexts/sinkTarget'](contextId.value, 'plot');
 
     store.commit('ui/open_modal', {
         name: 'connect-scope',
@@ -255,13 +257,24 @@ function open_plot_dispatch() {
             kind: 'sink',
             originContextId: contextId.value,
             dataType: 'plot',
-            currentContextId: store.getters['contexts/sinkTarget'](contextId.value, 'plot'),
+            currentContextId: link?.targetContextId ?? null,
+            currentPayloadType: link?.payloadType ?? null,
+            currentFacetsSelector: link?.facetsSelector ?? null,
             label: `Send "${xColumn}" vs. "${yColumn}" projection to:`,
             dispatchFn: (s, {originContextId: origin, targetDataType}) => {
+                // 'table-projection' -- must match modules/plotter/index.js's
+                // acceptsPayloadTypes entry of the same name, and the
+                // payloadType the connect-scope modal's own picker offered
+                // (this is the one origin type with no buildSinkSnapshot,
+                // so there's no per-item type inference to fall back on).
                 const items = [{
-                    xColumn,
-                    yColumn,
-                    data: tableState.rows.map(row => [row[xColumn], row[yColumn]])
+                    payloadType: 'table-projection',
+                    itemId: `${xColumn}-vs-${yColumn}`,
+                    // No single natural srcID: a projection is derived from
+                    // this desk's whole (possibly multi-resource) row set,
+                    // not any one attached source.
+                    srcID: null,
+                    snapshot: {xColumn, yColumn, data: tableState.rows.map(row => [row[xColumn], row[yColumn]])}
                 }];
                 send_table_projection_to_sink(s, {originContextId: origin, targetDataType, items});
             }
@@ -376,8 +389,9 @@ const incomingList = computed(() => {
 });
 
 // Flattens every origin's routed-in items into one row list -- items is
-// the generic [{itemId, srcID, snapshot}] shape any sink origin's snapshot
-// builder produces (store/sinkDispatch.js), regardless of which module.
+// the generic [{itemId, srcID, payloadType, snapshot}] shape any sink
+// origin's snapshot builder produces (store/sinkDispatch.js), regardless
+// of which module.
 const incomingRows = computed(() =>
     incomingList.value.flatMap(entry =>
         (entry.items ?? []).map(item => ({originContextId: entry.originContextId, ...item}))
@@ -559,7 +573,7 @@ function compact(snapshot) {
     max-width: 40ch;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-family: monospace;
+    font-family: var(--font-data);
     font-size: 8pt;
 }
 </style>

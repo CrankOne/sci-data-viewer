@@ -8,12 +8,23 @@ import SourceList from '@/components/SourcesList.vue';
 import AppControls from '@/components/AppControls.vue';
 import { get_module, all_modules } from './registry';
 
-const CORE_SOURCES = {id: 'core:sources', title: 'Data Sources', component: SourceList};
+// Display-grouping label for the "Add content" modal's two-level list
+// (doc/ui-session.rst's "Extension points"). Purely cosmetic -- an item
+// with no explicit `category` falls back to its owning module's own
+// `label` (see all_side_panel_items below), so a future module's items get
+// their own bucket for free without touching this file.
+export const CATEGORY_APP = 'Application subpanels';
+export const CATEGORY_COMMON_SCOPE = 'Common scope subpanels';
+export const CATEGORY_SCENE_3D = '3D scene';
+
+const CORE_SOURCES = {id: 'core:sources', title: 'Data Sources', component: SourceList, category: CATEGORY_APP};
 // NOTE: `id` stays 'core:appearance' despite the component's rename to
 // AppControls.vue -- it's persisted inside every saved session's layout
 // tree (store/modules/layoutPersistence.js), so changing it would orphan
 // existing sessions' references to this panel.
-const CORE_APP_CONTROLS = {id: 'core:appearance', title: 'Application Controls', component: AppControls};
+const CORE_APP_CONTROLS = {
+    id: 'core:appearance', title: 'Application Controls', component: AppControls, category: CATEGORY_APP
+};
 
 export function available_side_panel_items(activeType) {
     const moduleItems = get_module(activeType)?.sidePanelSections ?? [];
@@ -30,7 +41,9 @@ export function resolve_side_panel_item(id, activeType) {
 // store/modules/widgetInstances.js), so resolving its component no longer
 // needs the old single-global-activeType gating above.
 export function all_side_panel_items() {
-    const moduleItems = all_modules().flatMap(mod => mod.sidePanelSections ?? []);
+    const moduleItems = all_modules().flatMap(mod =>
+        (mod.sidePanelSections ?? []).map(item => ({category: mod.label, ...item}))
+    );
     return [CORE_SOURCES, ...moduleItems, CORE_APP_CONTROLS];
 }
 

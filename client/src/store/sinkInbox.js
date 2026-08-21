@@ -33,10 +33,14 @@ export function make_sink_inbox_module() {
             // Wraps the factory's {key, value} shape under the external
             // mutation name each consumer's own `receiveSinkMutation`
             // (modules/registry.js) already commits to by string.
-            receive_sink_items(state, {originContextId, type, items}) {
+            // `payloadType` is the *link*'s declared type (store/modules/
+            // contexts.js), not per-item -- every item landing here in one
+            // call already passed that link's payloadType/facetsSelector
+            // filter (store/sinkDispatch.js's deliver_to_sink).
+            receive_sink_items(state, {originContextId, payloadType, items}) {
                 keyed.mutations._set_incoming(state, {
                     key: originContextId,
-                    value: {type, items, receivedAt: Date.now()}
+                    value: {payloadType, items, receivedAt: Date.now()}
                 });
             }
         }

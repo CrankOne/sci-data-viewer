@@ -10,7 +10,7 @@
     <h4>Sink inbox (dev stub)</h4>
     <p v-if="!incomingList.length">Nothing routed in yet.</p>
     <div v-for="entry in incomingList" :key="entry.originContextId" class="sink-viewport__entry">
-      <h5>From {{ entry.originContextId }} ({{ entry.type }})</h5>
+      <h5>From {{ entry.originContextId }} ({{ entry.payloadType }})</h5>
       <pre>{{ JSON.stringify(entry.items, null, 2) }}</pre>
     </div>
   </div>

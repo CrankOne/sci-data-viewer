@@ -188,7 +188,7 @@ export default {
 .addr-item {
   padding: 3pt 6pt;
   font-size: .8rem;
-  font-family: monospace;
+  font-family: var(--font-data);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

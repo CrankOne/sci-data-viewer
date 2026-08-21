@@ -190,7 +190,7 @@ function clear_all() {
 }
 
 .selected-marker-position {
-  font-family: monospace;
+  font-family: var(--font-data);
   color: var(--clr-fg-main-muted);
 }
 

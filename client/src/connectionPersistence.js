@@ -72,7 +72,7 @@ export function restore_persisted_sources(store, sessionId) {
                 if(is_plain_source(manifest)) {
                     return store.dispatch('connection/load_resource_data', {name});
                 }
-                // sequential-only source: sessions are never persisted (in-
+                // sequential-only source: cursors are never persisted (in-
                 // memory server-side only) -- restored bare, "ready" for
                 // the user to start a new one.
             })

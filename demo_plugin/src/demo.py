@@ -1,6 +1,8 @@
 from __future__ import annotations
 from flask import Blueprint, jsonify, request, url_for
-from viewer_server.plugins.contracts import DataSourceDeclaration, SourceDescriptor
+from viewer_server.plugins.contracts import (
+    DataSourceDeclaration, PluginConfig, SourceDescriptor, plugin_params,
+)
 import random
 import time  # XXX
 
@@ -506,31 +508,26 @@ class DemoViewerPlugin:
                 # ^^^ url_for(__name__ + '.source_descriptor') won't work
                 #     outside of app ctx, so resolution is postponed
                 label="Testing geometry showroom",
-                enabledByDefault=False,  # TODO: enable for dev/debug?
             ),
             DataSourceDeclaration(
                 id="demo.plot-showroom",
                 url=__name__ + '.plot_source_descriptor',
                 label="Testing plot showroom",
-                enabledByDefault=False,
             ),
             DataSourceDeclaration(
                 id="demo.table-showroom",
                 url=__name__ + '.table_source_descriptor',
                 label="Testing table showroom",
-                enabledByDefault=False,
             ),
             DataSourceDeclaration(
                 id="demo.table-random-access-showroom",
                 url=__name__ + '.table_random_source_descriptor',
                 label="Testing table showroom (random-access, row-windowed)",
-                enabledByDefault=False,
             ),
             DataSourceDeclaration(
                 id="demo.graph-showroom",
                 url=__name__ + '.graph_source_descriptor',
                 label="Testing block diagram showroom (FSM)",
-                enabledByDefault=False,
             ),
         )
     def resolvers(self):
@@ -543,5 +540,9 @@ class DemoViewerPlugin:
         return ()
 
 
-def create_plugin() -> DemoViewerPlugin:
+# No configurable parameters -- this fixture is static -- but the
+# decorator is still applied so `--list-plugins` reports "no parameters"
+# explicitly rather than silently omitting the plugin's schema.
+@plugin_params()
+def create_plugin(config: PluginConfig) -> DemoViewerPlugin:
     return DemoViewerPlugin()

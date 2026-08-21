@@ -33,11 +33,11 @@
     <template v-else>
       <h3>Add data source</h3>
       <form @submit.prevent="confirm_pending_context">
-        <p>"{{ pendingContextStep.name }}" is a {{ pendingContextStep.dataType }} source and needs a scene to load into.</p>
+        <p>"{{ pendingContextStep.name }}" is a {{ pendingContextStep.dataType }} source and needs a scope to load into.</p>
         <p>
-          <label for="add-source-scene">Scene</label>
+          <label for="add-source-scene">Scope</label>
           <select id="add-source-scene" v-model="pendingContextId">
-            <option value="">New scene&hellip;</option>
+            <option value="">New scope&hellip;</option>
             <option v-for="ctx in contextsForPending" :key="ctx.id" :value="ctx.id">{{ ctx.name }}</option>
           </select>
         </p>
@@ -211,7 +211,6 @@ export default {
 
 <style scoped>
 .add-source-modal {
-  font-family: monospace;
   font-size: 9pt;
 }
 

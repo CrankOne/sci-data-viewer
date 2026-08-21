@@ -1,5 +1,6 @@
 <template>
   <LayoutNode :node="rootNode" />
+  <LeftEdgeSplitHandle />
 
   <!--
     Each module widget instance's viewport component is mounted exactly
@@ -47,6 +48,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { useStore } from 'vuex';
 import LayoutNode from './LayoutNode.vue';
+import LeftEdgeSplitHandle from './LeftEdgeSplitHandle.vue';
 import { get_module } from '@/modules/registry';
 
 const store = useStore();

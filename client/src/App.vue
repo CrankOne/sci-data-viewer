@@ -2,11 +2,13 @@
   <router-view></router-view>
   <ModalHost />
   <LoadingOverlay />
+  <SplitModeOverlay />
 </template>
 
 <script setup>
 import ModalHost from './components/ModalHost.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
+import SplitModeOverlay from './components/SplitModeOverlay.vue';
 </script>
 
 <style>
@@ -38,7 +40,6 @@ input {
   padding: 2pt 5pt;
   margin: 2pt 5pt;
   border-radius: .25em;
-  font-family: monospace;
 }
 
 button, select {

@@ -1,0 +1,23 @@
+# Example server config -- see doc/plugins.rst for the full reference.
+# Copy this file, adjust it, and pass it as `sci-viewer-server --config
+# path/to/your-config.yaml`.
+#
+# String values may reference environment variables ($VAR, ${VAR}) and
+# shell command output ($(command)), expanded at load time.
+
+server:
+  host: 127.0.0.1
+  port: 5000
+  debug: false
+  cors: false
+  # Fail startup on any plugin load error rather than skipping it.
+  plugin-load-strict: true
+
+# Installed (entry-point-discovered) plugin ids to actually load. Run
+# `sci-viewer-server --list-plugins` to see what's installed and each
+# plugin's configurable parameters.
+plugins:
+  - demo
+
+# Per-plugin sections, one per id listed above. The demo plugin bundled
+# with this repo takes no parameters, so it has none here.

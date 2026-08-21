@@ -34,8 +34,18 @@ export function draw_markers(ctx, item, xScale, yScale, {color, size = 8}) {
 export function draw_polyline(ctx, item, xScale, yScale, {color, width = 1.5}) {
     if(item.data.length === 0)
         return;
+    // Item-level (doc/module-plotter.rst's "Styling": "line width and
+    // stroke style" per primitive -- the facet-based styling sub-panel
+    // that section also anticipates is a separate, larger, still-
+    // undesigned piece; this is only the primitive's own explicit choice,
+    // same as `closed` above). Canvas-native dash-array semantics, e.g.
+    // `[6, 3]`; omitted/empty means solid. save/restore since setLineDash
+    // is a persistent context-state change that would otherwise leak into
+    // whatever's drawn next.
+    ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
+    ctx.setLineDash(item.dash ?? []);
     ctx.beginPath();
     item.data.forEach(([x, y], i) => {
         const px = xScale(x), py = yScale(y);
@@ -47,6 +57,7 @@ export function draw_polyline(ctx, item, xScale, yScale, {color, width = 1.5}) {
     if(item.closed)
         ctx.closePath();
     ctx.stroke();
+    ctx.restore();
 }
 
 export function clear(ctx, widthPx, heightPx) {

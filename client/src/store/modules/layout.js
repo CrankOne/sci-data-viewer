@@ -121,17 +121,6 @@ function collect_module_instance_ids(node, acc = []) {
     return acc;
 }
 
-function find_first_empty_items_leaf(node) {
-    if(node.type === 'leaf') {
-        return (node.content.kind === 'items' && node.content.ids.length === 0) ? node.id : null;
-    }
-    for(const child of node.children) {
-        const found = find_first_empty_items_leaf(child);
-        if(found) return found;
-    }
-    return null;
-}
-
 export {make_split, make_module_leaf, make_items_leaf};
 
 export default {
@@ -153,16 +142,7 @@ export default {
         // Every module widget instance currently placed somewhere in the
         // tree -- components/ViewerPage.vue keeps exactly one mounted
         // component per id in this list.
-        mountedModuleInstanceIds: state => collect_module_instance_ids(state.root),
-
-        // The id of the first empty (no module, no items) panel in the
-        // tree, or null if there isn't one -- lets a caller that needs to
-        // place new content "somewhere sensible" (e.g. sessionActivation.js
-        // seeding a default source that turns out to need a scene) reuse
-        // whatever empty panel is already on screen instead of always
-        // falling back to wrapping the whole layout in a new split (see
-        // sceneCreation.js's create_scene_with_viewport).
-        firstEmptyItemsLeafId: state => find_first_empty_items_leaf(state.root)
+        mountedModuleInstanceIds: state => collect_module_instance_ids(state.root)
     },
 
     mutations: {

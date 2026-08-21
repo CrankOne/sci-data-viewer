@@ -57,5 +57,13 @@ register_module({
         return resource.name;
     },
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
+    // Doesn't discriminate what it receives -- the "Selection view" section
+    // (TableViewport.vue) renders whatever lands, origin-agnostic (doc/
+    // module-table.rst has no shape requirement of its own for incoming
+    // items).
+    acceptsPayloadTypes: '*',
     removeIncomingOrigin: contextId => `sinkInbox_${contextId}/clear_incoming_origin`
+    // No buildSinkSnapshot: table's own sink dispatch ("Plot dispatch",
+    // TableViewport.vue's open_plot_dispatch) isn't selection-based -- see
+    // send_table_projection_to_sink (store/sinkDispatch.js).
 });

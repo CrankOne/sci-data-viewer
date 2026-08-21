@@ -81,7 +81,6 @@ input {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    font-family: monospace;
     text-align: right;
 }
 </style>

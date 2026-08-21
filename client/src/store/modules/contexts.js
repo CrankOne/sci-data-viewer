@@ -124,12 +124,22 @@ export default {
             .filter(ctx => ctx.dataType === dataType),
         context: state => id => state.byId[id] ?? null,
         // The cross-module "selection sink" mechanism (doc/ui-session.rst's
-        // "Extension points"): a context's own map of targetDataType ->
-        // targetContextId, i.e. "this context's selection of targetDataType
-        // routes into that other context". At most one target per
-        // (context, targetDataType) pair; several different origin contexts
-        // may point at the *same* target -- that's how reuse/aggregation
-        // happens, with no separate named "sink" entity needed.
+        // "Extension points"): a context's own map of targetDataType -> one
+        // *link* record, i.e. "this context's selection of targetDataType
+        // routes into that other context, as this payload type, optionally
+        // filtered by these facets". At most one link per (context,
+        // targetDataType) pair; several different origin contexts may point
+        // at the *same* target -- that's how reuse/aggregation happens, with
+        // no separate named "sink" entity needed.
+        //
+        // A link record: `{targetContextId, payloadType, facetsSelector}`.
+        // `payloadType` is mandatory (modules/registry.js's
+        // acceptsPayloadTypes -- one specific type, or `'*'` when the
+        // target itself accepts anything). `facetsSelector` is optional:
+        // `null`, or a plain `{[facetKey]: value}` object every one of
+        // whose entries an item's own `_facets` must match (AND) to be
+        // forwarded through this link -- see store/sinkDispatch.js's
+        // `deliver_to_sink`.
         sinkTargets: state => contextId => state.byId[contextId]?.sinkTargets ?? {},
         sinkTarget: state => (contextId, targetDataType) => state.byId[contextId]?.sinkTargets?.[targetDataType] ?? null
     },
@@ -148,12 +158,13 @@ export default {
             state.byId = {...state.byId, [id]: {...context, name: trimmed}};
         },
 
-        set_sink_target(state, {contextId, targetDataType, targetContextId}) {
+        set_sink_target(state, {contextId, targetDataType, targetContextId, payloadType, facetsSelector = null}) {
             const context = state.byId[contextId];
             if(!context) return;
+            const link = {targetContextId, payloadType, facetsSelector};
             state.byId = {
                 ...state.byId,
-                [contextId]: {...context, sinkTargets: {...context.sinkTargets, [targetDataType]: targetContextId}}
+                [contextId]: {...context, sinkTargets: {...context.sinkTargets, [targetDataType]: link}}
             };
         },
 
@@ -238,14 +249,14 @@ export default {
             dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
 
             // `id` may be a sink *target* some other context's sinkTargets
-            // points at -- drop those pointers so they don't dangle (same
+            // points at -- drop those links so they don't dangle (same
             // "clean up a cross-reference at the removal site" shape as
             // reassign_context_sources above, just for the sink mechanism).
             for(const otherId of state.order) {
                 if(otherId === id) continue;
                 const other = state.byId[otherId];
                 for(const targetDataType of Object.keys(other.sinkTargets ?? {})) {
-                    if(other.sinkTargets[targetDataType] === id) {
+                    if(other.sinkTargets[targetDataType]?.targetContextId === id) {
                         commit('clear_sink_target', {contextId: otherId, targetDataType});
                     }
                 }

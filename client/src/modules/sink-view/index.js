@@ -24,5 +24,9 @@ register_module({
     // -- this module never receives data via connection.js's resource-fetch
     // pipeline; sink dispatch is separate plumbing (store/sinkDispatch.js).
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
+    // The whole point of this dev stub: prove any payload type can land
+    // here, unstyled -- modules/registry.js's "anticipate a module
+    // accepting all types" case.
+    acceptsPayloadTypes: '*',
     removeIncomingOrigin: contextId => `sinkInbox_${contextId}/clear_incoming_origin`
 });

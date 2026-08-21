@@ -6,18 +6,22 @@
       <p>
         <label for="add-content-kind">Add</label>
         <select id="add-content-kind" v-model="addKind">
-          <option
-            v-for="m in contextualModules"
-            :key="`module:${m.dataType}`"
-            :value="`module:${m.dataType}`"
-          >New {{ m.label }} viewport</option>
-          <option v-for="t in addableSubpanelTypes" :key="t.id" :value="t.id">{{ t.title }}</option>
+          <optgroup label="Viewports" :disabled="subpanelOnly">
+            <option
+              v-for="m in contextualModules"
+              :key="`module:${m.dataType}`"
+              :value="`module:${m.dataType}`"
+            >New {{ m.label }} viewport</option>
+          </optgroup>
+          <optgroup v-for="group in groupedSubpanelTypes" :key="group.category" :label="group.category">
+            <option v-for="t in group.items" :key="t.id" :value="t.id">{{ t.title }}</option>
+          </optgroup>
         </select>
       </p>
       <p v-if="addKindDataType">
-        <label for="add-content-scene">Scene</label>
+        <label for="add-content-scene">Scope</label>
         <select id="add-content-scene" v-model="addContextId">
-          <option value="">New scene&hellip;</option>
+          <option value="">New scope&hellip;</option>
           <option v-for="ctx in contextsForAddKind" :key="ctx.id" :value="ctx.id">{{ ctx.name }}</option>
         </select>
       </p>
@@ -33,12 +37,18 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useStore } from 'vuex';
-import { all_side_panel_items } from '@/modules/panelItems';
+import { all_side_panel_items, CATEGORY_APP, CATEGORY_COMMON_SCOPE, CATEGORY_SCENE_3D } from '@/modules/panelItems';
 import { all_modules, get_module } from '@/modules/registry';
 import { create_scene_with_viewport } from '@/sceneCreation';
 
 const props = defineProps({
-    toPanelId: {type: String, required: true}
+    toPanelId: {type: String, required: true},
+    // Shift+click on a panel that already has subpanels stacked (Panel.vue)
+    // opens this same modal, but a subpanel-stack leaf can never hold a
+    // module (layout.js's own leaf-kind split) -- disabling rather than
+    // hiding the "Viewports" group keeps the list shape identical between
+    // both entry points.
+    subpanelOnly: {type: Boolean, default: false}
 });
 const emit = defineEmits(['close']);
 
@@ -52,8 +62,26 @@ const store = useStore();
 const contextualModules = computed(() => all_modules().filter(mod => mod.contextual));
 const addableSubpanelTypes = computed(() => all_side_panel_items());
 
+// Two-level grouping for the <select> above (doc/ui-session.rst's
+// "Extension points") -- known categories first, in a fixed order, then
+// whatever's left (e.g. a future module's own label-derived bucket) in
+// first-seen order.
+const CATEGORY_ORDER = [CATEGORY_APP, CATEGORY_COMMON_SCOPE, CATEGORY_SCENE_3D];
+const groupedSubpanelTypes = computed(() => {
+    const groups = new Map();
+    for(const item of addableSubpanelTypes.value) {
+        if(!groups.has(item.category)) groups.set(item.category, []);
+        groups.get(item.category).push(item);
+    }
+    const orderedCategories = [
+        ...CATEGORY_ORDER.filter(category => groups.has(category)),
+        ...[...groups.keys()].filter(category => !CATEGORY_ORDER.includes(category))
+    ];
+    return orderedCategories.map(category => ({category, items: groups.get(category)}));
+});
+
 const addKind = ref(
-    contextualModules.value[0]
+    !props.subpanelOnly && contextualModules.value[0]
         ? `module:${contextualModules.value[0].dataType}`
         : (addableSubpanelTypes.value[0]?.id ?? '')
 );
@@ -134,7 +162,6 @@ async function submit_add() {
 
 <style scoped>
 .add-content-modal {
-  font-family: monospace;
   font-size: 9pt;
 }
 

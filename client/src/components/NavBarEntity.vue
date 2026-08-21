@@ -71,7 +71,7 @@ div#header {
   gap: 0.4rem;
 
   padding: 2pt 5pt;
-  font-family: Calibri,sans-serif;
+  font-family: var(--font-ui);
   font-weight: bold;
   text-align: left;
   letter-spacing: 1pt;
@@ -107,7 +107,6 @@ div.closed:before {
 }
 
 div#content {
-  font-family: monospace;
   font-size: 9pt;
   background-color: var(--clr-bg-panel);
   padding: 2pt 5pt;

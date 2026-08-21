@@ -46,9 +46,10 @@ function ensure_default_context() {
 // "add content" on the empty main panel, same as always).
 export function build_default_root(store) {
     const sourcesId = ensure_item_instance(store, 'core:sources', null);
-    const sourcesLeaf = make_items_leaf([sourcesId]);
+    const appControlsId = ensure_item_instance(store, 'core:appearance', null);
+    const leftLeaf = make_items_leaf([sourcesId, appControlsId]);
     const mainLeaf = make_items_leaf([]);
-    return make_split('row', 25, [sourcesLeaf, mainLeaf]);
+    return make_split('row', 25, [leftLeaf, mainLeaf]);
 }
 
 // Replays persisted contexts and widget instances into a fresh store --

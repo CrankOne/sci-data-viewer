@@ -118,7 +118,6 @@ import DiagramNode from './DiagramNode.vue';
 import DiagramEdge from './DiagramEdge.vue';
 import { compute_layout, merge_layout_defaults } from './layout';
 import { make_identity_transform, to_svg_transform, zoom_around, fit_transform } from './transform';
-import { send_graph_selection_to_sink } from '@/store/sinkDispatch';
 
 const props = defineProps({
     instanceId: {type: String, required: true}
@@ -185,20 +184,23 @@ function on_unhover() {
 // Cross-module "selection sink" mechanism (doc/ui-session.rst's "Extension
 // points") -- opens the same connect-scope modal every other "pick or
 // create a scene" affordance in the app uses, in its 'sink' mode, mirroring
-// ItemsTree.vue's own open_sink_picker exactly (down to hardcoding
-// 'sink-view' as the one known-working target type in this codebase so
-// far), but with send_graph_selection_to_sink (store/sinkDispatch.js)
-// instead of the default send_selection_to_sink, since this module's
-// selection snapshot builder is graph-specific (see that file).
+// ItemsTree.vue's own open_sink_picker. 'sink-view' is only the initially
+// suggested target -- the modal itself offers every registered
+// receiveSinkMutation-capable module (ConnectScopeModal.vue), so 'plot'
+// (modules/plotter/) is reachable from here too. No dispatchFn override:
+// this module's own buildSinkSnapshot (modules/graph/index.js) is
+// send_selection_to_sink's (store/sinkDispatch.js) generic default.
 function open_sink_picker() {
+    const link = store.getters['contexts/sinkTarget'](contextId.value, 'sink-view');
     store.commit('ui/open_modal', {
         name: 'connect-scope',
         props: {
             kind: 'sink',
             originContextId: contextId.value,
             dataType: 'sink-view',
-            currentContextId: store.getters['contexts/sinkTarget'](contextId.value, 'sink-view'),
-            dispatchFn: send_graph_selection_to_sink
+            currentContextId: link?.targetContextId ?? null,
+            currentPayloadType: link?.payloadType ?? null,
+            currentFacetsSelector: link?.facetsSelector ?? null
         }
     });
 }

@@ -12,7 +12,10 @@ Note: IDs should be globally unique. Prefer qualified names:
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping, Protocol, Sequence, TypeAlias, runtime_checkable
+from typing import (
+    Any, Callable, Literal, Mapping, Protocol, Sequence, TypeAlias,
+    runtime_checkable,
+)
 from flask import Blueprint
 from flask_restful import Resource
 
@@ -34,7 +37,6 @@ class DataSourceDeclaration:
     id: str
     url: str
     label: str | None = None
-    enabledByDefault: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -230,10 +232,83 @@ class ResourceDeclaration:
     urls: tuple[str, ...]
     endpoint: str | None = None
 
+PluginParamType: TypeAlias = Literal["string", "integer", "number", "boolean"]
+
+@dataclass(frozen=True)
+class PluginParamSchema:
+    """
+    Describes one configuration parameter a plugin's ``create_plugin``
+    factory reads from its own section of the server's YAML config file
+    (``doc/plugins.rst``). Purely descriptive -- nothing here is enforced
+    against the actual config mapping a factory receives; it only backs
+    ``sci-viewer-server --list-plugins`` and the ``-D`` override
+    reference, so a config mistake is easy to spot instead of failing
+    silently with a wrong default.
+    """
+
+    name: str
+    type: PluginParamType = "string"
+    description: str | None = None
+    default: Any = None
+    required: bool = False
+
+    def to_json(self) -> dict[str, Any]:
+        doc: dict[str, Any] = {
+            "name": self.name,
+            "type": self.type,
+            "required": self.required,
+        }
+        if self.description is not None:
+            doc["description"] = self.description
+        if self.default is not None:
+            doc["default"] = self.default
+        return doc
+
+
+PluginConfig: TypeAlias = Mapping[str, Any]
+
+
+def plugin_params(*schemas: PluginParamSchema) -> Callable[[Callable], Callable]:
+    """
+    Decorator attaching a static config-parameter schema to a plugin's
+    entry-point factory (conventionally named ``create_plugin``), so
+    ``--list-plugins`` can describe a plugin's parameters without calling
+    the factory -- which needs real config values a bare listing has
+    none of, and may fail for reasons unrelated to listing (e.g. a
+    missing optional dependency a plugin otherwise degrades gracefully
+    without, see al_albrw.py's tracks/hits source).
+
+    Usage::
+
+        @plugin_params(
+            PluginParamSchema(name="results-dir", description="..."),
+        )
+        def create_plugin(config: PluginConfig) -> ViewerPlugin:
+            ...
+    """
+
+    def decorator(factory: Callable) -> Callable:
+        factory.params = schemas  # type: ignore[attr-defined]
+        return factory
+
+    return decorator
+
+
 @runtime_checkable
 class ViewerPlugin(Protocol):
     """
     Contract implemented by installed viewer-server plugins.
+
+    The registered entry point (group ``sci_viewer_srv.plugins``) does
+    not point at a ``ViewerPlugin`` directly but at a *factory* --
+    conventionally named ``create_plugin`` -- called as
+    ``create_plugin(config: PluginConfig) -> ViewerPlugin``, where
+    ``config`` is that plugin's own section of the server's YAML config
+    file (an empty mapping if the section is absent). This replaces
+    reading ``os.environ`` directly for plugin parameterization; see
+    ``doc/plugins.rst``. Optionally decorate the factory with
+    ``@plugin_params(...)`` to advertise its parameters for
+    ``--list-plugins``.
     """
 
     @property

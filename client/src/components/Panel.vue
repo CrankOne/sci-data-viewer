@@ -2,12 +2,29 @@
   <div
     class="panel"
     :class="{'panel--drop-target': dropHover}"
+    :data-panel-id="node.id"
     @dragover="on_panel_drag_over"
     @dragleave="on_panel_drag_leave"
     @drop="on_panel_drop"
+    @click="on_panel_click"
   >
     <template v-if="node.content.kind === 'module'">
       <div class="module-panel-wrap">
+        <!-- Folded-corner drag handle: lets this viewport be relocated
+             between panels the same way subpanel items already can (via
+             NavBarEntity.vue's own header handle) -- module-kind leaves
+             never had one before. A corner flag rather than a full-width
+             strip so it doesn't eat into the viewport itself; icon is a
+             placeholder pending a hand-drawn one. -->
+        <div
+          class="module-drag-handle"
+          draggable="true"
+          title="Move viewport"
+          aria-label="Move viewport"
+          @dragstart="on_module_drag_start"
+        >
+          <span class="module-drag-handle__icon" aria-hidden="true">&#x283F;</span>
+        </div>
         <button
           type="button"
           class="header-action content-remove-btn"
@@ -40,8 +57,8 @@
               v-if="item.contextualDataType"
               type="button"
               class="header-action"
-              title="Connect to scene"
-              aria-label="Connect to scene"
+              title="Connect to scope"
+              aria-label="Connect to scope"
               @click="open_connect_scope(item)"
             >
               <span class="vi vi-cube" aria-hidden="true" />
@@ -130,6 +147,21 @@ function on_empty_panel_click(event) {
     store.commit('ui/open_modal', {name: 'add-content', props: {toPanelId: props.node.id}});
 }
 
+// Shift-click on the *unoccupied* area of a panel that already has
+// subpanels stacked -- same "add content" modal the empty-panel case above
+// opens, but restricted to subpanel types: a subpanel-stack leaf can never
+// hold a module (layout.js's own leaf-kind split), so the "Viewports"
+// group is disabled rather than offered (AddContentModal.vue's
+// `subpanelOnly` prop). Bails out for an empty panel (the handler above
+// already covers it, unrestricted) and for a click landing on an actual
+// item (its own header handles that, e.g. the expand/collapse toggle).
+function on_panel_click(event) {
+    if(!event.shiftKey) return;
+    if(props.node.content.kind !== 'items' || resolvedItems.value.length === 0) return;
+    if(event.target.closest('.panel-item')) return;
+    store.commit('ui/open_modal', {name: 'add-content', props: {toPanelId: props.node.id, subpanelOnly: true}});
+}
+
 function open_connect_scope(item) {
     store.commit('ui/open_modal', {
         name: 'connect-scope',
@@ -168,7 +200,7 @@ async function remove_module() {
             if(sources.length > 0) {
                 const proceed = window.confirm(
                     `This is the last viewport for "${scene?.name ?? contextId}". Removing it also removes the `
-                    + `scene, and its ${sources.length} assigned source(s) will be reassigned elsewhere. Continue?`
+                    + `scope, and its ${sources.length} assigned source(s) will be reassigned elsewhere. Continue?`
                 );
                 if(!proceed) return;
             }
@@ -196,6 +228,12 @@ async function remove_module() {
             }
         }
     }
+}
+
+function on_module_drag_start(event) {
+    if(props.node.content.kind !== 'module') return;
+    event.dataTransfer.setData('application/x-panel-module', props.node.content.instanceId);
+    event.dataTransfer.effectAllowed = 'move';
 }
 
 function drag_kind(event) {
@@ -316,8 +354,31 @@ function on_item_drop(event, item) {
 .content-remove-btn {
     position: absolute;
     top: 0.3rem;
-    right: 0.3rem;
+    /* Clears module-drag-handle's footprint at the actual corner below. */
+    right: 1.7rem;
     z-index: 10;
+}
+
+.module-drag-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 22px;
+    height: 22px;
+    clip-path: polygon(100% 0, 100% 100%, 0 0);
+    background: var(--clr-accent-darken);
+    cursor: grab;
+    z-index: 10;
+}
+
+.module-drag-handle__icon {
+    position: absolute;
+    top: 1px;
+    right: 6px;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--clr-fg-panel-header);
+    pointer-events: none;
 }
 
 .panel-item--drop-before::before,

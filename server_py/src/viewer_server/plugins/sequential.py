@@ -1,13 +1,13 @@
 """
 Generic server-side support for the "sequential" data source capability
-(doc/sources.rst, "Sequential capability"): session-based forward-only
+(doc/sources.rst, "Sequential capability"): cursor-based forward-only
 traversal, implemented once here so any plugin can expose one without
 re-implementing the REST contract.
 
-v1 lifecycle is explicit-release-only: sessions live in an in-memory,
-single-process dict with no idle timeout and no reaper thread. A session
-abandoned without DELETE (tab closed, client crash) leaks whatever its
-cursor holds open until process restart. This store also does not survive
+v1 lifecycle is explicit-release-only: cursors live in an in-memory,
+single-process dict with no idle timeout and no reaper thread. A cursor
+abandoned without DELETE (tab closed, client crash) leaks whatever it
+holds open until process restart. This store also does not survive
 a server restart and does not work across multiple worker processes (e.g.
 a multi-worker gunicorn deployment) -- consistent with this project's
 actual deployment model today (a single `Flask.app.run()` process), but a
@@ -26,12 +26,12 @@ from flask import Blueprint, abort, jsonify, url_for
 
 
 @runtime_checkable
-class SessionCursor(Protocol):
+class Cursor(Protocol):
     """
-    A single traversal session's position. A freshly-constructed cursor
+    A single traversal cursor's position. A freshly-constructed cursor
     (i.e. whatever a plugin's `cursor_factory` returns) MUST already be
     positioned at the first item -- `current()`/`finished` must be valid
-    immediately, since `POST /sessions` returns the initial representation
+    immediately, since `POST /cursors` returns the initial representation
     synchronously.
     """
 
@@ -49,9 +49,9 @@ class SessionCursor(Protocol):
 
 class GeneratorCursor:
     """
-    SessionCursor over any Iterator[JSON-serializable item] -- lets a
-    plugin author supply a plain generator and get a working cursor,
-    without touching the SessionCursor protocol directly.
+    Cursor over any Iterator[JSON-serializable item] -- lets a plugin
+    author supply a plain generator and get a working cursor, without
+    touching the Cursor protocol directly.
     """
 
     def __init__(self, items: Iterator[Any]) -> None:
@@ -85,125 +85,125 @@ class GeneratorCursor:
 
 
 @dataclass
-class _Session:
-    cursor: SessionCursor
+class _CursorEntry:
+    cursor: Cursor
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
-class SessionStore:
+class CursorStore:
     """
-    In-memory, thread-safe session table. See module docstring for the v1
+    In-memory, thread-safe cursor table. See module docstring for the v1
     lifecycle caveats (explicit release only, single-process).
     """
 
     def __init__(self) -> None:
-        self._sessions: dict[str, _Session] = {}
+        self._cursors: dict[str, _CursorEntry] = {}
         self._table_lock = threading.Lock()
 
-    def create(self, cursor_factory: Callable[[], SessionCursor]) -> tuple[str, SessionCursor]:
-        session_id = secrets.token_urlsafe(16)
+    def create(self, cursor_factory: Callable[[], Cursor]) -> tuple[str, Cursor]:
+        cursor_id = secrets.token_urlsafe(16)
         cursor = cursor_factory()
         with self._table_lock:
-            self._sessions[session_id] = _Session(cursor)
-        return session_id, cursor
+            self._cursors[cursor_id] = _CursorEntry(cursor)
+        return cursor_id, cursor
 
-    def get(self, session_id: str) -> SessionCursor | None:
-        session = self._sessions.get(session_id)
-        if session is None:
+    def get(self, cursor_id: str) -> Cursor | None:
+        entry = self._cursors.get(cursor_id)
+        if entry is None:
             return None
-        with session.lock:
-            return session.cursor
+        with entry.lock:
+            return entry.cursor
 
-    def advance(self, session_id: str) -> SessionCursor | None:
-        session = self._sessions.get(session_id)
-        if session is None:
+    def advance(self, cursor_id: str) -> Cursor | None:
+        entry = self._cursors.get(cursor_id)
+        if entry is None:
             return None
-        with session.lock:
-            session.cursor.advance()
-            return session.cursor
+        with entry.lock:
+            entry.cursor.advance()
+            return entry.cursor
 
-    def release(self, session_id: str) -> bool:
+    def release(self, cursor_id: str) -> bool:
         with self._table_lock:
-            session = self._sessions.pop(session_id, None)
-        if session is None:
+            entry = self._cursors.pop(cursor_id, None)
+        if entry is None:
             return False
-        with session.lock:
-            session.cursor.close()
+        with entry.lock:
+            entry.cursor.close()
         return True
 
 
-def _session_body(cursor: SessionCursor) -> dict[str, Any]:
+def _cursor_body(cursor: Cursor) -> dict[str, Any]:
     return {"current": cursor.current(), "finished": cursor.finished}
 
 
 def register_sequential_routes(
     blueprint: Blueprint,
     url_rule: str,
-    cursor_factory: Callable[[], SessionCursor],
+    cursor_factory: Callable[[], Cursor],
     *,
-    store: SessionStore | None = None,
+    store: CursorStore | None = None,
     name: str | None = None,
-) -> SessionStore:
+) -> CursorStore:
     """
     Registers the four routes doc/sources.rst's "Sequential capability"
     defines, relative to `url_rule` (itself relative to `blueprint`'s
-    url_prefix): `POST/GET/POST/DELETE {url_rule}/sessions[/<session_id>]`.
+    url_prefix): `POST/GET/POST/DELETE {url_rule}/cursors[/<cursor_id>]`.
 
     `name` (defaulting from `url_rule`) must be unique per call on a given
-    blueprint -- it seeds both the Flask endpoint names and the session
+    blueprint -- it seeds both the Flask endpoint names and the cursor
     id's URL segment, so registering this twice on one blueprint (two
     independent sequential sources, or two plugins sharing a blueprint)
     without distinct names collides on Flask endpoint registration at
     import time instead of failing silently or overwriting routes.
     """
-    store = store if store is not None else SessionStore()
+    store = store if store is not None else CursorStore()
     slug = (name or url_rule).strip("/").replace("/", "_")
-    sessions_rule = f"{url_rule.rstrip('/')}/sessions"
-    session_rule = f"{sessions_rule}/<session_id>"
+    cursors_rule = f"{url_rule.rstrip('/')}/cursors"
+    cursor_rule = f"{cursors_rule}/<cursor_id>"
 
-    def create_session():
-        session_id, cursor = store.create(cursor_factory)
-        response = jsonify(_session_body(cursor))
+    def create_cursor():
+        cursor_id, cursor = store.create(cursor_factory)
+        response = jsonify(_cursor_body(cursor))
         response.status_code = 201
         response.headers["Location"] = url_for(
-            f"{blueprint.name}.{slug}_session", session_id=session_id
+            f"{blueprint.name}.{slug}_cursor", cursor_id=cursor_id
         )
         response.headers["Access-Control-Expose-Headers"] = "Location"
         return response
 
-    def get_session(session_id: str):
-        cursor = store.get(session_id)
+    def get_cursor(cursor_id: str):
+        cursor = store.get(cursor_id)
         if cursor is None:
             abort(404)
-        return jsonify(_session_body(cursor))
+        return jsonify(_cursor_body(cursor))
 
-    def advance_session(session_id: str):
-        cursor = store.advance(session_id)
+    def advance_cursor(cursor_id: str):
+        cursor = store.advance(cursor_id)
         if cursor is None:
             abort(404)
-        return jsonify(_session_body(cursor))
+        return jsonify(_cursor_body(cursor))
 
-    def release_session(session_id: str):
-        if not store.release(session_id):
+    def release_cursor(cursor_id: str):
+        if not store.release(cursor_id):
             abort(404)
         return "", 204
 
     blueprint.add_url_rule(
-        sessions_rule, endpoint=f"{slug}_sessions_create", view_func=create_session, methods=["POST"]
+        cursors_rule, endpoint=f"{slug}_cursors_create", view_func=create_cursor, methods=["POST"]
     )
     blueprint.add_url_rule(
-        session_rule, endpoint=f"{slug}_session", view_func=get_session, methods=["GET"]
+        cursor_rule, endpoint=f"{slug}_cursor", view_func=get_cursor, methods=["GET"]
     )
     blueprint.add_url_rule(
-        session_rule,
-        endpoint=f"{slug}_session_advance",
-        view_func=advance_session,
+        cursor_rule,
+        endpoint=f"{slug}_cursor_advance",
+        view_func=advance_cursor,
         methods=["POST"],
     )
     blueprint.add_url_rule(
-        session_rule,
-        endpoint=f"{slug}_session_release",
-        view_func=release_session,
+        cursor_rule,
+        endpoint=f"{slug}_cursor_release",
+        view_func=release_cursor,
         methods=["DELETE"],
     )
 

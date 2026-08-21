@@ -129,7 +129,6 @@ function patch(value) {
 
 .readonly-value output {
     padding: 0.2rem 0.35rem;
-    font-family: monospace;
     text-align: right;
 }
 </style>

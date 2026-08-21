@@ -15,6 +15,7 @@ import session from './store/modules/session';
 import layout from './store/modules/layout';
 import create_router from './router';
 import { get_active_session_id_for_tab, activate_session } from './sessionActivation';
+import { install_sink_auto_dispatch } from './store/sinkAutoDispatch';
 
 import { all_modules } from './modules/registry';
 import './modules/three-view';  // registers itself as a viewer module (dataType: 'geo3d')
@@ -43,6 +44,11 @@ async function main() {
     const store = createStore({
         modules: {connection, appCommon, contexts, widgetInstances, ui, session, layout, ...moduleStoreModules}
     });
+
+    // Global, session-independent standing behavior -- not persisted state,
+    // so unlike install_layout_persistence/install_connection_persistence
+    // below it belongs here, once, rather than in activate_session.
+    install_sink_auto_dispatch(store);
 
     // Mount immediately, before any session is hydrated -- ModalHost (see
     // App.vue) needs to already be in the tree so the session picker below

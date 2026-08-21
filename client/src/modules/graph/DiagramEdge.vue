@@ -110,6 +110,7 @@ const labelPoint = computed(() => polyline_midpoint(props.edge.points));
 
 .diagram-edge__label {
     fill: var(--clr-fg-panel);
+    font-family: var(--font-data);
     font-size: 10px;
     paint-order: stroke;
     stroke: var(--clr-bg-panel);

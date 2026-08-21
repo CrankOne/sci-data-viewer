@@ -68,7 +68,7 @@ const diamondPoints = computed(() => {
 }
 
 .diagram-node__shape {
-    fill: var(--clr-bg-options);
+    fill: var(--clr-bg-panel);
     stroke: var(--clr-border-inactive);
     stroke-width: 1.5;
 }
@@ -85,6 +85,7 @@ const diamondPoints = computed(() => {
 
 .diagram-node__label {
     fill: var(--clr-fg-options);
+    font-family: var(--font-data);
     font-size: 11px;
     pointer-events: none;
     user-select: none;

@@ -4,7 +4,7 @@ Data Source REST Interface
 Data sources expose application data through a small read-oriented REST
 interface. A source may optionally provide two independent access capabilities:
 
-* **sequential** — session-based forward traversal;
+* **sequential** — cursor-based forward traversal;
 * **addressable** — retrieval of individual items by stable identifier.
 
 A source supporting neither capability is referred to as a **plain** source.
@@ -61,10 +61,10 @@ described below.
 
 ``data-url`` in the descriptor identifies the principal resource. Every URI
 in the remainder of this document (``/resource``, ``/resource/{id}``,
-``/resource/sessions``, ...) is expressed relative to that ``data-url``,
+``/resource/cursors``, ...) is expressed relative to that ``data-url``,
 which acts as ``/resource`` for that source. For example, a descriptor with
-``"data-url": "/api/source/events"`` places the sessions collection at
-``/api/source/events/sessions``.
+``"data-url": "/api/source/events"`` places the cursors collection at
+``/api/source/events/cursors``.
 
 Common resource
 ---------------
@@ -90,40 +90,30 @@ Sequential capability
 ---------------------
 
 .. note::
-   Terminology clash: "session" here names a per-traversal iterator/cursor
-   over one data source -- unrelated to :doc:`ui-session`'s "session" (a
-   user's whole persisted workspace: layout, sources, saved state). The two
-   share a word purely by historical accident; nothing said about
-   "session" in this document carries over any of that document's meaning,
-   or vice versa.
+   "Cursor" here names a per-traversal iterator over one data source --
+   unrelated to :doc:`ui-session`'s "session" (a user's whole persisted
+   workspace: layout, sources, saved state). The two used to share a word
+   ("session") purely by historical accident; this document was renamed
+   away from that clash, so nothing here carries any of that document's
+   meaning, or vice versa.
 
-   **TODO**: rename this document's "session" -- and its client-side
-   mirror, ``connection.js``'s ``sessionURL``/``sessionStep``/
-   ``sessionFinished``/``sessionLastData`` state and
-   ``create_resource_session``/``advance_resource_session``/
-   ``release_resource_session`` actions, plus the wire paths themselves
-   (``/resource/sessions``, ``/resource/sessions/{session}``) -- to
-   "iterator" or "cursor" throughout, to remove the clash. Not done here:
-   it's a breaking change to both the wire contract and every call site,
-   better done as one deliberate pass than piecemeal.
-
-A sequential source provides forward traversal through explicit session
+A sequential source provides forward traversal through explicit cursor
 resources.
 
-A traversal session is created with::
+A cursor is created with::
 
-    POST /resource/sessions
+    POST /resource/cursors
 
-This version of the specification defines no request body for session
-creation: every session starts at the beginning of the source's sequence.
+This version of the specification defines no request body for cursor
+creation: every cursor starts at the beginning of the source's sequence.
 Parameterized traversal (filters, starting offsets) is out of scope and left
 for a future revision.
 
 A successful request returns ``201 Created``, identifies the newly created
-session using the ``Location`` response header, and SHOULD return its initial
+cursor using the ``Location`` response header, and SHOULD return its initial
 representation in the response body:
 
-    Location: /resource/sessions/4fd732
+    Location: /resource/cursors/4fd732
 
 .. code-block:: json
 
@@ -132,9 +122,9 @@ representation in the response body:
         "finished": false
     }
 
-The session resource represents one independent traversal state::
+The cursor resource represents one independent traversal state::
 
-    GET /resource/sessions/{session}
+    GET /resource/cursors/{cursor}
 
 and returns a JSON object of the form:
 
@@ -145,7 +135,7 @@ and returns a JSON object of the form:
         "finished": false
     }
 
-``current`` represents the item at the current iterator position. It MUST be
+``current`` represents the item at the current cursor position. It MUST be
 either:
 
 * an opaque string identifier; or
@@ -153,7 +143,7 @@ either:
 
 Clients MUST NOT assign semantic meaning to a string identifier beyond using it
 with operations advertised by the source. In particular, identifiers need not
-be numeric, ordered, or otherwise related to the iterator position.
+be numeric, ordered, or otherwise related to the cursor position.
 
 For a sequential source that is not addressable, a string ``current`` still
 carries no addressing operation, but remains useful for opaque equality
@@ -168,16 +158,16 @@ valid item identifier accepted by::
 An object returned as ``current`` MAY contain an ``id`` member when the item also
 has a stable identifier.
 
-The iterator is advanced explicitly::
+The cursor is advanced explicitly::
 
-    POST /resource/sessions/{session}
+    POST /resource/cursors/{cursor}
 
-One successful request advances the session by exactly one item and returns
-the resulting session representation. This version of the specification
+One successful request advances the cursor by exactly one item and returns
+the resulting cursor representation. This version of the specification
 defines no batch-advance or seek operation; a client wanting to skip ahead
 issues repeated single-item advances.
 
-At the end of the sequence the session returns:
+At the end of the sequence the cursor returns:
 
 .. code-block:: json
 
@@ -189,9 +179,9 @@ At the end of the sequence the session returns:
 Once ``finished`` becomes true, further advancement MUST NOT restart or wrap
 the sequence implicitly.
 
-A session is released with::
+A cursor is released with::
 
-    DELETE /resource/sessions/{session}
+    DELETE /resource/cursors/{cursor}
 
 A successful release returns ``204 No Content``.
 
@@ -199,8 +189,8 @@ Sequential access guarantees only forward traversal. It does not imply random
 access, backward traversal, efficient skipping, a known sequence length, or
 stable item identifiers.
 
-Session identifiers are opaque strings. Session lifetime and expiration policy
-are implementation-specific. An expired or explicitly removed session SHOULD
+Cursor identifiers are opaque strings. Cursor lifetime and expiration policy
+are implementation-specific. An expired or explicitly removed cursor SHOULD
 return ``404 Not Found`` or ``410 Gone``, depending on whether the
 implementation can distinguish the two cases.
 
@@ -365,20 +355,20 @@ A source may support both sequential and addressable access::
     ├── GET /{id}                         [addressable]
     │      retrieve item by ID
     │
-    └── sessions                          [sequential]
+    └── cursors                           [sequential]
          │
          ├── POST /
-         │      create session
+         │      create cursor
          │
-         └── {session}
+         └── {cursor}
               ├── GET
               │      inspect current item
               ├── POST
               │      advance
               └── DELETE
-                     release session
+                     release cursor
 
-For such a source, an identifier returned as the sequential session's
+For such a source, an identifier returned as the sequential cursor's
 ``current`` value refers to the same item namespace as ``GET /resource/{id}``.
 
 The two capabilities otherwise remain independent.
@@ -536,11 +526,11 @@ Implementations SHOULD follow ordinary HTTP semantics and status codes:
 Status                        Meaning
 ============================= =====================================================
 ``200 OK``                    Successful retrieval or operation
-``201 Created``               Traversal session created
+``201 Created``               Cursor created
 ``204 No Content``            Successful operation with no response representation
 ``400 Bad Request``           Invalid identifier, query, or operation parameters
-``404 Not Found``             Resource, item, page, or session does not exist
-``410 Gone``                  Previously valid item/session is no longer available
+``404 Not Found``             Resource, item, page, or cursor does not exist
+``410 Gone``                  Previously valid item/cursor is no longer available
 ``500 Internal Server Error`` Unexpected source failure
 ``503 Service Unavailable``   Source exists but is temporarily unavailable
 ============================= =====================================================
@@ -567,7 +557,7 @@ endpoint defined by this specification directly from the source's origin.
 The source MUST therefore serve CORS headers (``Access-Control-Allow-Origin``,
 and a valid response to the CORS preflight for state-changing requests) on
 *all* of its endpoints — the descriptor, the principal resource, individual
-items, and session resources alike — permitting the consuming origin.
+items, and cursor resources alike — permitting the consuming origin.
 A source that omits this is only reachable through a same-origin
 intermediary (e.g. a server-side plugin proxying or re-exposing it), not
 directly by a browser client.
@@ -593,8 +583,8 @@ Full summary::
            ?page=...                         and row-windowed (rows.windowed)
            &page-size=...
 
-    POST   /resource/sessions                if sequential
-    GET    /resource/sessions/{session}      if sequential
-    POST   /resource/sessions/{session}      if sequential
-    DELETE /resource/sessions/{session}      if sequential
+    POST   /resource/cursors                 if sequential
+    GET    /resource/cursors/{cursor}        if sequential
+    POST   /resource/cursors/{cursor}        if sequential
+    DELETE /resource/cursors/{cursor}        if sequential
 

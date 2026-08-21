@@ -127,6 +127,42 @@ const primitives = computed(() => {
     return store.getters[`plotDesk_${contextId.value}/allPrimitives`] ?? [];
 });
 
+// Items routed in via the cross-module "selection sink" mechanism (doc/
+// ui-session.rst's "Selection sinks") -- kept in this context's own
+// sinkInbox sub-state (store/sinkInbox.js), never merged into plotDesk's
+// directly-loaded primitivesByResource above. Dispatches on the *link*'s
+// declared payloadType (modules/plotter/index.js's acceptsPayloadTypes),
+// not by inspecting each item's shape -- one converter per accepted type:
+// 'graph-node'/'graph-edge' items carry a ready-to-draw
+// `subjectData.plot.primitives` (the same doc/module-plotter.rst
+// "primitives" shape a data source's own plotData uses -- it's the sending
+// module's job to shape that, e.g. the na64umff viewer plugin's graph
+// nodes embed a fitted state's parameters this way, see
+// na64utils-msadc/viewer/plugin/NOTES.rst); 'table-projection' items are
+// {xColumn, yColumn, data} (doc/module-table.rst's "Plot dispatch") and
+// are converted to one polyline here since they arrive already
+// plot-shaped, just not primitive-shaped.
+const SINK_PAYLOAD_CONVERTERS = {
+    'graph-node': item => item.snapshot?.subjectData?.plot?.primitives ?? [],
+    'graph-edge': item => item.snapshot?.subjectData?.plot?.primitives ?? [],
+    'table-projection': item => item.snapshot ? [{
+        _type: 'polyline',
+        _facets: {series: `${item.snapshot.xColumn} vs ${item.snapshot.yColumn}`},
+        _transfDomain: 'main',
+        closed: false,
+        data: item.snapshot.data ?? []
+    }] : []
+};
+
+const sinkPrimitives = computed(() => {
+    if(!contextId.value) return [];
+    const incoming = store.getters[`sinkInbox_${contextId.value}/incomingList`] ?? [];
+    return incoming.flatMap(entry => {
+        const convert = SINK_PAYLOAD_CONVERTERS[entry.payloadType];
+        return convert ? (entry.items ?? []).flatMap(convert) : [];
+    });
+});
+
 // Not yet sourced from a payload or any per-desk config UI (doc's "Open
 // questions") -- a single hardcoded domain every primitive is expected to
 // declare itself under via `_transfDomain: "main"`.
@@ -346,6 +382,11 @@ function redraw() {
 
     const markerColor = resolve_css_var('--clr-legend1');
     const lineColor = resolve_css_var('--clr-legend2');
+    // Distinct from the desk's own directly-loaded primitives above --
+    // reuses the same color the block diagram uses for a selected node
+    // (DiagramNode.vue), so a sink-forwarded item visually reads as "this
+    // came from a selection elsewhere" rather than as this desk's own data.
+    const sinkColor = resolve_css_var('--clr-graph-selection');
 
     for(const item of primitives.value) {
         if(item._transfDomain !== defaultTransfDomain.name)
@@ -356,11 +397,20 @@ function redraw() {
             draw_polyline(ctx, item, xScale.value, yScale.value, {color: lineColor});
     }
 
+    for(const item of sinkPrimitives.value) {
+        if(item._transfDomain !== defaultTransfDomain.name)
+            continue;
+        if(item._type === 'markers')
+            draw_markers(ctx, item, xScale.value, yScale.value, {color: sinkColor});
+        else if(item._type === 'polyline')
+            draw_polyline(ctx, item, xScale.value, yScale.value, {color: sinkColor});
+    }
+
     if(dragMode.value === 'rect-zoom')
         draw_zoom_rect(ctx, dragStartPx.value, dragCurrentPx.value, resolve_css_var('--clr-border-active'));
 }
 
-watch([mpWidth, mpHeight, xTransform, yTransform, dragMode, dragCurrentPx, primitives], redraw);
+watch([mpWidth, mpHeight, xTransform, yTransform, dragMode, dragCurrentPx, primitives, sinkPrimitives], redraw);
 
 // --- MP interactions (doc's "Supported interactions in the MP") ---
 
@@ -537,6 +587,6 @@ function on_axis_pointer_cancel(axis) {
 .plot-viewport__axis-svg { display: block; }
 .plot-viewport__axis-svg--interactive { cursor: crosshair; touch-action: none; }
 .plot-viewport__tick { stroke: var(--clr-border-active); stroke-width: 1; }
-.plot-viewport__tick-label { fill: var(--clr-fg-panel); font-size: 8px; pointer-events: none; }
+.plot-viewport__tick-label { fill: var(--clr-fg-panel); font-size: 1em; pointer-events: none; font-family: monospace; }
 .plot-viewport__axis-drag-rect { fill: var(--clr-border-active); opacity: 0.25; pointer-events: none; }
 </style>

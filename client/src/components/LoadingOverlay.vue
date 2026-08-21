@@ -57,7 +57,6 @@ const label = computed(() => {
   background: var(--clr-bg-panel);
   color: var(--clr-fg-panel);
 
-  font-family: monospace;
   font-size: 9pt;
 }
 

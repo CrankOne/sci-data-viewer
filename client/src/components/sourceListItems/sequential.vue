@@ -1,11 +1,11 @@
 <template>
   <div>
-    <div v-if="sessionURL" class="seq-status">
-      <template v-if="sessionFinished">Finished at event {{ sessionStep }} &mdash; release and start again to replay.</template>
-      <template v-else>Event {{ sessionStep }}<span v-if="dataSize != null"> ({{ dataSize }} bytes)</span></template>
+    <div v-if="cursorURL" class="seq-status">
+      <template v-if="cursorFinished">Finished at event {{ cursorStep }} &mdash; release and start again to replay.</template>
+      <template v-else>Event {{ cursorStep }}<span v-if="dataSize != null"> ({{ dataSize }} bytes)</span></template>
     </div>
-    <div v-else class="seq-status seq-status-muted">No session &mdash; start one to begin traversing.</div>
-    <!-- create_resource_session/advance_resource_session also mirror a
+    <div v-else class="seq-status seq-status-muted">No cursor &mdash; start one to begin traversing.</div>
+    <!-- create_resource_cursor/advance_resource_cursor also mirror a
          failure onto resource.status/error (for LoadingOverlay's benefit --
          see connection.js), but actionError below already covers every
          action's failure with a friendlier "Failed to ..." prefix, so it's
@@ -15,9 +15,9 @@
     <QueryOptionsForm :name="name" :queryOptions="queryOptions" :queryValues="queryValues"/>
 
     <div class="seq-actions">
-      <button type="button" :disabled="Boolean(sessionURL) || busy" @click="start_session">Start session</button>
-      <button type="button" :disabled="!sessionURL || sessionFinished || busy" @click="advance">Next</button>
-      <button type="button" :disabled="!sessionURL || busy" @click="release">Release</button>
+      <button type="button" :disabled="Boolean(cursorURL) || busy" @click="start_cursor">Start cursor</button>
+      <button type="button" :disabled="!cursorURL || cursorFinished || busy" @click="advance">Next</button>
+      <button type="button" :disabled="!cursorURL || busy" @click="release">Release</button>
     </div>
   </div>
 </template>
@@ -38,10 +38,10 @@ export default {
         dataSize: Number,
         error: String,
         queryValues: {type: Object, default: () => ({})},
-        sessionURL: {type: String, default: null},
-        sessionId: {type: String, default: null},
-        sessionFinished: {type: Boolean, default: false},
-        sessionStep: {type: Number, default: 0}
+        cursorURL: {type: String, default: null},
+        cursorId: {type: String, default: null},
+        cursorFinished: {type: Boolean, default: false},
+        cursorStep: {type: Number, default: 0}
     },
     data() {
         return {
@@ -55,13 +55,13 @@ export default {
         }
     },
     methods: {
-        async start_session() {
+        async start_cursor() {
             this.busy = true;
             this.actionError = null;
             try {
-                await this.$store.dispatch('connection/create_resource_session', {name: this.name});
+                await this.$store.dispatch('connection/create_resource_cursor', {name: this.name});
             } catch(error) {
-                this.actionError = `Failed to start session: ${error.message}`;
+                this.actionError = `Failed to start cursor: ${error.message}`;
             } finally {
                 this.busy = false;
             }
@@ -70,9 +70,9 @@ export default {
             this.busy = true;
             this.actionError = null;
             try {
-                await this.$store.dispatch('connection/advance_resource_session', {name: this.name});
+                await this.$store.dispatch('connection/advance_resource_cursor', {name: this.name});
             } catch(error) {
-                this.actionError = `Failed to advance session: ${error.message}`;
+                this.actionError = `Failed to advance cursor: ${error.message}`;
             } finally {
                 this.busy = false;
             }
@@ -81,9 +81,9 @@ export default {
             this.busy = true;
             this.actionError = null;
             try {
-                await this.$store.dispatch('connection/release_resource_session', {name: this.name});
+                await this.$store.dispatch('connection/release_resource_cursor', {name: this.name});
             } catch(error) {
-                this.actionError = `Failed to release session: ${error.message}`;
+                this.actionError = `Failed to release cursor: ${error.message}`;
             } finally {
                 this.busy = false;
             }

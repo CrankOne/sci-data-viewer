@@ -1,3 +1,16 @@
+/*                                                                 ___________
+ * ________________________________________________________________/ Typography
+ * Two root-defined font stacks -- every component should reference these
+ * rather than hardcoding a family, so the whole app's typography can be
+ * changed in one place. `--font-ui` (sans-serif) is for labels, buttons,
+ * headings and other UI chrome; `--font-data` (monospace) is for inputs and
+ * data display (tables, numeric readouts, code-like content). Never falls
+ * back to a serif default. */
+:root {
+    --font-ui: Calibri, "Segoe UI", sans-serif;
+    --font-data: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+
 /*                                                               _____________
  * ____________________________________________________________/ Basic palette
  * neutral, supporting, accent colors and their shades
@@ -109,7 +122,6 @@
     --clr-bg-options: var(--clr-neutral-brighten2);
     --clr-fg-options: var(--clr-neutral-fg);
 
-    /* for bright */
     --clr-bg-button: var(--clr-neutral-brighten2);
     --clr-fg-button: var(--clr-accent);
 
@@ -137,6 +149,9 @@
     --clr-bg-panel: var(--clr-neutral);
     --clr-fg-panel: var(--clr-supporting-brighten);
 
+    --clr-bg-panel-header: var(--clr-neutral-brighten);
+    --clr-fg-panel-header: var(--clr-supporting-brighten);
+
     --clr-border-active: var(--clr-supporting);
     --clr-border-inactive: var(--clr-supporting-darken);
 
@@ -145,6 +160,9 @@
 
     --clr-fg-highlight1: var(--clr-accent-darken);
     --clr-fg-highlight2: var(--clr-neutral-darken);
+
+    --clr-bg-options: var(--clr-neutral-brighten2);
+    --clr-fg-options: var(--clr-neutral-fg);
 
     --clr-bg-button: var(--clr-supporting-brighten);
     --clr-fg-button: var(--clr-bg-main);
@@ -167,6 +185,7 @@ body {
   color: var(--clr-fg-main);
   background-color: var(--clr-bg-unoccupied);
   margin: 0;
+  font-family: var(--font-ui);
 }
 
 html,
@@ -175,6 +194,24 @@ body,
     width: 100%;
     height: 100%;
     margin: 0;
+}
+
+/* Data display / entry, wherever it appears -- see the "Typography" section
+ * above. Kept global rather than per-widget so a table cell, a numeric
+ * readout (<output>) or a code block never silently falls back to the
+ * browser's serif default just because nobody thought to style it. */
+input,
+textarea,
+table,
+pre,
+code,
+output {
+    font-family: var(--font-data);
+}
+
+button,
+select {
+    font-family: var(--font-ui);
 }
 
 button {

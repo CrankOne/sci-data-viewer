@@ -3,9 +3,9 @@
   this board's own sinkInbox sub-state (store/sinkInbox.js) -- items routed
   in from another context's selection via the cross-module "selection sink"
   mechanism (doc/ui-session.rst's "Extension points"). Lists them by
-  origin, the same {itemId, srcID, snapshot} envelope every sink-dispatch
-  snapshot builder produces (store/sinkDispatch.js) -- deliberately
-  origin-agnostic, same as :doc:`module-table`'s real consumer.
+  origin, the same {itemId, srcID, payloadType, snapshot} envelope every
+  sink-dispatch snapshot builder produces (store/sinkDispatch.js) --
+  deliberately origin-agnostic, same as :doc:`module-table`'s real consumer.
 -->
 <template>
   <NavBarEntity>
@@ -22,7 +22,7 @@
 
       <div v-else class="graph-sink-panel">
         <div v-for="entry in incomingList" :key="entry.originContextId" class="graph-sink-panel__origin">
-          <h5>From {{ entry.originContextId }} ({{ entry.type }})</h5>
+          <h5>From {{ entry.originContextId }} ({{ entry.payloadType }})</h5>
           <ul class="graph-sink-panel__items">
             <li v-for="(item, index) in entry.items" :key="`${entry.originContextId}-${index}`">
               <span class="graph-sink-panel__item-id">{{ item.itemId }}</span>
