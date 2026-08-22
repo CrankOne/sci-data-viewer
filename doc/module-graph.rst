@@ -82,12 +82,16 @@ Nodes
     are not given explicitly.
 ``shape`` (optional, default ``"rect"``)
     One of a small fixed vocabulary: ``rect``, ``rounded``, ``ellipse``,
-    ``diamond``. Deliberately not an open-ended shape system -- this
-    mirrors :doc:`module-plotter`'s own closed marker-shape vocabulary
-    rather than graphviz's much larger ``shape`` set.
+    ``diamond``, plus five UML pseudostate shapes -- ``circle-filled``,
+    ``circle-ringed``, ``bar``, ``terminate`` (see below). Deliberately not
+    an open-ended shape system -- this mirrors :doc:`module-plotter`'s own
+    closed marker-shape vocabulary rather than graphviz's much larger
+    ``shape`` set.
 ``width`` / ``height`` (optional)
-    Explicit size hint in px. When omitted, measured from the rendered
-    label plus fixed padding.
+    Explicit size hint in px. When omitted: for the four original shapes,
+    measured from the rendered label plus fixed padding; for the five
+    pseudostate shapes below, a small fixed size (they carry no meaningful
+    label to measure) -- see "Pseudostate shapes".
 ``_facets`` (optional)
     Free-form ``{name: value}`` metadata, the same convention
     :doc:`module-3d-viewer` and :doc:`module-plotter` already use for
@@ -103,6 +107,38 @@ multi-part shape (a UML class compartment: name/attributes/methods, see
 "Future scope") is additive there, not a rework of node positioning or
 sizing, both of which already only care about the label's own measured
 extent, however it ends up structured.
+
+Pseudostate shapes
+~~~~~~~~~~~~~~~~~~
+
+Four additional ``shape`` values, each a UML pseudostate rather than an
+ordinary named state -- fixed-size (never label-measured, "Nodes" above)
+and rendered without a text label even when one is present in the payload
+(``DiagramNode.vue`` suppresses it for these four; the label field is still
+useful data for hover/selection/sink-forwarding, just not drawn on canvas):
+
+``circle-filled``
+    UML's initial pseudostate -- a small filled circle. A source emits one
+    per graph as its synthetic entry point.
+``circle-ringed``
+    UML's final pseudostate -- a ringed circle with a smaller filled dot
+    inside. A source emits one per accepted outcome its graph reaches.
+``bar``
+    UML's fork/join pseudostate -- a thin filled bar, direction-aware (wide
+    and short for ``TB``/``BT`` layouts, narrow and tall for ``LR``/``RL``):
+    one node with several outgoing edges is a fork, one with several
+    incoming edges is a join. Ordinary graph topology to dagre (a fork is
+    just a high-fan-out node); ``bar`` only changes how it's drawn.
+``terminate``
+    UML's terminate pseudostate -- a circle with a diagonal cross. Marks a
+    dead end distinct from an ordinary unfinished state: a leaf state that
+    was reached but isn't the outcome a competing/fallback procedure
+    actually accepted (see "Clusters" below for the concurrent-region case
+    this was introduced for).
+
+These four are ordinary nodes in every other respect -- ``_facets``,
+``subjectData``, selection/hover, sink forwarding (below) all apply
+unchanged; only sizing and label rendering differ.
 
 Edges
 ~~~~~
@@ -156,6 +192,104 @@ client passes through without interpreting, exactly as :doc:`module-plotter`
 already defines it for its own primitives. This is the vehicle for "forward
 data associated with [nodes and edges] to the plotter" -- see "Selection and
 forwarding" below for how it actually travels there.
+
+Nested graphs
+~~~~~~~~~~~~~
+
+.. code-block:: js
+
+    {
+        "graphData": {
+            "nodes": [ ... ],
+            "edges": [ ... ],
+            "nestedGraphs": [
+                {"itemId": "12560-1.100.ECAL0-2-3.json::byDomainBreakdown%3AFitProc", "path": "...", "label": "byDomainBreakdown:FitProc"}
+            ]
+        }
+    }
+
+Optional, top-level (sibling of ``nodes``/``edges``, *not* inside
+``subjectData``): a list of other addressable items of the *same* resource
+(:doc:`sources`) that render a structurally-nested sub-graph this graph's own
+``nodes``/``edges`` omit -- typically because inlining it would produce an
+oversized or confusing diagram. na64umff's own per-domain breakdown sub-fits
+were the original motivating case, and are now inlined directly instead (see
+"Clusters" below) -- ``nestedGraphs`` remains a source's general escape
+hatch for detail that genuinely doesn't belong on the main canvas even after
+that, not specific to breakdowns.
+
+Unlike ``subjectData``, this field *is* interpreted generically by the
+client: any ``graph``-typed source may set it, and the viewport offers every
+entry as a "drill into this" affordance (``NestedGraphsPanel.vue``) without
+any per-source client code -- selecting one re-fetches that resource at
+``itemId`` (``GET {data-url}/{itemId}``, exactly the addressable-item
+retrieval :doc:`sources` already defines) and replaces this resource's own
+contribution to the board, with a "back" control returning to the item that
+was loaded before drilling in.
+
+``itemId``
+    An opaque addressable item id for this same resource -- resolved and
+    fetched exactly like any other addressable item (:doc:`sources`), never
+    interpreted or parsed by the client.
+``path`` (optional)
+    Human-readable description of where this nested graph sits (e.g. the
+    procedure-nesting chain that led to it). Shown as a tooltip; not
+    otherwise interpreted.
+``label``
+    Short text for the drill-down control itself.
+
+A source is expected to advertise ``nestedGraphs`` only on an item that is
+*not itself* a drill-down target -- i.e. exactly one level of nesting is
+supported; a drilled-into item's own response should omit the field (or
+leave it empty) rather than advertise further descendants. This keeps "back"
+a single, unambiguous step rather than a full navigation stack; a future
+revision that needs deeper nesting would need to extend both this contract
+and the client's drill history accordingly.
+
+Clusters
+~~~~~~~~
+
+.. code-block:: js
+
+    {
+        "graphData": {
+            "nodes": [
+                {"_id": "s205", "cluster": "domain0", "shape": "terminate", ...}
+            ],
+            "edges": [ ... ],
+            "clusters": [
+                {"_id": "domain0", "label": "Domain 0"}
+            ]
+        }
+    }
+
+Optional, top-level (sibling of ``nodes``/``edges``): a list of named
+regions a node may declare membership in via its own optional ``cluster``
+field (a cluster ``_id``, unset by default -- most nodes belong to no
+cluster). A cluster renders as a labeled bordered region drawn behind its
+member nodes, sized and positioned by dagre's own compound-graph support
+(``dagre.graphlib.Graph({compound: true})``, ``setParent`` -- a real
+capability of ``@dagrejs/dagre``, not a client-side approximation: it
+produces a correct bounding box around a cluster's children and keeps
+several clusters from overlapping, exactly the concurrent-region grouping a
+UML fork/join needs).
+
+``_id``
+    Stable identifier, unique within the source's own payload, same role as
+    a node's or edge's ``_id``.
+``label``
+    Text rendered at the region's border (typically top-left), identifying
+    the concurrent branch it represents (e.g. "Domain 0").
+
+This is na64umff's own motivating case: a ``BreakdownFitProcedure``
+genuinely forks into per-domain regions and joins after (see "Pseudostate
+shapes" above for the ``bar`` fork/join nodes this pairs with) -- one
+cluster per domain, each holding that domain's own competing sub-fit,
+inlined directly into the main graph rather than hidden behind
+``nestedGraphs``. Clusters are non-interactive this pass: no selection, no
+hover, no sink forwarding -- purely a layout/rendering grouping. A node
+inside a cluster still selects/hovers/forwards exactly like any other node;
+only the cluster's own bounding rect is inert.
 
 Layout
 ------

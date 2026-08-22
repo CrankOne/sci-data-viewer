@@ -34,13 +34,35 @@
       cx="0" cy="0" :rx="node.width / 2" :ry="node.height / 2"
       class="diagram-node__shape"
     />
+    <!-- UML pseudostate shapes (doc's "Pseudostate shapes") -- fixed-size
+         (layout.js), no text label (see hasLabel below). -->
+    <circle
+      v-else-if="shape === 'circle-filled'"
+      cx="0" cy="0" :r="node.width / 2"
+      class="diagram-node__shape diagram-node__shape--solid"
+    />
+    <g v-else-if="shape === 'circle-ringed'">
+      <circle cx="0" cy="0" :r="node.width / 2" class="diagram-node__shape" />
+      <circle cx="0" cy="0" :r="node.width / 2 - 4" class="diagram-node__shape diagram-node__shape--solid" />
+    </g>
+    <rect
+      v-else-if="shape === 'bar'"
+      :x="-node.width / 2" :y="-node.height / 2"
+      :width="node.width" :height="node.height"
+      class="diagram-node__shape diagram-node__shape--solid"
+    />
+    <g v-else-if="shape === 'terminate'">
+      <circle cx="0" cy="0" :r="node.width / 2" class="diagram-node__shape" />
+      <line :x1="-crossExtent" :y1="-crossExtent" :x2="crossExtent" :y2="crossExtent" class="diagram-node__terminate-mark" />
+      <line :x1="-crossExtent" :y1="crossExtent" :x2="crossExtent" :y2="-crossExtent" class="diagram-node__terminate-mark" />
+    </g>
     <polygon
       v-else
       :points="diamondPoints"
       class="diagram-node__shape"
     />
 
-    <text class="diagram-node__label" text-anchor="middle" dominant-baseline="middle">{{ node.label }}</text>
+    <text v-if="hasLabel" class="diagram-node__label" text-anchor="middle" dominant-baseline="middle">{{ node.label }}</text>
   </g>
 </template>
 
@@ -56,10 +78,21 @@ defineEmits(['select', 'hover', 'unhover']);
 
 const shape = computed(() => props.node.shape ?? 'rect');
 
+// The four UML pseudostate shapes carry no meaningful state name (doc's
+// "Pseudostate shapes") -- suppressed here rather than by the source
+// omitting `label`, so the field stays available for hover/selection/sink
+// forwarding regardless.
+const PSEUDOSTATE_SHAPES = ['circle-filled', 'circle-ringed', 'bar', 'terminate'];
+const hasLabel = computed(() => !PSEUDOSTATE_SHAPES.includes(shape.value));
+
 const diamondPoints = computed(() => {
     const hw = props.node.width / 2, hh = props.node.height / 2;
     return `0,${-hh} ${hw},0 0,${hh} ${-hw},0`;
 });
+
+// Diagonal half-extent of the terminate mark's cross, inscribed inside the
+// circle with a small margin so the strokes don't touch the ring.
+const crossExtent = computed(() => (props.node.width / 2) * 0.5);
 </script>
 
 <style scoped>
@@ -80,6 +113,29 @@ const diamondPoints = computed(() => {
 
 .diagram-node--selected .diagram-node__shape {
     fill: var(--clr-graph-selection);
+    stroke: var(--clr-graph-selection);
+}
+
+/* UML pseudostate shapes that are always solid-filled (initial circle,
+   fork/join bar, the inner dot of a final circle) rather than the hollow
+   panel-background fill every other shape defaults to -- overridden by the
+   selected-state rule above when applicable, same as any other shape. */
+.diagram-node__shape--solid {
+    fill: var(--clr-fg-options);
+    stroke: none;
+}
+
+.diagram-node__terminate-mark {
+    stroke: var(--clr-border-inactive);
+    stroke-width: 1.5;
+    pointer-events: none;
+}
+
+.diagram-node--highlighted .diagram-node__terminate-mark {
+    stroke: var(--clr-graph-highlight);
+}
+
+.diagram-node--selected .diagram-node__terminate-mark {
     stroke: var(--clr-graph-selection);
 }
 

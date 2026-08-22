@@ -3,10 +3,11 @@
 // make the "graph" data type known to the app -- see main.js.
 
 import { register_module } from '../registry';
-import { CATEGORY_APP } from '@/modules/panelItems';
+import { CATEGORY_APP, CATEGORY_COMMON_SCOPE } from '@/modules/panelItems';
 
 import DiagramViewport from './DiagramViewport.vue';
 import GraphSinkPanel from './GraphSinkPanel.vue';
+import NestedGraphsPanel from './NestedGraphsPanel.vue';
 
 import { make_graph_board_module } from './store/graphBoard';
 import graphLayout from './store/graphLayout';
@@ -24,7 +25,11 @@ register_module({
         // modules/panelItems.js) alongside Data Sources/Application
         // Controls, despite being module-owned -- conceptually app-level
         // plumbing rather than tied to this scope's own content.
-        {id: 'graph:sink-inbox', title: 'Sink inbox', component: GraphSinkPanel, category: CATEGORY_APP}
+        {id: 'graph:sink-inbox', title: 'Sink inbox', component: GraphSinkPanel, category: CATEGORY_APP},
+        // Content-navigation, not app plumbing -- CATEGORY_COMMON_SCOPE,
+        // the same category three-view's own "Items" tree uses (doc/module-
+        // graph.rst's "Nested graphs").
+        {id: 'graph:nested-graphs', title: 'Nested procedures', component: NestedGraphsPanel, category: CATEGORY_COMMON_SCOPE}
     ],
     // `graphLayout` is a single statically-registered module whose internal
     // `byViewport` dict is keyed dynamically by widget-instance id (see
@@ -55,13 +60,15 @@ register_module({
     payloadMutation: contextId => `graphBoard_${contextId}/update_graph_data`,
     payload(resource, data) {
         // `data` is the raw fetched body -- doc/module-graph.rst's
-        // "graphData" envelope ({layout, nodes, edges}).
+        // "graphData" envelope ({layout, nodes, edges, nestedGraphs, clusters}).
         const graph = data?.graphData ?? null;
         return {
             name: resource.name,
             nodes: graph?.nodes ?? [],
             edges: graph?.edges ?? [],
-            layout: graph?.layout ?? null
+            layout: graph?.layout ?? null,
+            nestedGraphs: graph?.nestedGraphs ?? [],
+            clusters: graph?.clusters ?? []
         };
     },
     // Mirrors payloadMutation/payload, for dropping a resource's data from

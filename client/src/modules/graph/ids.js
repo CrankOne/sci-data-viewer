@@ -24,7 +24,16 @@ export function selection_edge_id(resourceName, localId) {
     return `edge${KIND_DELIMITER}${resourceName}${RESOURCE_DELIMITER}${localId}`;
 }
 
-// Inverse of the two functions above: {kind: 'node'|'edge', resourceName, localId}.
+// A cluster (doc/module-graph.rst's "Clusters") is a dagre compound-graph
+// parent, not a selectable item -- it shares this same composite-id scheme
+// purely so it can be namespaced by resource and used as a dagre graph key
+// (layout.js's setParent) without colliding with another resource's
+// same-named cluster, not because it participates in selection/hover.
+export function selection_cluster_id(resourceName, localId) {
+    return `cluster${KIND_DELIMITER}${resourceName}${RESOURCE_DELIMITER}${localId}`;
+}
+
+// Inverse of the three functions above: {kind: 'node'|'edge'|'cluster', resourceName, localId}.
 export function destruct_selection_id(compositeId) {
     const kindSep = compositeId.indexOf(KIND_DELIMITER);
     const kind = compositeId.slice(0, kindSep);

@@ -84,6 +84,11 @@
         />
 
         <g :transform="to_svg_transform(transform)">
+          <DiagramCluster
+            v-for="cluster in layoutResult.clusters"
+            :key="cluster.compositeId"
+            :cluster="cluster"
+          />
           <DiagramEdge
             v-for="edge in layoutResult.edges"
             :key="edge.compositeId"
@@ -116,6 +121,7 @@ import { useStore } from 'vuex';
 
 import DiagramNode from './DiagramNode.vue';
 import DiagramEdge from './DiagramEdge.vue';
+import DiagramCluster from './DiagramCluster.vue';
 import { compute_layout, merge_layout_defaults } from './layout';
 import { make_identity_transform, to_svg_transform, zoom_around, fit_transform } from './transform';
 
@@ -134,6 +140,7 @@ const selectionNS = computed(() => `selection_${contextId.value}`);
 
 const nodes = computed(() => contextId.value ? store.getters[`${boardNS.value}/allNodes`] : []);
 const edges = computed(() => contextId.value ? store.getters[`${boardNS.value}/allEdges`] : []);
+const clusters = computed(() => contextId.value ? store.getters[`${boardNS.value}/allClusters`] : []);
 const payloadLayoutHint = computed(() => contextId.value ? store.getters[`${boardNS.value}/payloadLayoutHint`] : {});
 
 // Effective layout options (doc's "Layout"/"Diagrams"): this diagram's own
@@ -143,7 +150,7 @@ const layoutOptions = computed(() =>
     store.getters['graphLayout/layoutOptions'](props.instanceId, merge_layout_defaults(payloadLayoutHint.value))
 );
 
-const layoutResult = computed(() => compute_layout(nodes.value, edges.value, layoutOptions.value));
+const layoutResult = computed(() => compute_layout(nodes.value, edges.value, layoutOptions.value, clusters.value));
 
 const selectedIDs = computed(() => contextId.value ? store.getters[`${selectionNS.value}/selectedItemIDs`] : new Set());
 const highlightedIDs = computed(() => contextId.value ? store.getters[`${selectionNS.value}/highlightedItemIDs`] : new Set());
