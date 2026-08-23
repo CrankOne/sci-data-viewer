@@ -42,7 +42,7 @@ The server takes a single mandatory ``--config`` argument, a YAML file::
 
     na64umff:
       results-dir: $NA64_DATA_DIR/results
-      config-dump: $(find /data/umff -maxdepth 1 -name config-dump.json)
+      templates-dir: $NA64_ASSETS_DIR/fitTemplates
 
 ``server`` holds the server's own variables. ``plugins`` is the list of
 *installed* (entry-point-discovered) plugin ids to actually load --
@@ -120,7 +120,7 @@ variable the factory sets before returning -- Flask blueprints are
 defined once at module scope and route handlers are plain view functions
 closing over module globals, not methods on the plugin instance, so this
 keeps the config's effect visible to them without restructuring the
-whole blueprint. See ``na64umff.py``'s ``gResultsDir``/``gConfigDumpPath``
+whole blueprint. See ``na64umff.py``'s ``gResultsDir``/``gTemplatesDir``
 or ``al_albrw_config.py``'s ``configure()`` for two variations on this.
 A corollary: nothing importing a plugin's module (including
 ``--list-plugins``, and the entry-point's own ``.load()``) should do real
