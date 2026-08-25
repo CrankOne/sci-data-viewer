@@ -16,12 +16,28 @@
 // below now reads straight from connection.js's own `resources`, which
 // keeps each resource's last-fetched raw payload on the resource record
 // itself.
+import { with_data_source_facet, matches_facets_selector } from '@/store/facets';
+
 export function make_view3D_module(contextId) {
     // A geo3d source's raw fetched body is shaped `{geometryData:
     // {materials, geometry}, ...}` (mirrors the old payload()'s `pl.geoData`
-    // -> `pl.geometryData` unwrap in the `geoData` getter below).
-    function extract_geo_data(rawData) {
-        return rawData?.geometryData ?? null;
+    // -> `pl.geometryData` unwrap in the `geoData` getter below). Every
+    // geometry item gets a `dataSource` facet merged into its own `_facets`
+    // (store/facets.js) -- doc/module-3d-viewer.rst's per-item convention,
+    // now guaranteed present regardless of whether the source itself
+    // declares any facets at all -- then the resource's own facetsSelector,
+    // if any, narrows the list down (doc/data-model.rst's "One input
+    // concept per scope, not two" -- a source link's membership rule, same
+    // as a sink link's).
+    function extract_geo_data(rawData, resourceName, facetsSelector) {
+        const data = rawData?.geometryData ?? null;
+        if(!data) return data;
+        return {
+            ...data,
+            geometry: (data.geometry ?? [])
+                .map(item => with_data_source_facet(item, resourceName))
+                .filter(item => matches_facets_selector(item._facets, facetsSelector))
+        };
     }
 
     return {
@@ -75,7 +91,7 @@ export function make_view3D_module(contextId) {
         geoData: (state, getters, rootState) => Object.fromEntries(
             Object.values(rootState.connection.resources)
                 .filter(r => r.contextId === contextId && r.type === 'geo3d' && r.data != null)
-                .map(r => [r.name, extract_geo_data(r.data)])
+                .map(r => [r.name, extract_geo_data(r.data, r.name, r.facetsSelector)])
         ),
 
         highlightHiddenSelection: state => state.highlightHiddenSelection,

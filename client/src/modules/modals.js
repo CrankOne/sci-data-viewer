@@ -2,6 +2,7 @@ import SessionPickerModal from '@/components/modals/SessionPickerModal.vue';
 import AddSourceModal from '@/components/modals/AddSourceModal.vue';
 import AddContentModal from '@/components/modals/AddContentModal.vue';
 import ConnectScopeModal from '@/components/modals/ConnectScopeModal.vue';
+import FacetSelectorModal from '@/components/modals/FacetSelectorModal.vue';
 
 // Catalog of modal components addressable by name (see store/modules/ui.js,
 // components/ModalHost.vue). A name with no entry resolves to null and
@@ -11,7 +12,8 @@ const registry = {
     'session-picker': SessionPickerModal,
     'add-source': AddSourceModal,
     'add-content': AddContentModal,
-    'connect-scope': ConnectScopeModal
+    'connect-scope': ConnectScopeModal,
+    'facet-selector': FacetSelectorModal
 };
 
 export function resolve_modal(name) {

@@ -20,7 +20,7 @@ import {
 const DEFAULT_FACET_PRESETS = {
     "Source and transf.groups": {
         facets: [
-            "source",
+            "dataSource",
             "transf.group"
         ]
     }

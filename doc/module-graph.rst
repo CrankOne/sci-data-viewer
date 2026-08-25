@@ -95,7 +95,11 @@ Nodes
 ``_facets`` (optional)
     Free-form ``{name: value}`` metadata, the same convention
     :doc:`module-3d-viewer` and :doc:`module-plotter` already use for
-    grouping/filtering.
+    grouping/filtering. The client always adds one facet of its own on top
+    -- ``dataSource``, the owning resource's own name (``store/facets.js``)
+    -- so a node/edge is never entirely unfaceted even when a source
+    declares none of its own. Clusters are excluded from this (see
+    "Clusters" below -- no selection, no hover, nothing to facet yet).
 ``subjectData`` (optional)
     Opaque payload the client passes through without interpreting -- see
     "Subject data" below.

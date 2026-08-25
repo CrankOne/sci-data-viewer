@@ -36,7 +36,12 @@ export function install_connection_persistence(store, sessionId) {
                 // Last page of the item listing the user was browsing (see
                 // sourceListItems/addressable.vue) -- soft persistence, so
                 // a reload resumes browsing where it left off.
-                page: resource.page ?? 0
+                page: resource.page ?? 0,
+                // Optional facet filter narrowing this resource's
+                // membership rule (doc/data-model.rst) -- a durable
+                // configuration choice, same footing as contextId, so it
+                // survives a reload rather than resetting to "every item".
+                facetsSelector: resource.facetsSelector ?? null
             })
         );
         write_stored(storageKey, {sources});
@@ -54,13 +59,15 @@ export function install_connection_persistence(store, sessionId) {
 // wrong one win.
 export function restore_persisted_sources(store, sessionId) {
     const stored = read_stored(`${BASE_STORAGE_KEY}.${sessionId}`, 'sources');
-    const attempts = (stored?.sources ?? []).map(({name, endpoint, contextId, selectedItemId, page}) =>
+    const attempts = (stored?.sources ?? []).map(({name, endpoint, contextId, selectedItemId, page, facetsSelector}) =>
         // `load: false' here, then decide below once the manifest (and its
         // "addressable" flag) is known -- an addressable source's data-url
         // enumerates items rather than being a fetchable payload itself
         // (doc/sources.rst), so it must not be fetched the same way a plain
         // source's is; see connection.js's add_resource/load_resource_data.
-        store.dispatch('connection/add_resource', {name, endpoint, load: false, contextId, selectedItemId, page: page ?? 0})
+        store.dispatch('connection/add_resource', {
+            name, endpoint, load: false, contextId, selectedItemId, page: page ?? 0, facetsSelector: facetsSelector ?? null
+        })
             .then(manifest => {
                 if(!manifest) return; // fetch aborted/failed; nothing to load
                 if(manifest.addressable) {

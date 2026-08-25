@@ -80,7 +80,7 @@ function resolve_marker(geoID, index) {
     const item = geometry?.items?.[index];
     return {
         label: geometry?._name ?? geoItemID,
-        facets: geometry?._facets ?? geometry?._classifiers ?? {},
+        facets: geometry?._facets ?? {},
         position: item?.position ?? null
     };
 }

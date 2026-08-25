@@ -70,11 +70,18 @@ source* link and a *sink* (another-scope-selection) link is not the shape
 of what flows through them, but two independent, per-link properties:
 
 ``membership rule`` -- which items currently qualify
-    A source link's rule is *unconditional*: every item the source
-    currently holds, for as long as it's attached. A sink link's rule is
-    *selection-driven*: only the items currently selected in the origin
-    scope, further narrowed by an optional ``facetsSelector`` (doc/ui-
-    session.rst's "Selection sinks").
+    A source link's rule is *unconditional by default*: every item the
+    source currently holds, for as long as it's attached, optionally
+    narrowed by the resource's own ``facetsSelector`` (``connection.js``'s
+    ``add_resource`` -- ``null`` means unconditional, the original
+    behavior). A sink link's rule is *selection-driven*: only the items
+    currently selected in the origin scope, likewise optionally narrowed by
+    its own ``facetsSelector`` (doc/ui-session.rst's "Selection sinks").
+    ``facetsSelector`` itself is the same mechanism either way -- an AND-
+    match against an item's own ``_facets`` (``store/facets.js``'s
+    ``matches_facets_selector``) -- what differs between the two link kinds
+    is only *what set it narrows*: the source's whole current holding, or
+    the origin's current selection.
 
 ``refresh trigger`` -- when the qualifying set is re-evaluated
     A source link re-evaluates when the source's own fetched data changes.
@@ -152,6 +159,15 @@ Status against the current implementation
   shape, distinguished only by their own membership rule and refresh
   trigger (this document's "One input concept per scope, not two"), rather
   than being mechanically different pipelines.
+* A source link's membership rule symmetric with a sink link's: both
+  optionally narrowed by a ``facetsSelector``, the same AND-match predicate
+  either way (``store/facets.js``'s ``matches_facets_selector``), editable
+  from ``SinkWiringPanel.vue``'s "Assign facet…" context-menu item on
+  either edge kind. Every item across geo3d/graph/plot (table excepted) is
+  additionally guaranteed at least one facet regardless of what the source
+  itself declares -- a client-injected ``dataSource`` facet
+  (``with_data_source_facet``), so a resource's own ``facetsSelector`` is
+  never filtering against a possibly-empty ``_facets``.
 
 Consequence for the wiring diagram
 --------------------------------------

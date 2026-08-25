@@ -14,17 +14,7 @@
 // below -- never a data copy: store/sinkResolve.js resolves each landed
 // reference's current value fresh, on demand, whenever a consumer needs it.
 import { get_module, payload_type_accepted } from '@/modules/registry';
-
-// AND-matches `facetsSelector` (a plain `{[facetKey]: value}` object, or
-// null/undefined for "no filter") against one item's own `_facets`. Every
-// entry in the selector must be present and equal on the item -- an item
-// with no `_facets` at all (or missing the given key) fails any non-empty
-// selector, never matches by omission.
-function matches_facets_selector(facets, selector) {
-    if(!selector) return true;
-    if(!facets) return false;
-    return Object.entries(selector).every(([key, value]) => facets[key] === value);
-}
+import { matches_facets_selector } from '@/store/facets';
 
 // The part every dispatch flavor shares, regardless of how `items` was
 // built: resolve the named link (by id, not targetDataType -- several

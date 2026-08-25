@@ -14,16 +14,31 @@
 // `resources`, which keeps each resource's last-fetched raw payload on the
 // resource record itself.
 import { selection_node_id, selection_edge_id, selection_cluster_id } from '../ids';
+import { with_data_source_facet, matches_facets_selector } from '@/store/facets';
 
 export function make_graph_board_module(contextId) {
     // A graph source's raw fetched body is shaped `{graphData: {nodes,
     // edges, layout, nestedGraphs, clusters}}` (doc/module-graph.rst's
-    // "graphData" envelope) -- mirrors the old payload()'s unwrap.
-    function normalize_graph_payload(rawData) {
+    // "graphData" envelope) -- mirrors the old payload()'s unwrap. Every
+    // node/edge gets a `dataSource` facet merged into its own `_facets`
+    // (store/facets.js) -- doc/module-graph.rst's per-item convention, now
+    // guaranteed present regardless of what the source itself declares --
+    // then the resource's own facetsSelector, if any, narrows both lists
+    // down (doc/data-model.rst's "One input concept per scope, not two").
+    // An edge surviving this filter but referencing a node that didn't is
+    // still dropped, by allEdges' own pre-existing "from/to must reference
+    // a node in the same resource's payload" check below -- no separate
+    // handling needed here. Clusters are excluded (doc's "no selection, no
+    // hover" -- they don't participate in facets/selection at all today,
+    // so there's nothing for this to attach to yet).
+    function normalize_graph_payload(rawData, resourceName, facetsSelector) {
         const graph = rawData?.graphData ?? null;
+        const with_facets = items => (items ?? [])
+            .map(item => with_data_source_facet(item, resourceName))
+            .filter(item => matches_facets_selector(item._facets, facetsSelector));
         return {
-            nodes: graph?.nodes ?? [],
-            edges: graph?.edges ?? [],
+            nodes: with_facets(graph?.nodes),
+            edges: with_facets(graph?.edges),
             layout: graph?.layout ?? null,
             // Drill-down targets (doc/module-graph.rst's "Nested graphs"):
             // other addressable items of this same resource rendering a
@@ -69,7 +84,7 @@ export function make_graph_board_module(contextId) {
             dataByResource: (state, getters, rootState) => Object.fromEntries(
                 Object.values(rootState.connection.resources)
                     .filter(r => r.contextId === contextId && r.type === 'graph' && r.data != null)
-                    .map(r => [r.name, normalize_graph_payload(r.data)])
+                    .map(r => [r.name, normalize_graph_payload(r.data, r.name, r.facetsSelector)])
             ),
 
             // Every resource's advertised drill-down targets, tagged with

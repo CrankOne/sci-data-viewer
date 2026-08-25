@@ -115,7 +115,11 @@ bins of 1D histogram.
 Common properties for every item:
 - A type (``_type``) defining how the rest of the object should be interpreted.
 - Selection (``_facets``) facets -- an object of key/value pair for advanced
-  grouping and querying on the client side.
+  grouping and querying on the client side, the same convention
+  :doc:`module-3d-viewer` and :doc:`module-graph` use. The client always
+  adds one facet of its own on top -- ``dataSource``, the owning resource's
+  own name (``store/facets.js``) -- so a primitive is never entirely
+  unfaceted even when a source declares none of its own.
 - Transformation domain name (``_transfDomain``).
 
 Markers

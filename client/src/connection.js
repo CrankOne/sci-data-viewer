@@ -182,7 +182,8 @@ const stateModule = {
         // resource with no contextId fails fast (require_resource_module,
         // above) the moment a data fetch is attempted, not silently.
         async add_resource({commit, dispatch}, {
-            name, endpoint, load = true, contextId = null, selectedItemId = null, page = 0, signal = undefined
+            name, endpoint, load = true, contextId = null, selectedItemId = null, page = 0,
+            facetsSelector = null, signal = undefined
         }) {
             commit('new_resource', {
                 name,
@@ -194,6 +195,16 @@ const stateModule = {
                 dataSize: null,
                 error: null,
                 contextId,
+                // Optional `{facetKey: value}` filter (doc/data-model.rst's
+                // "One input concept per scope, not two") narrowing this
+                // resource's membership rule the same way a sink link's own
+                // facetsSelector already narrows *its* membership -- applied
+                // by each contextual module's own live getter against every
+                // item's `_facets` (store/facets.js's matches_facets_selector,
+                // after with_data_source_facet has run). `null` -- the
+                // default -- means every item qualifies, unconditionally,
+                // same as before this existed.
+                facetsSelector,
                 // Last-fetched raw payload (doc/data-model.rst's
                 // "Resolution is always live, never copied"): the one
                 // owned copy of this resource's data -- every contextual

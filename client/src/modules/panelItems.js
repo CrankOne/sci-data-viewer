@@ -6,7 +6,6 @@
 // without holding onto components directly.
 import SourceList from '@/components/SourcesList.vue';
 import AppControls from '@/components/AppControls.vue';
-import SinkWiringPanel from '@/components/SinkWiringPanel.vue';
 import { get_module, all_modules } from './registry';
 
 // Display-grouping label for the "Add content" modal's two-level list
@@ -19,11 +18,6 @@ export const CATEGORY_COMMON_SCOPE = 'Common scope subpanels';
 export const CATEGORY_SCENE_3D = '3D scene';
 
 const CORE_SOURCES = {id: 'core:sources', title: 'Data Sources', component: SourceList, category: CATEGORY_APP};
-// A sketch (see SinkWiringPanel.vue's own header comment): an interactive
-// Vue Flow view of resource->scope/scope->scope wiring, app-level like
-// Data Sources above rather than tied to any one module's dataType, so it
-// lives here rather than in some module's sidePanelSections.
-const CORE_SINK_WIRING = {id: 'core:sink-wiring', title: 'Wiring', component: SinkWiringPanel, category: CATEGORY_APP};
 // NOTE: `id` stays 'core:appearance' despite the component's rename to
 // AppControls.vue -- it's persisted inside every saved session's layout
 // tree (store/modules/layoutPersistence.js), so changing it would orphan
@@ -34,7 +28,7 @@ const CORE_APP_CONTROLS = {
 
 export function available_side_panel_items(activeType) {
     const moduleItems = get_module(activeType)?.sidePanelSections ?? [];
-    return [CORE_SOURCES, CORE_SINK_WIRING, ...moduleItems, CORE_APP_CONTROLS];
+    return [CORE_SOURCES, ...moduleItems, CORE_APP_CONTROLS];
 }
 
 export function resolve_side_panel_item(id, activeType) {
@@ -50,7 +44,7 @@ export function all_side_panel_items() {
     const moduleItems = all_modules().flatMap(mod =>
         (mod.sidePanelSections ?? []).map(item => ({category: mod.label, ...item}))
     );
-    return [CORE_SOURCES, CORE_SINK_WIRING, ...moduleItems, CORE_APP_CONTROLS];
+    return [CORE_SOURCES, ...moduleItems, CORE_APP_CONTROLS];
 }
 
 export function resolve_item_type(itemType) {
@@ -62,5 +56,5 @@ export function resolve_item_type(itemType) {
 // registered module's items rather than just the active one's.
 export function default_side_panel_item_ids() {
     const moduleIds = all_modules().flatMap(mod => (mod.sidePanelSections ?? []).map(item => item.id));
-    return [CORE_SOURCES.id, CORE_SINK_WIRING.id, ...moduleIds, CORE_APP_CONTROLS.id];
+    return [CORE_SOURCES.id, ...moduleIds, CORE_APP_CONTROLS.id];
 }

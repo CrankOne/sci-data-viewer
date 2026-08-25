@@ -17,13 +17,24 @@
 // retired that here -- it's now a getter reading straight from
 // connection.js's own `resources`, which keeps each resource's last-fetched
 // raw payload on the resource record itself.
+import { with_data_source_facet, matches_facets_selector } from '@/store/facets';
+
 export function make_plot_desk_module(contextId) {
     // A plot source's raw fetched body is shaped `{plotData: {primitives}}`
     // (doc/module-plotter.rst's "plotData" envelope) -- mirrors the old
     // payload()'s unwrap. `subjectData` has no consumer yet (its shape is
     // still an open question in that doc), so only primitives are forwarded.
-    function normalize_plot_payload(rawData) {
-        return rawData?.plotData?.primitives ?? [];
+    // Every primitive gets a `dataSource` facet merged into its own
+    // `_facets` (store/facets.js) -- doc/module-plotter.rst's per-item
+    // convention, now guaranteed present regardless of what the source
+    // itself declares -- then the resource's own facetsSelector, if any,
+    // narrows the list down (doc/data-model.rst's "One input concept per
+    // scope, not two").
+    function normalize_plot_payload(rawData, resourceName, facetsSelector) {
+        const primitives = rawData?.plotData?.primitives ?? [];
+        return primitives
+            .map(item => with_data_source_facet(item, resourceName))
+            .filter(item => matches_facets_selector(item._facets, facetsSelector));
     }
 
     return {
@@ -40,7 +51,7 @@ export function make_plot_desk_module(contextId) {
             primitivesByResource: (state, getters, rootState) => Object.fromEntries(
                 Object.values(rootState.connection.resources)
                     .filter(r => r.contextId === contextId && r.type === 'plot' && r.data != null)
-                    .map(r => [r.name, normalize_plot_payload(r.data)])
+                    .map(r => [r.name, normalize_plot_payload(r.data, r.name, r.facetsSelector)])
             ),
             allPrimitives: (state, getters) => Object.values(getters.primitivesByResource).flat()
         }

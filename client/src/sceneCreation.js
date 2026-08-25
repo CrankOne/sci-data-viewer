@@ -37,3 +37,26 @@ export async function create_scene_with_viewport(store, {dataType, name, targetP
 
     return {contextId, instanceId};
 }
+
+// The one sanctioned path for deleting a scene, mirroring
+// create_scene_with_viewport's role on the other end of the lifecycle --
+// used by both AppControls.vue's "Scopes" table and SinkWiringPanel.vue's
+// context menu, so "Delete" behaves identically wherever it's invoked from.
+// Warns (native confirm) before reassigning away any sources still attached
+// (they land unassigned, same as contexts/remove_context's own default),
+// and surfaces a failure (e.g. a still-mounted viewport) via native alert
+// rather than throwing into the caller.
+export async function remove_scene_with_confirmation(store, id) {
+    const sources = store.getters['connection/resourcesForContext'](id);
+    if(sources.length > 0) {
+        const proceed = window.confirm(
+            `This scope has ${sources.length} assigned source(s), which will be reassigned elsewhere. Continue?`
+        );
+        if(!proceed) return;
+    }
+    try {
+        await store.dispatch('contexts/remove_context', {id});
+    } catch(error) {
+        window.alert(error.message);
+    }
+}

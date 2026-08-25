@@ -249,20 +249,25 @@ export default {
         availableItems() {
             return Object.entries(this.geoData).flatMap(
                 ([sourceID, source]) => (source.geometry ?? []).map(geometry => {
-                    // "source" and "transf.group" are derivable for every item
-                    // regardless of what the data source itself declares (the
-                    // default "Source and transf.groups" preset expects them)
-                    // -- spread after so a source-supplied facet of the same
-                    // name still wins.
+                    // "transf.group" is derivable for every item regardless of
+                    // what the data source itself declares -- spread after so
+                    // a source-supplied facet of the same name still wins.
+                    // "dataSource" needs no such derivation here: store/
+                    // modules/three-view/store/view3D.js's geoData getter
+                    // already injects it into every item's own `_facets`
+                    // (store/facets.js's with_data_source_facet, applied
+                    // uniformly across every module's item list, not just
+                    // this one), so it's already present in the spread below
+                    // -- the default "Source and transf.groups" preset
+                    // expects both.
                     const transfGroup = transf_group_facet_value(geometry);
                     return {
                         id: `${geometry._name}@${sourceID}`,
                         label: geometry._name,
                         source: sourceID,
                         facets: {
-                            source: sourceID,
                             ...(transfGroup !== undefined ? {"transf.group": transfGroup} : {}),
-                            ...(geometry._facets ?? geometry._classifiers ?? {})
+                            ...(geometry._facets ?? {})
                         },
                         geometryType: geometry._type ?? "unknown"
                     };

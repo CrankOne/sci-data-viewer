@@ -8,10 +8,18 @@
 //     -- always exactly 2 children, matching a single splitpanes/pane pair.
 //     `ratio` is the size (%) of children[0]; children[1] gets 100-ratio.
 //   {id, type: 'leaf', content}
-//     -- content is either {kind: 'module', instanceId} or
-//     {kind: 'items', ids: [instanceId, ...]} (a panel holds one
-//     viewport-type widget instance, or an ordered stack of subpanel widget
-//     instances, never both).
+//     -- content is one of:
+//     {kind: 'module', instanceId} -- one viewport-type widget instance;
+//     {kind: 'items', ids: [instanceId, ...]} -- an ordered stack of
+//       subpanel widget instances;
+//     {kind: 'wiring'} -- the app-wide sink-wiring diagram widget
+//       (components/SinkWiringPanel.vue). Unlike the other two kinds, this
+//       one carries no id of its own: it has no per-instance state (no
+//       widgetInstances entry, nothing scene/context-specific -- it's a
+//       pure live view over already-shared store state), so the leaf's own
+//       `node.id` already is its whole identity; nothing else needs to
+//       reference it the way a module leaf's `instanceId` does.
+//     A leaf holds exactly one of these -- never more than one kind at once.
 //
 // This module is deliberately scene/context-agnostic -- it only arranges
 // and references widget-instance ids (see store/modules/widgetInstances.js);
@@ -36,6 +44,10 @@ function make_items_leaf(ids = [], id = generate_id('panel')) {
     return {id, type: 'leaf', content: {kind: 'items', ids}};
 }
 
+function make_wiring_leaf(id = generate_id('panel')) {
+    return {id, type: 'leaf', content: {kind: 'wiring'}};
+}
+
 // A harmless placeholder -- store/modules/layoutDefaults.js always commits
 // a real, fully-populated root (fresh-built or migrated) via `set_root`
 // before the app ever mounts, so this initial value is never actually
@@ -45,7 +57,7 @@ function default_tree() {
 }
 
 function is_leaf_occupied(node) {
-    return node.content.kind === 'module' || node.content.ids.length > 0;
+    return node.content.kind === 'module' || node.content.kind === 'wiring' || node.content.ids.length > 0;
 }
 
 // Returns a new tree with the node identified by `targetId` replaced by
@@ -121,7 +133,7 @@ function collect_module_instance_ids(node, acc = []) {
     return acc;
 }
 
-export {make_split, make_module_leaf, make_items_leaf};
+export {make_split, make_module_leaf, make_items_leaf, make_wiring_leaf};
 
 export default {
     namespaced: true,
@@ -243,6 +255,47 @@ export default {
         // viewport, contexts/remove_context) by the caller.
         clear_instance_from_leaf(state, {instanceId}) {
             state.root = clear_instance(state.root, instanceId);
+        },
+
+        // Places a freshly-created wiring leaf into toPanelId, which must
+        // be an empty items leaf -- mirrors place_new_module, minus the
+        // instanceId (a wiring leaf has none, see the module header
+        // comment).
+        place_new_wiring(state, {toPanelId}) {
+            state.root = replace_node(state.root, toPanelId, (node) => {
+                if(node.type !== 'leaf' || node.content.kind !== 'items' || node.content.ids.length !== 0) return node;
+                return {...node, content: {kind: 'wiring'}};
+            });
+        },
+
+        // Relocates the wiring leaf currently at fromLeafId to toPanelId --
+        // mirrors move_module, except there's no instanceId to scope the
+        // "clear wherever it currently is" step by: fromLeafId already
+        // names the exact source leaf directly (it's the leaf's own id,
+        // per the module header comment), so this only ever touches that
+        // one leaf and the target.
+        move_wiring(state, {fromLeafId, toPanelId}) {
+            let root = replace_node(state.root, fromLeafId, (node) => {
+                if(node.type !== 'leaf' || node.content.kind !== 'wiring') return node;
+                return {...node, content: {kind: 'items', ids: []}};
+            });
+            root = replace_node(root, toPanelId, (node) => {
+                if(node.type !== 'leaf') return node;
+                return {...node, content: {kind: 'wiring'}};
+            });
+            state.root = root;
+        },
+
+        // Explicit, deliberate removal of the wiring leaf at leafId, back
+        // to an empty items leaf -- mirrors clear_instance_from_leaf, minus
+        // any cascade: nothing else in the store ever references a wiring
+        // leaf (no widgetInstances entry, no context/camera/etc. to clean
+        // up alongside it).
+        remove_wiring_leaf(state, {leafId}) {
+            state.root = replace_node(state.root, leafId, (node) => {
+                if(node.type !== 'leaf' || node.content.kind !== 'wiring') return node;
+                return {...node, content: {kind: 'items', ids: []}};
+            });
         },
 
         set_ratio(state, {splitId, ratio}) {

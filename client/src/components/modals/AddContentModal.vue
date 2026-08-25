@@ -13,6 +13,13 @@
               :value="`module:${m.dataType}`"
             >New {{ m.label }} viewport</option>
           </optgroup>
+          <!-- Widgets: app-wide content that, like a module viewport, needs
+               a whole empty leaf of its own (never stacks with subpanels) --
+               same disablement rule as "Viewports" above, for the same
+               reason (layout.js's leaf-kind split). -->
+          <optgroup label="Widgets" :disabled="subpanelOnly">
+            <option value="wiring">Wiring Diagram</option>
+          </optgroup>
           <optgroup v-for="group in groupedSubpanelTypes" :key="group.category" :label="group.category">
             <option v-for="t in group.items" :key="t.id" :value="t.id">{{ t.title }}</option>
           </optgroup>
@@ -138,6 +145,8 @@ async function submit_add() {
                 store.commit('cameras/register_viewport', {viewportID: instanceId});
                 store.commit('layout/place_new_module', {toPanelId: props.toPanelId, instanceId});
             }
+        } else if(addKind.value === 'wiring') {
+            store.commit('layout/place_new_wiring', {toPanelId: props.toPanelId});
         } else {
             // The subpanel itself goes into this panel; a "New scene"
             // choice has no natural spot for the new *viewport* here, so

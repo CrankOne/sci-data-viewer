@@ -48,9 +48,17 @@ Every geometry item carries:
     ``defaultLineMaterial``, ``defaultFatLineMaterial``).
 ``_transfGroup`` (optional)
     See "Transformation groups".
-``_facets`` / ``_classifiers`` (optional)
+``_facets`` (optional)
     Free-form ``{name: value}`` metadata for grouping/filtering in the Items
-    panel (below); the two spellings are accepted interchangeably.
+    panel (below), the same convention :doc:`module-graph` and
+    :doc:`module-plotter` use. ``_classifiers`` was an earlier, now-abandoned
+    spelling of this same field -- no longer read anywhere, so a source
+    still emitting it goes unfaceted rather than silently working by
+    accident. The client always adds one facet of its own on top of
+    whatever (if anything) the source supplies: ``dataSource``, the owning
+    resource's own name (``store/facets.js``) -- so every item is
+    guaranteed at least this one facet, never entirely unfaceted, even from
+    a source that declares none.
 ``_pickable`` (optional, default ``true``)
     Whether the item participates in raycasting (hover/selection) at all.
 
@@ -149,7 +157,7 @@ index.js``), which keeps only its loaded-geometry cache, marker-level
 (sub-item) hover, and the hidden-selection rendering toggle. Selection
 (shift+click in the 3D view, or the Items panel) is independent of hover
 and persists until changed. Both can additionally be grouped/filtered by
-``_facets``/``_classifiers`` via saved facet presets, and items can be
+``_facets`` via saved facet presets, and items can be
 hidden (``hiddenItemIDs``) without being deselected. Whether hovering (and
 shift+click) affects every pickable item under the cursor at once, or only
 the single nearest -- cycled by wheel -- is a shared behavior toggle

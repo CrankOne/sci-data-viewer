@@ -9,33 +9,26 @@
     @click="on_panel_click"
   >
     <template v-if="node.content.kind === 'module'">
-      <div class="module-panel-wrap">
-        <!-- Folded-corner drag handle: lets this viewport be relocated
-             between panels the same way subpanel items already can (via
-             NavBarEntity.vue's own header handle) -- module-kind leaves
-             never had one before. A corner flag rather than a full-width
-             strip so it doesn't eat into the viewport itself; icon is a
-             placeholder pending a hand-drawn one. -->
-        <div
-          class="module-drag-handle"
-          draggable="true"
-          title="Move viewport"
-          aria-label="Move viewport"
-          @dragstart="on_module_drag_start"
-        >
-          <span class="module-drag-handle__icon" aria-hidden="true">&#x283F;</span>
-        </div>
-        <button
-          type="button"
-          class="header-action content-remove-btn"
-          title="Remove viewport"
-          aria-label="Remove viewport"
-          @click="remove_module"
-        >
-          <span class="vi vi-trash-bin" aria-hidden="true" />
-        </button>
+      <PanelResidentChrome
+        drag-type="application/x-panel-module"
+        :drag-payload="node.content.instanceId"
+        @remove="remove_module"
+      >
         <div :id="'module-slot-' + node.id" class="module-slot" />
-      </div>
+      </PanelResidentChrome>
+    </template>
+
+    <template v-else-if="node.content.kind === 'wiring'">
+      <PanelResidentChrome
+        drag-type="application/x-panel-wiring"
+        :drag-payload="node.id"
+        @remove="remove_wiring"
+      >
+        <template #toolbar>
+          <CreateScopeToolbar />
+        </template>
+        <SinkWiringPanel />
+      </PanelResidentChrome>
     </template>
 
     <template v-else>
@@ -92,6 +85,9 @@ import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
 import { resolve_item_type } from '@/modules/panelItems';
 import { all_modules } from '@/modules/registry';
+import PanelResidentChrome from './PanelResidentChrome.vue';
+import SinkWiringPanel from './SinkWiringPanel.vue';
+import CreateScopeToolbar from './CreateScopeToolbar.vue';
 
 const props = defineProps({
     node: {type: Object, required: true}
@@ -230,22 +226,24 @@ async function remove_module() {
     }
 }
 
-function on_module_drag_start(event) {
-    if(props.node.content.kind !== 'module') return;
-    event.dataTransfer.setData('application/x-panel-module', props.node.content.instanceId);
-    event.dataTransfer.effectAllowed = 'move';
+// Explicit, deliberate removal of the wiring leaf at this node -- mirrors
+// remove_module below, minus the confirm/cascade dance: a wiring leaf has
+// no context, source, or camera to clean up alongside it.
+function remove_wiring() {
+    store.commit('layout/remove_wiring_leaf', {leafId: props.node.id});
 }
 
 function drag_kind(event) {
     const types = event.dataTransfer?.types ?? [];
     if(types.includes('application/x-panel-module')) return 'module';
+    if(types.includes('application/x-panel-wiring')) return 'wiring';
     if(types.includes('application/x-panel-item')) return 'item';
     return null;
 }
 
 function can_accept(kind) {
-    if(kind === 'module') return props.node.content.kind === 'items' && props.node.content.ids.length === 0;
-    return props.node.content.kind !== 'module';
+    if(kind === 'module' || kind === 'wiring') return props.node.content.kind === 'items' && props.node.content.ids.length === 0;
+    return props.node.content.kind !== 'module' && props.node.content.kind !== 'wiring';
 }
 
 // Panel-level handlers: module drops, and item drops that land outside any
@@ -278,6 +276,9 @@ function on_panel_drop(event) {
     if(kind === 'module') {
         const instanceId = event.dataTransfer.getData('application/x-panel-module');
         store.commit('layout/move_module', {toPanelId: props.node.id, instanceId});
+    } else if(kind === 'wiring') {
+        const fromLeafId = event.dataTransfer.getData('application/x-panel-wiring');
+        store.commit('layout/move_wiring', {fromLeafId, toPanelId: props.node.id});
     } else {
         const itemId = event.dataTransfer.getData('application/x-panel-item');
         store.commit('layout/move_item', {itemId, toPanelId: props.node.id, beforeItemId: null});
@@ -332,14 +333,6 @@ function on_item_drop(event, item) {
     outline-offset: -2px;
 }
 
-.module-panel-wrap {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-}
-
 .module-slot {
     width: 100%;
     height: 100%;
@@ -349,36 +342,6 @@ function on_item_drop(event, item) {
 
 .panel-item {
     position: relative;
-}
-
-.content-remove-btn {
-    position: absolute;
-    top: 0.3rem;
-    /* Clears module-drag-handle's footprint at the actual corner below. */
-    right: 1.7rem;
-    z-index: 10;
-}
-
-.module-drag-handle {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 22px;
-    height: 22px;
-    clip-path: polygon(100% 0, 100% 100%, 0 0);
-    background: var(--clr-accent-darken);
-    cursor: grab;
-    z-index: 10;
-}
-
-.module-drag-handle__icon {
-    position: absolute;
-    top: 1px;
-    right: 6px;
-    font-size: 10px;
-    line-height: 1;
-    color: var(--clr-fg-panel-header);
-    pointer-events: none;
 }
 
 .panel-item--drop-before::before,

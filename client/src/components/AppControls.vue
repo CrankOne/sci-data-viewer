@@ -133,7 +133,7 @@
 <script>
 import NavBarEntity from './NavBarEntity.vue';
 import { all_modules } from '@/modules/registry';
-import { create_scene_with_viewport } from '@/sceneCreation';
+import { create_scene_with_viewport, remove_scene_with_confirmation } from '@/sceneCreation';
 import { build_permalink, has_shareable_content } from '@/shareLink';
 import { fetch_plugin_manifest } from '@/pluginManifest';
 
@@ -216,18 +216,7 @@ export default {
     },
 
     async remove_scene(id) {
-      const sources = this.$store.getters['connection/resourcesForContext'](id);
-      if(sources.length > 0) {
-        const proceed = window.confirm(
-          `This scope has ${sources.length} assigned source(s), which will be reassigned elsewhere. Continue?`
-        );
-        if(!proceed) return;
-      }
-      try {
-        await this.$store.dispatch('contexts/remove_context', {id});
-      } catch(error) {
-        window.alert(error.message);
-      }
+      await remove_scene_with_confirmation(this.$store, id);
     },
 
     // Creates a new scene and immediately gives it a viewport -- a scene
