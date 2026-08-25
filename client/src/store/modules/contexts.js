@@ -9,7 +9,7 @@
 // This module knows nothing about geo3d, view3D, or three.js -- it only
 // orchestrates registerModule/unregisterModule against whatever a given
 // dataType's viewer module declares. Two exceptions, generic across any
-// dataType rather than geo3d-specific: sinkTargets persistence (always
+// dataType rather than geo3d-specific: sinkLinks persistence (always
 // installed) and `selection`-module persistence (installed when declared,
 // see install_selection_persistence below) -- both cross-cutting concerns
 // this module owns directly rather than deferring to the per-dataType
@@ -21,6 +21,12 @@ let idCounter = 0;
 function generate_context_id() {
     idCounter += 1;
     return `ctx-${Date.now().toString(36)}-${idCounter}`;
+}
+
+let linkIdCounter = 0;
+function generate_link_id() {
+    linkIdCounter += 1;
+    return `sink-${Date.now().toString(36)}-${linkIdCounter}`;
 }
 
 function mk_default_name(state, dataType) {
@@ -43,29 +49,37 @@ function mk_default_name(state, dataType) {
 // store/modules/session.js) -- each session's contexts persist their facet
 // presets/selection sets independently, even if they happen to share a
 // contextId format.
-// Installs persistence for one context's sinkTargets (the cross-module
-// "selection sink" mechanism -- an origin context's own pointer to which
-// other context its selection of a given dataType routes into, see
-// doc/ui-session.rst's "Extension points"). Unlike
-// install_selection_persistence above, this installs unconditionally
-// for *every* context regardless of dataType -- sinkTargets is a generic,
-// cross-cutting property of any context, not a per-module concern gated to
-// whichever dataType happens to declare a `selection`-shaped module.
+// Installs persistence for one context's sinkLinks (the cross-module
+// "selection sink" mechanism -- an origin context's own set of pointers to
+// other contexts its selection routes into, see doc/ui-session.rst's
+// "Extension points"). Unlike install_selection_persistence above, this
+// installs unconditionally for *every* context regardless of dataType --
+// sinkLinks is a generic, cross-cutting property of any context, not a
+// per-module concern gated to whichever dataType happens to declare a
+// `selection`-shaped module.
 //
 // `contexts` itself is one shared singleton module (not a dynamically
 // registered per-context module like selection_<ctx>), so unlike that
 // function's serialize(), this one must carry `contextId` in its own
 // payload -- the init mutation needs to know *which* context's record to
 // update.
-function install_sink_targets_persistence(store, contextId, sessionId) {
+//
+// `.v2.`: the shape changed from one link per targetDataType
+// (`sinkTargets: {[targetDataType]: link}`) to any number of links per
+// context (`sinkLinks: {[linkId]: link}`, `link.targetDataType` now a
+// field on the link instead of its key) -- true N:N fan-out, see doc/ui-
+// session.rst's "Selection sinks". Old `.v1.` data is simply orphaned, not
+// migrated: this is prototype-phase persisted state, not worth a migration
+// path for.
+function install_sink_links_persistence(store, contextId, sessionId) {
     install_persistence(store, {
-        storageKey: `viewer.sink-targets.v1.${sessionId}.${contextId}`,
+        storageKey: `viewer.sink-links.v2.${sessionId}.${contextId}`,
         sessionId,
-        requiredKey: 'sinkTargets',
-        initMutation: 'contexts/initialize_sink_targets',
-        persistMutations: ['contexts/set_sink_target', 'contexts/clear_sink_target'],
+        requiredKey: 'sinkLinks',
+        initMutation: 'contexts/initialize_sink_links',
+        persistMutations: ['contexts/add_sink_link', 'contexts/remove_sink_link'],
         serialize(rootState) {
-            return {contextId, sinkTargets: rootState.contexts.byId[contextId]?.sinkTargets ?? {}};
+            return {contextId, sinkLinks: rootState.contexts.byId[contextId]?.sinkLinks ?? {}};
         }
     });
 }
@@ -124,29 +138,38 @@ export default {
             .filter(ctx => ctx.dataType === dataType),
         context: state => id => state.byId[id] ?? null,
         // The cross-module "selection sink" mechanism (doc/ui-session.rst's
-        // "Extension points"): a context's own map of targetDataType -> one
-        // *link* record, i.e. "this context's selection of targetDataType
-        // routes into that other context, as this payload type, optionally
-        // filtered by these facets". At most one link per (context,
-        // targetDataType) pair; several different origin contexts may point
-        // at the *same* target -- that's how reuse/aggregation happens, with
-        // no separate named "sink" entity needed.
+        // "Extension points"): a context's own set of *link* records, i.e.
+        // "this context's selection routes into that other context, as
+        // this payload type, optionally filtered by these facets". True
+        // N:N: any number of links may share an origin, a targetDataType,
+        // or a targetContextId -- e.g. sending nodes to one plot desk and
+        // edges (via a different facetsSelector) to another, both typed
+        // 'plot'. Several different origin contexts may also point at the
+        // *same* target -- that's how reuse/aggregation happens, with no
+        // separate named "sink" entity needed.
         //
-        // A link record: `{targetContextId, payloadType, facetsSelector}`.
-        // `payloadType` is mandatory (modules/registry.js's
-        // acceptsPayloadTypes -- one specific type, or `'*'` when the
+        // A link record: `{targetDataType, targetContextId, payloadType,
+        // facetsSelector}`. `targetDataType` is now a field on the link
+        // (its identity is `linkId`, the key into `sinkLinks`) rather than
+        // the link's own key. `payloadType` is mandatory (modules/registry
+        // .js's acceptsPayloadTypes -- one specific type, or `'*'` when the
         // target itself accepts anything). `facetsSelector` is optional:
         // `null`, or a plain `{[facetKey]: value}` object every one of
         // whose entries an item's own `_facets` must match (AND) to be
         // forwarded through this link -- see store/sinkDispatch.js's
         // `deliver_to_sink`.
-        sinkTargets: state => contextId => state.byId[contextId]?.sinkTargets ?? {},
-        sinkTarget: state => (contextId, targetDataType) => state.byId[contextId]?.sinkTargets?.[targetDataType] ?? null
+        sinkLinks: state => contextId => state.byId[contextId]?.sinkLinks ?? {},
+        // Same data as `sinkLinks` above, as an array carrying its own
+        // `linkId` -- what a "list of outgoing links, remove one" UI
+        // actually wants (ConnectScopeModal.vue), rather than every caller
+        // re-deriving `Object.entries` itself.
+        linksFrom: state => contextId => Object.entries(state.byId[contextId]?.sinkLinks ?? {})
+            .map(([linkId, link]) => ({linkId, ...link}))
     },
 
     mutations: {
         add_context(state, {id, name, dataType}) {
-            state.byId = {...state.byId, [id]: {id, name, dataType, sinkTargets: {}}};
+            state.byId = {...state.byId, [id]: {id, name, dataType, sinkLinks: {}}};
             state.order = [...state.order, id];
         },
 
@@ -158,29 +181,29 @@ export default {
             state.byId = {...state.byId, [id]: {...context, name: trimmed}};
         },
 
-        set_sink_target(state, {contextId, targetDataType, targetContextId, payloadType, facetsSelector = null}) {
+        add_sink_link(state, {contextId, linkId, targetDataType, targetContextId, payloadType, facetsSelector = null}) {
             const context = state.byId[contextId];
             if(!context) return;
-            const link = {targetContextId, payloadType, facetsSelector};
+            const link = {targetDataType, targetContextId, payloadType, facetsSelector};
             state.byId = {
                 ...state.byId,
-                [contextId]: {...context, sinkTargets: {...context.sinkTargets, [targetDataType]: link}}
+                [contextId]: {...context, sinkLinks: {...context.sinkLinks, [linkId]: link}}
             };
         },
 
-        clear_sink_target(state, {contextId, targetDataType}) {
+        remove_sink_link(state, {contextId, linkId}) {
             const context = state.byId[contextId];
-            if(!context || !Object.hasOwn(context.sinkTargets, targetDataType)) return;
-            const sinkTargets = {...context.sinkTargets};
-            delete sinkTargets[targetDataType];
-            state.byId = {...state.byId, [contextId]: {...context, sinkTargets}};
+            if(!context || !Object.hasOwn(context.sinkLinks, linkId)) return;
+            const sinkLinks = {...context.sinkLinks};
+            delete sinkLinks[linkId];
+            state.byId = {...state.byId, [contextId]: {...context, sinkLinks}};
         },
 
         // Persistence-restore only -- replaces one context's whole map at once.
-        initialize_sink_targets(state, {contextId, sinkTargets}) {
+        initialize_sink_links(state, {contextId, sinkLinks}) {
             const context = state.byId[contextId];
             if(!context) return;
-            state.byId = {...state.byId, [contextId]: {...context, sinkTargets: sinkTargets ?? {}}};
+            state.byId = {...state.byId, [contextId]: {...context, sinkLinks: sinkLinks ?? {}}};
         },
 
         remove_context(state, id) {
@@ -218,7 +241,7 @@ export default {
             commit('add_context', {id, name: name?.trim() || mk_default_name(state, dataType), dataType});
 
             for(const [moduleName, makeModule] of Object.entries(module.contextStoreModules ?? {})) {
-                this.registerModule([`${moduleName}_${id}`], makeModule());
+                this.registerModule([`${moduleName}_${id}`], makeModule(id));
             }
             // `selection` (doc/ui-session.rst's "Selection model") is the
             // one dynamic module with persisted sub-state (facet presets,
@@ -232,9 +255,21 @@ export default {
             // Generic, unlike the selection gate above: every context, of any
             // dataType, can be a sink origin and/or target, so this installs
             // unconditionally.
-            install_sink_targets_persistence(this, id, rootState.session.activeId);
+            install_sink_links_persistence(this, id, rootState.session.activeId);
 
             return id;
+        },
+
+        // The one sanctioned way to create a link (mirrors create_context's
+        // own role for contexts): generates its id and returns it, since
+        // the caller (ConnectScopeModal.vue) needs it immediately to
+        // trigger the first dispatch (store/sinkDispatch.js's
+        // send_selection_to_sink now takes a `linkId`, not a
+        // `targetDataType` -- see doc/ui-session.rst's "Selection sinks").
+        create_sink_link({commit}, {contextId, targetDataType, targetContextId, payloadType, facetsSelector = null}) {
+            const linkId = generate_link_id();
+            commit('add_sink_link', {contextId, linkId, targetDataType, targetContextId, payloadType, facetsSelector});
+            return linkId;
         },
 
         remove_context({state, commit, dispatch, rootGetters}, {id, reassignSourcesTo} = {}) {
@@ -248,16 +283,18 @@ export default {
 
             dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
 
-            // `id` may be a sink *target* some other context's sinkTargets
+            // `id` may be a sink *target* some other context's sinkLinks
             // points at -- drop those links so they don't dangle (same
             // "clean up a cross-reference at the removal site" shape as
             // reassign_context_sources above, just for the sink mechanism).
+            // Several links (not just one, now) may point at the same
+            // removed target.
             for(const otherId of state.order) {
                 if(otherId === id) continue;
                 const other = state.byId[otherId];
-                for(const targetDataType of Object.keys(other.sinkTargets ?? {})) {
-                    if(other.sinkTargets[targetDataType]?.targetContextId === id) {
-                        commit('clear_sink_target', {contextId: otherId, targetDataType});
+                for(const [linkId, link] of Object.entries(other.sinkLinks ?? {})) {
+                    if(link.targetContextId === id) {
+                        commit('remove_sink_link', {contextId: otherId, linkId});
                     }
                 }
             }

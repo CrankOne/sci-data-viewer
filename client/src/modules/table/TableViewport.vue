@@ -20,11 +20,12 @@
   mechanism (doc/ui-session.rst's "Selection sinks") in this context's own
   sinkInbox sub-state (store/sinkInbox.js) -- the "Selection view" use
   case, this module's real styled sink-target consumer, as opposed to
-  modules/sink-view/'s raw-JSON dev stub. Deliberately origin-agnostic: it
+  modules/sink-view/'s raw-JSON dev stub. sinkInbox only holds references;
+  resolve_incoming_sink_items (store/sinkResolve.js) resolves each one's
+  current data fresh on every render. Deliberately origin-agnostic: it
   only ever assumes the generic {itemId, srcID, payloadType, snapshot}
-  envelope send_selection_to_sink's snapshot builders produce (store/
-  sinkDispatch.js), never anything specific to geo3d or any other one
-  origin type.
+  envelope resolveSinkItem produces (modules/registry.js), never anything
+  specific to geo3d or any other one origin type.
 -->
 <template>
   <div class="table-viewport">
@@ -96,24 +97,8 @@
         </table>
       </div>
 
-      <div v-if="tableState.capabilities?.export || tableState.capabilities?.plot" class="table-viewport__toolbar">
-        <button v-if="tableState.capabilities?.export" type="button" @click="export_csv">Export CSV</button>
-
-        <template v-if="tableState.capabilities?.plot && numericLeafColumns.length >= 2">
-          <label>
-            x:
-            <select v-model="plotXColumnId">
-              <option v-for="col in numericLeafColumns" :key="col.id" :value="col.id">{{ col.label ?? col.id }}</option>
-            </select>
-          </label>
-          <label>
-            y:
-            <select v-model="plotYColumnId">
-              <option v-for="col in numericLeafColumns" :key="col.id" :value="col.id">{{ col.label ?? col.id }}</option>
-            </select>
-          </label>
-          <button type="button" @click="open_plot_dispatch">Send to plot</button>
-        </template>
+      <div v-if="tableState.capabilities?.export" class="table-viewport__toolbar">
+        <button type="button" @click="export_csv">Export CSV</button>
       </div>
 
       <p class="table-viewport__status">
@@ -154,7 +139,7 @@ import { use_table_controller } from './controller';
 import { leaf_columns, header_rows, filter_columns } from './schema';
 import { to_csv } from './export';
 import { download_text } from '@/download';
-import { send_table_projection_to_sink } from '@/store/sinkDispatch';
+import { resolve_incoming_sink_items } from '@/store/sinkResolve';
 
 // Estimate only -- rows aren't individually measured (dynamic sizing via
 // the virtualizer's own measureElement is unnecessary here: every row is a
@@ -224,63 +209,6 @@ const visibleColumnTree = computed(() =>
 );
 const visibleLeafColumns = computed(() => leaf_columns(visibleColumnTree.value));
 const headerRows = computed(() => header_rows(visibleColumnTree.value));
-
-// Plot dispatch (doc's "Plot integration"/"Plot dispatch"): picks two
-// numeric leaf columns and, on request, routes a projection of the
-// *currently loaded* rows (not a live source re-fetch) through the same
-// cross-module "selection sink" delivery ConnectScopeModal's `kind:
-// 'sink'` already uses for geo3d -- but with send_table_projection_to_sink
-// (store/sinkDispatch.js) instead of the default send_selection_to_sink,
-// since a column projection isn't "the current selection". The target
-// (:doc:`module-plotter`) has no receiving mutation yet, so this reaches,
-// and honestly stops at, the same "cannot receive" error any other
-// not-yet-ready sink target gets -- surfaced inline in the modal, not
-// swallowed.
-const numericLeafColumns = computed(() => allLeafColumns.value.filter(col => col.type === 'number' || col.type === 'integer'));
-const plotXColumnId = ref(null);
-const plotYColumnId = ref(null);
-
-watch(numericLeafColumns, cols => {
-    if(!cols.some(col => col.id === plotXColumnId.value)) plotXColumnId.value = cols[0]?.id ?? null;
-    if(!cols.some(col => col.id === plotYColumnId.value)) plotYColumnId.value = cols[1]?.id ?? cols[0]?.id ?? null;
-}, {immediate: true});
-
-function open_plot_dispatch() {
-    if(!contextId.value || !plotXColumnId.value || !plotYColumnId.value) return;
-    const xColumn = plotXColumnId.value;
-    const yColumn = plotYColumnId.value;
-    const link = store.getters['contexts/sinkTarget'](contextId.value, 'plot');
-
-    store.commit('ui/open_modal', {
-        name: 'connect-scope',
-        props: {
-            kind: 'sink',
-            originContextId: contextId.value,
-            dataType: 'plot',
-            currentContextId: link?.targetContextId ?? null,
-            currentPayloadType: link?.payloadType ?? null,
-            currentFacetsSelector: link?.facetsSelector ?? null,
-            label: `Send "${xColumn}" vs. "${yColumn}" projection to:`,
-            dispatchFn: (s, {originContextId: origin, targetDataType}) => {
-                // 'table-projection' -- must match modules/plotter/index.js's
-                // acceptsPayloadTypes entry of the same name, and the
-                // payloadType the connect-scope modal's own picker offered
-                // (this is the one origin type with no buildSinkSnapshot,
-                // so there's no per-item type inference to fall back on).
-                const items = [{
-                    payloadType: 'table-projection',
-                    itemId: `${xColumn}-vs-${yColumn}`,
-                    // No single natural srcID: a projection is derived from
-                    // this desk's whole (possibly multi-resource) row set,
-                    // not any one attached source.
-                    srcID: null,
-                    snapshot: {xColumn, yColumn, data: tableState.rows.map(row => [row[xColumn], row[yColumn]])}
-                }];
-                send_table_projection_to_sink(s, {originContextId: origin, targetDataType, items});
-            }
-        }
-    });
-}
 
 function toggle_column(id) {
     const next = new Set(hiddenColumnIds.value);
@@ -388,15 +316,13 @@ const incomingList = computed(() => {
     return store.getters[`sinkInbox_${contextId.value}/incomingList`] ?? [];
 });
 
-// Flattens every origin's routed-in items into one row list -- items is
-// the generic [{itemId, srcID, payloadType, snapshot}] shape any sink
-// origin's snapshot builder produces (store/sinkDispatch.js), regardless
-// of which module.
-const incomingRows = computed(() =>
-    incomingList.value.flatMap(entry =>
-        (entry.items ?? []).map(item => ({originContextId: entry.originContextId, ...item}))
-    )
-);
+// Resolves every origin's routed-in *references* into current data
+// (store/sinkResolve.js) and flattens them into one row list -- the
+// generic {originContextId, itemId, srcID, payloadType, snapshot} shape
+// resolveSinkItem produces (modules/registry.js), regardless of which
+// module. Recomputes fresh on every read, so an origin that's removed (or
+// an item that's been deleted there) simply drops out on its own.
+const incomingRows = computed(() => resolve_incoming_sink_items(store, incomingList.value));
 
 function compact(snapshot) {
     if(snapshot === null || snapshot === undefined) return '';

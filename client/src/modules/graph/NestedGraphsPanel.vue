@@ -75,7 +75,7 @@ const allNestedGraphs = computed(() => contextId.value ? store.getters[`${boardN
 
 const resourceNames = computed(() => {
     if(!contextId.value) return [];
-    return Object.keys(store.state[boardNS.value]?.dataByResource ?? {});
+    return Object.keys(store.getters[`${boardNS.value}/dataByResource`] ?? {});
 });
 
 // Only resources that currently have something to show: either entries to
@@ -96,15 +96,17 @@ function drill_into(entry) {
     if(!contextId.value) return;
     const resource = store.state.connection.resources[entry.resourceName];
     if(!resource) return;
-    store.commit(`${boardNS.value}/set_drill_root`, {resourceName: entry.resourceName, itemId: resource.selectedItemId});
+    store.commit(`${boardNS.value}/set_drill_root`, {
+        resourceName: entry.resourceName, rootItemId: resource.selectedItemId, drilledItemId: entry.itemId
+    });
     store.dispatch('connection/load_resource_data', {name: entry.resourceName, itemId: entry.itemId});
 }
 
-// No explicit clear_drill_root here: the itemId being backed to is, by
-// construction (doc/module-graph.rst's "Nested graphs"), the resource's own
-// top-level item, so re-fetching it lands a payload with a non-empty
-// nestedGraphs again -- update_graph_data (store/graphBoard.js) clears the
-// ancestor itself the moment that happens.
+// No explicit clear here: `drillRoot` (store/graphBoard.js) compares the
+// remembered `drilledItemId` against the resource's own live
+// `selectedItemId` on every read, so once `drill_back` below re-fetches the
+// resource at its remembered `rootItemId`, that comparison stops matching
+// on its own -- no mutation-time cleanup needed.
 function drill_back(resourceName) {
     const rootItemId = drillRootFor(resourceName);
     if(rootItemId === null) return;

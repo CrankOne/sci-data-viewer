@@ -267,7 +267,7 @@ Open questions
   the next point.
 * **Answered (shape, and now built), open (this module's UX)** --
   :doc:`ui-session`'s "Selection sinks" provides the generic cross-module
-  *dispatch* mechanism (a context's ``sinkTargets`` pointer, manual one-shot
+  *dispatch* mechanism (a context's ``sinkLinks``, manual one-shot
   send); :doc:`ui-session`'s "Selection model" decides -- and, as of the
   container itself, now implements -- the generic *shape* this module's own
   selection state would take: a ``selection`` context module

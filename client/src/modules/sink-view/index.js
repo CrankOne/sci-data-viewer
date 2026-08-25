@@ -20,9 +20,9 @@ register_module({
     contextStoreModules: {
         sinkInbox: make_sink_inbox_module
     },
-    // Deliberately no payloadMutation/payload/removeMutation/removePayload
-    // -- this module never receives data via connection.js's resource-fetch
-    // pipeline; sink dispatch is separate plumbing (store/sinkDispatch.js).
+    // No `sink-view`-typed data source ever exists -- this module only
+    // ever receives data via the sink mechanism (store/sinkDispatch.js),
+    // never connection.js's resource-fetch pipeline.
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
     // The whole point of this dev stub: prove any payload type can land
     // here, unstyled -- modules/registry.js's "anticipate a module

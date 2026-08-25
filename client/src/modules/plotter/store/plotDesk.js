@@ -1,6 +1,6 @@
 // Per-context "desk" state (doc/module-plotter.rst's "Desks" section): one
-// item store shared by every data source attached to this plot -- registered
-// as this module's own contextStoreModules entry (modules/plotter/index.js),
+// merged view over every data source attached to this plot -- registered as
+// this module's own contextStoreModules entry (modules/plotter/index.js),
 // the same generic per-context mechanism any contextual viewer module uses
 // (doc/ui-session.rst's "Extension points").
 //
@@ -8,37 +8,41 @@
 // that needs one item replaced without rebuilding the rest (there's no
 // per-event-style incremental case here), so a resource's payload is just
 // replaced wholesale on every update, keyed by resource name so several
-// sources can share one desk without colliding -- the same "keyed by
-// contributor, wholesale replace" shape as a sink's landing zone (see
-// store/sinkInbox.js), hence sharing keyedCollection.js.
-import { make_keyed_collection } from '@/store/keyedCollection';
-
-export function make_plot_desk_module() {
-    const keyed = make_keyed_collection({
-        stateKey: 'primitivesByResource',
-        setMutation: '_set_primitives',
-        removeMutation: 'remove_plot_data',
-        normalizeValue: primitives => primitives ?? []
-    });
+// sources can share one desk without colliding. `primitivesByResource` used
+// to be an owned copy, pushed in by connection.js's apply_resource_data and
+// kept in this module's own committed state (store/keyedCollection.js, the
+// same "keyed by contributor, wholesale replace" shape store/sinkInbox.js's
+// landing zone still uses -- that one is unrelated to this change, see its
+// own file); doc/data-model.rst's "Resolution is always live, never copied"
+// retired that here -- it's now a getter reading straight from
+// connection.js's own `resources`, which keeps each resource's last-fetched
+// raw payload on the resource record itself.
+export function make_plot_desk_module(contextId) {
+    // A plot source's raw fetched body is shaped `{plotData: {primitives}}`
+    // (doc/module-plotter.rst's "plotData" envelope) -- mirrors the old
+    // payload()'s unwrap. `subjectData` has no consumer yet (its shape is
+    // still an open question in that doc), so only primitives are forwarded.
+    function normalize_plot_payload(rawData) {
+        return rawData?.plotData?.primitives ?? [];
+    }
 
     return {
         namespaced: true,
 
-        state: keyed.state,
+        // No state of its own left -- everything this desk shows is
+        // derived live by the getters below.
+        state: () => ({}),
 
         getters: {
-            ...keyed.getters,
-            allPrimitives: state => Object.values(state.primitivesByResource).flat()
-        },
-
-        mutations: {
-            ...keyed.mutations,
-            // Wraps the factory's {key, value} shape under the external
-            // mutation name payloadMutation (modules/plotter/index.js)
-            // already commits to by string.
-            update_plot_data(state, {name, primitives}) {
-                keyed.mutations._set_primitives(state, {key: name, value: primitives});
-            }
+            // Live view over connection.js's own resources -- every plot
+            // source currently attached to this context, keyed by resource
+            // name.
+            primitivesByResource: (state, getters, rootState) => Object.fromEntries(
+                Object.values(rootState.connection.resources)
+                    .filter(r => r.contextId === contextId && r.type === 'plot' && r.data != null)
+                    .map(r => [r.name, normalize_plot_payload(r.data)])
+            ),
+            allPrimitives: (state, getters) => Object.values(getters.primitivesByResource).flat()
         }
     };
 }

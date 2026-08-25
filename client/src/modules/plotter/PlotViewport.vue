@@ -108,6 +108,7 @@ import { useStore } from 'vuex';
 import { make_scale } from './scales';
 import { draw_markers, draw_polyline, draw_zoom_rect, clear, resolve_css_var } from './draw';
 import { make_identity_transform, apply_transform, zoom_around, pan_by, zoom_to_rect } from './zoom';
+import { resolve_incoming_sink_items } from '@/store/sinkResolve';
 
 const props = defineProps({
     instanceId: {type: String, required: true}
@@ -130,37 +131,19 @@ const primitives = computed(() => {
 // Items routed in via the cross-module "selection sink" mechanism (doc/
 // ui-session.rst's "Selection sinks") -- kept in this context's own
 // sinkInbox sub-state (store/sinkInbox.js), never merged into plotDesk's
-// directly-loaded primitivesByResource above. Dispatches on the *link*'s
-// declared payloadType (modules/plotter/index.js's acceptsPayloadTypes),
-// not by inspecting each item's shape -- one converter per accepted type:
-// 'graph-node'/'graph-edge' items carry a ready-to-draw
-// `subjectData.plot.primitives` (the same doc/module-plotter.rst
-// "primitives" shape a data source's own plotData uses -- it's the sending
-// module's job to shape that, e.g. the na64umff viewer plugin's graph
-// nodes embed a fitted state's parameters this way, see
-// na64utils-msadc/viewer/plugin/NOTES.rst); 'table-projection' items are
-// {xColumn, yColumn, data} (doc/module-table.rst's "Plot dispatch") and
-// are converted to one polyline here since they arrive already
-// plot-shaped, just not primitive-shaped.
-const SINK_PAYLOAD_CONVERTERS = {
-    'graph-node': item => item.snapshot?.subjectData?.plot?.primitives ?? [],
-    'graph-edge': item => item.snapshot?.subjectData?.plot?.primitives ?? [],
-    'table-projection': item => item.snapshot ? [{
-        _type: 'polyline',
-        _facets: {series: `${item.snapshot.xColumn} vs ${item.snapshot.yColumn}`},
-        _transfDomain: 'main',
-        closed: false,
-        data: item.snapshot.data ?? []
-    }] : []
-};
-
+// directly-loaded primitivesByResource above. sinkInbox only holds
+// *references*; resolve_incoming_sink_items (store/sinkResolve.js) reads
+// each one's current value fresh, every time this recomputes -- nothing
+// cached here either. Every accepted item is typed 'plot' (modules/
+// plotter/index.js's acceptsPayloadTypes), meaning its resolved snapshot is
+// already shaped like this module's own plotData envelope
+// (`{primitives: [...]}`) -- read uniformly, exactly like directly-loaded
+// data. Which module produced it, or what it looked like there (a graph
+// node's subjectData, or anything else), is never inspected here.
 const sinkPrimitives = computed(() => {
     if(!contextId.value) return [];
     const incoming = store.getters[`sinkInbox_${contextId.value}/incomingList`] ?? [];
-    return incoming.flatMap(entry => {
-        const convert = SINK_PAYLOAD_CONVERTERS[entry.payloadType];
-        return convert ? (entry.items ?? []).flatMap(convert) : [];
-    });
+    return resolve_incoming_sink_items(store, incoming).flatMap(item => item.snapshot?.primitives ?? []);
 });
 
 // Not yet sourced from a payload or any per-desk config UI (doc's "Open

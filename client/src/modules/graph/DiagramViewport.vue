@@ -194,20 +194,14 @@ function on_unhover() {
 // ItemsTree.vue's own open_sink_picker. 'sink-view' is only the initially
 // suggested target -- the modal itself offers every registered
 // receiveSinkMutation-capable module (ConnectScopeModal.vue), so 'plot'
-// (modules/plotter/) is reachable from here too. No dispatchFn override:
-// this module's own buildSinkSnapshot (modules/graph/index.js) is
-// send_selection_to_sink's (store/sinkDispatch.js) generic default.
+// (modules/plotter/) is reachable from here too.
 function open_sink_picker() {
-    const link = store.getters['contexts/sinkTarget'](contextId.value, 'sink-view');
     store.commit('ui/open_modal', {
         name: 'connect-scope',
         props: {
             kind: 'sink',
             originContextId: contextId.value,
-            dataType: 'sink-view',
-            currentContextId: link?.targetContextId ?? null,
-            currentPayloadType: link?.payloadType ?? null,
-            currentFacetsSelector: link?.facetsSelector ?? null
+            dataType: 'sink-view'
         }
     });
 }

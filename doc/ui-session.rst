@@ -8,6 +8,10 @@ reload, be switched between named alternatives, and be exported/imported or
 shared as a link. It complements :doc:`sources` (the wire contract a data
 source implements) and :doc:`module-plotter` (one of the concrete consumers
 of the extension points described here, alongside :doc:`module-3d-viewer`).
+:doc:`data-model` sits one level up conceptually: it describes the target
+shape of source/scope/view data flow this document's "Selection sinks"
+mechanism is one (partial) implementation of, and where that mechanism is
+still short of it.
 
 File references below are relative to ``client/src``.
 
@@ -268,7 +272,7 @@ addressable+enumerable sources -- never layout, camera, or session identity.
   win.
 * Understands only ``view3D_<ctxId>`` selection today -- the one contextual
   type that exists; a second one needs this generalized (e.g. a per-module
-  "share" hook next to ``payloadMutation``/``payload`` below).
+  "share" hook in ``modules/registry.js``).
 
 Router's role
 --------------
@@ -315,19 +319,26 @@ nothing above is aware of any specific module:
 ``sidePanelSections``
     Subpanel item definitions (id, title, component), offered alongside the
     two core ones (``modules/panelItems.js``).
-``payloadMutation`` / ``payload``, ``removeMutation`` / ``removePayload``
-    How a loaded/removed resource's data reaches/leaves this module's state
-    -- ``connection.js``'s only hook into module internals.
+
+A loaded resource's data itself needs no registry hook at all
+(:doc:`data-model`'s "Resolution is always live, never copied"):
+``connection.js`` keeps a resource's last-fetched raw payload on the
+resource record itself (``resource.data``), and a contextual module reads
+its own scope's slice of that directly, via a getter on its own
+``contextStoreModules`` entry that filters ``connection.js``'s
+``resources`` by this context's id and the module's own ``dataType`` (see
+``modules/three-view/store/view3D.js``'s ``geoData`` getter for the
+pattern) -- there is nothing for ``connection.js`` to push, and so nothing
+for a module to declare here.
+
 ``receiveSinkMutation`` / ``acceptsPayloadTypes``
     Optional, but mandatory together (``register_module`` throws if only
     one is set). ``receiveSinkMutation`` is a function of the receiving
-    context's id (or a bare mutation type string), symmetric to
-    ``payloadMutation`` but for the cross-module "selection sink" mechanism
-    instead of a data source's own resource pipeline
-    (``store/sinkDispatch.js``'s only hook into module internals) -- lets a
-    module declare it can be a sink *target*. ``acceptsPayloadTypes`` is
-    that target's closed vocabulary (``string[]`` or the wildcard ``'*'``)
-    a *link* (see "Selection sinks" below) must name one of.
+    context's id (or a bare mutation type string) -- ``store/sinkDispatch
+    .js``'s only hook into module internals -- that lets a module declare
+    it can be a sink *target*. ``acceptsPayloadTypes`` is that target's
+    closed vocabulary (``string[]`` or the wildcard ``'*'``) a *link* (see
+    "Selection sinks" below) must name one of.
 ``buildSinkSnapshot(store, contextId) -> [{itemId, srcID, payloadType,
 snapshot}]``
     Optional; the *origin* side of the same mechanism -- how this module's
@@ -336,10 +347,10 @@ snapshot}]``
     vocabulary).
 ``removeIncomingOrigin``
     Optional; a function of the receiving context's id (or a bare mutation
-    type string), symmetric to ``removeMutation`` -- ``contexts.js``'s
-    ``remove_context`` calls it on every other context's module when a
-    context that may have been a sink *origin* is removed, so a sink
-    target's landing zone can drop that origin's entries rather than dangle.
+    type string) -- ``contexts.js``'s ``remove_context`` calls it on every
+    other context's module when a context that may have been a sink
+    *origin* is removed, so a sink target's landing zone can drop that
+    origin's entries rather than dangle.
 ``installPersistence(store, sessionId)``
     Optional; called once per ``activate_session``, for module-owned state
     that isn't a per-context facet/selection preset (handled generically by
@@ -367,7 +378,7 @@ convention, not by any one module's
 name: ``contexts.js``'s ``install_selection_persistence`` gates on
 ``contextStoreModules?.selection`` -- not on any dataType or module name --
 installing the same facet-preset/selection-set persistence for whichever
-module supplies it, mirroring how ``sinkTargets`` persistence (above)
+module supplies it, mirroring how ``sinkLinks`` persistence (above)
 already installs unconditionally for any context rather than being gated to
 a hardcoded dataType.
 
@@ -462,7 +473,12 @@ Selection sinks
 Answers :doc:`module-3d-viewer`'s and :doc:`module-plotter`'s "Cross-module
 interaction"/"Open questions" stubs on how one context's selection reaches
 another context, "regardless of which module the selection originated
-from" (:doc:`module-table`'s "Selection view" use case).
+from" (:doc:`module-table`'s "Selection view" use case). See
+:doc:`data-model` for the broader shape this mechanism is one instance of
+-- a scope's sink links and its (still push-copied, not yet reference
+-resolved) resource attachments are meant to converge on the same "one
+input, several typed-item-reference-producing links" model; this section
+below documents only the sink-link half, which is the half that's built.
 
 A **sink** is not a separately-named, independently-managed entity. It is
 simply a *link* record an *origin* context holds on itself:
@@ -470,22 +486,27 @@ simply a *link* record an *origin* context holds on itself:
 .. code-block:: js
 
     // contexts.js's own per-context record
-    {id, name, dataType, sinkTargets: {[targetDataType]: link}}
-    // link: {targetContextId, payloadType, facetsSelector}
+    {id, name, dataType, sinkLinks: {[linkId]: link}}
+    // link: {targetDataType, targetContextId, payloadType, facetsSelector}
 
--- "this context's selection of ``targetDataType`` routes into that other
-context, as ``payloadType``, optionally filtered by ``facetsSelector``." At
-most one link per (origin, ``targetDataType``) pair. Several different
-origins may point at the *same* target id -- that is how reuse/aggregation
-happens, with no separate pool of named "sink" objects needed.
-``contexts.js`` owns this state directly (``set_sink_target``/
-``clear_sink_target``/``initialize_sink_targets`` mutations, ``sinkTargets``/
-``sinkTarget`` getters, generic per-context persistence installed
+-- "this context's selection routes into that other context, as
+``payloadType``, optionally filtered by ``facetsSelector``." True N:N: any
+number of links may share an origin, a ``targetDataType``, or a
+``targetContextId`` -- an origin can fan its selection out to several
+targets at once (even several of the same ``targetDataType``, e.g. two
+different plot desks with different ``facetsSelector``s), and several
+different origins may point at the *same* target id -- that is how
+reuse/aggregation happens, with no separate pool of named "sink" objects
+needed. ``contexts.js`` owns this state directly (``add_sink_link``/
+``remove_sink_link``/``initialize_sink_links`` mutations, the
+``create_sink_link`` action that generates a link's id, ``sinkLinks``/
+``linksFrom`` getters, generic per-context persistence installed
 unconditionally in ``create_context`` -- unlike ``view3D``'s facet-preset
 persistence, this is not gated to any one ``dataType``) because it is a
 cross-cutting property of any context, not a per-module concern.
 
-A link's two extra fields, alongside the target itself:
+A link's fields, beyond identifying the target itself (``targetDataType`` +
+``targetContextId``):
 
 ``payloadType`` (mandatory)
     One of the *target* module's own declared ``acceptsPayloadTypes``
@@ -493,10 +514,10 @@ A link's two extra fields, alongside the target itself:
     target itself accepts anything. Chosen from the target's list at
     link-creation time (``ConnectScopeModal.vue``'s "Payload type" picker),
     never from any list the *origin* declares: an origin module isn't
-    required to pre-declare what it can produce (a graph selection, for
-    instance, can mix ``'graph-node'`` and ``'graph-edge'`` items in one
-    go -- see ``buildSinkSnapshot`` below) -- only the *receiving* side's
-    vocabulary is closed and checked. At delivery
+    required to pre-declare what it can produce (an item's ``payloadType``
+    is the type of whatever secondary data *it itself* carries, e.g. a
+    graph node's ``subjectData`` -- see ``buildSinkSnapshot`` below) -- only
+    the *receiving* side's vocabulary is closed and checked. At delivery
     (``store/sinkDispatch.js``'s ``deliver_to_sink``), only items whose own
     ``payloadType`` matches the link's (or the link is ``'*'``) pass
     through.
@@ -513,12 +534,12 @@ A link's two extra fields, alongside the target itself:
     object so a richer picker can be dropped in later without touching
     delivery.
 
-Dispatch is **update-by-snapshot, no longer one-shot**:
+Dispatch is **update-by-reference, no longer one-shot**:
 ``store/sinkDispatch.js``'s ``send_selection_to_sink(store,
 {originContextId, targetDataType})`` is the one sanctioned orchestration
-path (mirrors ``sceneCreation.js``'s role for context creation) -- it still
-snapshots the *current* selection and sends it, the payload is never a live
-pointer. What changed: ``store/sinkAutoDispatch.js`` installs one global
+path (mirrors ``sceneCreation.js``'s role for context creation) -- it
+re-evaluates the *current* selection and delivers whichever items still
+qualify. ``store/sinkAutoDispatch.js`` installs one global
 ``store.subscribe`` (``main.js``, once, independent of any session) that
 watches every ``selection_<ctx>`` module's selection-changing mutations
 (``select_items``/``unselect_items``/``clear_selection``/
@@ -530,31 +551,43 @@ every active link on that context, whenever the selection actually changes
 it was persisted under the pre-payloadType shape) fails that resend with a
 caught, logged warning rather than breaking every other active link.
 
-The dispatched payload is **reference + snapshot**, not a bare pointer: each
-item carries an identifying reference (its id, plus the source/resource id
-it came from), its own ``payloadType``, *and* a snapshot of whatever data
-was already at hand at dispatch time -- self-contained, no live re-fetch
-needed to display it, and it still shows something even if the origin
-context is later removed.
+The dispatched payload is **identity only, never a data copy**: each item
+carries an identifying reference (``itemId``/``srcID``, the
+cross-module-presentable identity) plus an ``originRef`` opaque to
+everyone but the origin module, and its own ``payloadType`` --
+``item.snapshot`` itself is dropped before anything is persisted
+(``deliver_to_sink``). ``store/sinkResolve.js``'s
+``resolve_incoming_sink_items`` is what turns a landed reference back into
+displayable data, calling the origin module's own ``resolveSinkItem``
+(below) fresh, every time a consumer reads it -- never cached. This is
+also the entire mechanism behind "a sink item must not display anything
+once its origin context is removed": a removed context's dynamically
+-registered Vuex modules are gone, so ``resolveSinkItem`` (or the
+``contexts/context`` lookup before it ever gets called) simply has nothing
+left to resolve -- there is no separate cleanup step that has to run
+correctly for this to hold.
 
-The payload lands in the target context's own **separate sub-state**,
+The reference lands in the target context's own **separate sub-state**,
 keyed by origin context id, never merged into the target's own
-directly-loaded items. This is the same "keyed by contributor, wholesale
-replace on update, delete on removal" shape a context's own
-data-source-driven item list already needs (e.g. the plotter's
-``primitivesByResource``) -- pulled into one shared factory,
-``store/keyedCollection.js``, rather than hand-rolled per module.
+directly-loaded items -- a "keyed by contributor, wholesale replace on
+update, delete on removal" shape, factored out once into
+``store/keyedCollection.js`` (``store/sinkInbox.js``'s own use of it)
+rather than hand-rolled per module.
 
 Cleanup on removal runs both directions from ``contexts.js``'s
 ``remove_context``, mirroring its existing ``reassign_context_sources``
 precedent (clean up a cross-reference at the removal site):
 
 * Removed context was a sink *target* -- any other context's dangling
-  ``sinkTargets`` link pointing at it (``link.targetContextId``) is
-  cleared.
+  ``sinkLinks`` entries pointing at it (``link.targetContextId``) are
+  cleared, however many there are (true N:N -- several links, even from the
+  same origin, may point at one removed target).
 * Removed context was a sink *origin* -- any other context's module that
   declared ``removeIncomingOrigin`` (above) gets a chance to drop that
-  origin's entries from its own landing zone.
+  origin's now-permanently-unresolvable entries from its own landing zone.
+  This is tidiness, not correctness -- resolution already fails safe
+  without it (previous paragraph) -- but without it a removed origin's
+  empty entry would otherwise sit in the target's sinkInbox state forever.
 
 **The registry contract** (``modules/registry.js``), extended for both
 sides of a link:
@@ -563,14 +596,13 @@ sides of a link:
 ``receiveSinkMutation``)
     A target's closed vocabulary -- ``register_module`` throws if one is
     declared without the other. Most modules declare a short, specific
-    list (the plotter: ``['graph-node', 'graph-edge', 'table-projection']``
-    -- the shapes it actually knows how to turn into primitives, see
-    :doc:`module-plotter`); a module that doesn't discriminate at all
+    list (the plotter: ``['plot']`` -- the one shape it knows how to draw,
+    see :doc:`module-plotter`); a module that doesn't discriminate at all
     (``sink-view``'s dev stub, or graph/table's own generic "list whatever
     landed" inboxes) declares ``'*'``.
 
 ``buildSinkSnapshot: (store, contextId) => [{itemId, srcID, payloadType,
-snapshot}]`` (optional)
+originRef, snapshot}]`` (optional)
     An origin's own selection-to-items builder, replacing what used to be
     hardcoded, per-dataType functions inside ``sinkDispatch.js`` itself.
     geo3d's (``modules/three-view/index.js``) reads ``view3D_<ctx>``'s
@@ -579,21 +611,39 @@ snapshot}]`` (optional)
     tagging every item ``payloadType: 'geo-item'``. graph's
     (``modules/graph/index.js``) reads ``graphBoard_<ctx>``'s
     ``dataByResource`` directly (not ``DiagramViewport.vue``'s own merged
-    getters) and tags each item ``'graph-node'`` or ``'graph-edge'``
-    depending on which the composite selection id (``modules/graph/ids.js``)
-    names -- a single module producing more than one payload type is
-    exactly why payload type is per-*item*, not a fixed property of the
-    module. A module with no ``buildSinkSnapshot`` (table's own "Plot
-    dispatch" -- a column *projection*, not a selection) simply isn't a
-    selection-based sink origin: nothing calls it, and
-    ``sinkAutoDispatch.js`` skips such a context's changes entirely.
+    getters) and tags each selected node/edge by whichever named sub-aspect
+    of its own ``subjectData`` matches a known type -- today just ``'plot'``
+    (``subjectData.plot``, a node embedding a fitted state's parameters,
+    :doc:`module-graph`'s "Subject data") -- never by the item's structural
+    kind (node vs. edge), by graph's own ``dataType``, or by ``subjectData``
+    as a whole (it's a grab-bag of several named aspects, only some of
+    which match a sink-item type); an item with no ``subjectData.plot``
+    yields nothing. This is the point of payload
+    type being per-*item* rather than a fixed property of the module: a
+    receiver only ever learns what *type* of data arrived, never which
+    module or which kind of item it came from, so ``acceptsPayloadTypes``
+    can stay a small, origin-agnostic vocabulary (``'geo3d'``/``'plot'``/
+    ``'table'``/...) shared with what a directly-loaded resource itself
+    carries, rather than one bespoke tag per producing module. A module
+    with no ``buildSinkSnapshot`` (e.g. table, which has no selection-based
+    dispatch of any kind) simply isn't a selection-based sink origin:
+    nothing calls it, and ``sinkAutoDispatch.js`` skips such a context's
+    changes entirely.
+
+``resolveSinkItem: (store, contextId, originRef) => {itemId, srcID,
+payloadType, snapshot} | null`` (mandatory alongside ``buildSinkSnapshot``
+-- ``register_module`` throws if one is declared without the other)
+    Given one ``originRef`` a past ``buildSinkSnapshot`` call produced,
+    re-derives that same item's *current* data -- independent of whether
+    it's still selected. ``store/sinkResolve.js`` calls this on every
+    consumer read instead of trusting a stored copy, which is what makes
+    forwarded data live and self-cleaning (previous section). Typically
+    factors out the same per-item lookup ``buildSinkSnapshot`` already
+    does, keyed by ``originRef`` instead of iterating the current selection
+    (``modules/graph/index.js``'s ``resolve_selected_item``).
 
 **Deliberately not done here** -- open for later, not overlooked:
 
-* A live *bare pointer* instead of a resent snapshot -- the payload is
-  still a snapshot on every resend (see "update-by-snapshot" above), a
-  deliberate choice over binding the target directly to the origin's live
-  state.
 * The plotter as a sink *origin* -- it has no selection model of its own
   yet (:doc:`module-plotter`'s "Open questions" still applies); dispatch
   *from* the plotter needs that designed first.

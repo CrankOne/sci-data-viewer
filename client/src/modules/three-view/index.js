@@ -56,40 +56,37 @@ register_module({
         transfGroups: make_transf_groups_module,
         selection: make_selection_module
     },
-    // Same {mutation, payload} shape connection.js's RESOURCE_TYPE_HANDLERS
-    // used to hardcode -- now owned by the module instead of by core.
-    // A function of the resource's contextId, since view3D is registered
-    // per-context rather than under one fixed namespace.
-    payloadMutation: contextId => `view3D_${contextId}/update_geo_data`,
-    payload(resource, data) {
-        return {name: resource.name, geoData: data};
-    },
-    // Mirrors payloadMutation/payload, for dropping a resource's data from
-    // a context it's leaving (removed, or reassigned to a different scene --
-    // see connection.js's remove_resource/reassign_resource_context).
-    removeMutation: contextId => `view3D_${contextId}/remove_geo_data`,
-    removePayload(resource) {
-        return resource.name;
-    },
     installPersistence(store, sessionId) {
         install_camera_preset_persistence(store, sessionId);
     },
     // Sink *origin* only (doc/ui-session.rst's "Selection sinks") -- geo3d
     // never declares receiveSinkMutation/acceptsPayloadTypes, so it isn't a
-    // sink target. Reads the same view3D geometry cache/selection state
-    // build_geo_selection_snapshot used to (store/sinkDispatch.js, before
-    // this became a registry-declared, generically-dispatched function).
-    // Every item is the one payload type this module ever produces.
+    // sink target. Every item is the one payload type this module ever
+    // produces. `resolve_selected_item` below is the one place that knows
+    // how to turn a composite geo id into current geometry -- shared by
+    // buildSinkSnapshot (iterating the current selection) and
+    // resolveSinkItem (looking up one item later, regardless of whether
+    // it's still selected) so there's exactly one lookup to keep correct.
     buildSinkSnapshot(store, contextId) {
-        const view3DNS = `view3D_${contextId}`;
-        const selectionNS = `selection_${contextId}`;
-        const selectedIds = store.getters[`${selectionNS}/selectedItemIDs`];
-        const geoData = store.getters[`${view3DNS}/geoData`]; // {[srcID]: {materials, geometry}}
-
-        return [...selectedIds].map(fullId => {
-            const [srcID, itemId] = destruct_geo_id(fullId);
-            const geometry = geoData[srcID]?.geometry?.find(item => item._name === itemId) ?? null;
-            return {itemId, srcID, payloadType: 'geo-item', snapshot: geometry};
-        });
+        const selectedIds = store.getters[`selection_${contextId}/selectedItemIDs`];
+        return [...selectedIds].flatMap(fullId => resolve_selected_item(store, contextId, fullId) ?? []);
+    },
+    // `originRef` is the same composite geo id buildSinkSnapshot iterated --
+    // opaque to every other module, only this one needs to decode it (doc/
+    // ui-session.rst's "Selection sinks", modules/registry.js's
+    // resolveSinkItem). Returns null once the item -- or the whole
+    // context -- no longer exists, which is what makes a sink item stop
+    // displaying itself when its origin goes away: nothing forwards a
+    // stale copy, there's simply nothing left to resolve.
+    resolveSinkItem(store, contextId, originRef) {
+        return resolve_selected_item(store, contextId, originRef);
     }
 });
+
+function resolve_selected_item(store, contextId, fullId) {
+    const geoData = store.getters[`view3D_${contextId}/geoData`]; // {[srcID]: {materials, geometry}}
+    const [srcID, itemId] = destruct_geo_id(fullId);
+    const geometry = geoData?.[srcID]?.geometry?.find(item => item._name === itemId);
+    if(!geometry) return null;
+    return {itemId, srcID, originRef: fullId, payloadType: 'geo-item', snapshot: geometry};
+}

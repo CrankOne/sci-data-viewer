@@ -357,9 +357,12 @@ edges are invalid" above.
 A board does not need incremental per-item update tracking beyond what
 namespaced replacement already gives it: like :doc:`module-plotter`'s desk,
 a resource's nodes/edges are replaced wholesale on every payload update,
-keyed by resource name (``store/keyedCollection.js``, the same factory
-``plotDesk.js``/``sinkInbox.js`` already share) -- merged into one dagre
-input via a getter, the same shape as ``plotDesk.js``'s ``allPrimitives``.
+keyed by resource name -- merged into one dagre input via a getter, the
+same shape as ``plotDesk.js``'s ``allPrimitives``. Both this board's own
+``dataByResource`` and the plotter's ``primitivesByResource`` are live
+getters over :doc:`data-model`'s data-source entity (``connection.js``'s
+``resources``), not committed state of their own -- see that doc's
+"Resolution is always live, never copied".
 
 Diagrams
 --------
@@ -417,19 +420,22 @@ the same board's selection, is ordinary Vue reactivity -- no manual DOM
 patching (contrast :doc:`module-3d-viewer`'s hand-rolled WebGL silhouette
 pass, which exists only because three.js has no reactive DOM to lean on).
 This is also what makes "forward data associated with them to the plotter"
-concrete: forwarding a node or edge's ``subjectData`` downstream reuses
-:doc:`ui-session`'s existing "Selection sinks" mechanism exactly as geo3d
-already does (a "Send selection to sink" affordance building a snapshot --
-id, source, and current ``subjectData`` -- and calling
+concrete: forwarding a node or edge's ``subjectData.plot`` downstream
+reuses :doc:`ui-session`'s existing "Selection sinks" mechanism exactly as
+geo3d already does (a "Send selection to sink" affordance building a
+snapshot -- id, source, and current ``subjectData.plot`` -- and calling
 ``send_selection_to_sink``), making this module a second sink *origin*
-alongside geo3d. :doc:`module-plotter` still declares no
-``receiveSinkMutation`` (that document's "Open questions" still applies),
-so -- exactly like :doc:`module-table`'s existing "Plot dispatch" stub --
-this reaches, and deliberately stops at, the same "cannot receive" error
-``deliver_to_sink()`` already gives any not-yet-ready target. Wiring the
-plotter side is out of scope for this module; it lands the moment
-:doc:`module-plotter` gets a selection model of its own; nothing here needs
-to change when it does.
+alongside geo3d. Each selected node/edge is tagged by whichever named
+sub-aspect of its own ``subjectData`` matches a known sink-item type --
+today just ``plot`` (a node embedding a fitted state's parameters, e.g.
+na64utils-msadc's viewer plugin, shaped ``{primitives: [...]}`` like this
+module's own plotData envelope) -- rather than by its structural kind or
+by ``graph``'s own ``dataType`` -- :doc:`module-plotter` receives it
+exactly like directly-loaded plot data, with no graph-specific code on
+that side at all. ``subjectData`` is otherwise a grab-bag (parameters,
+provenance, ...), not itself the forwarded payload -- only its recognized
+sub-aspects are. An item with no ``subjectData.plot`` simply forwards
+nothing.
 
 This module is also a sink *target*, the same as any other contextual
 module that wants to be one -- there is nothing graph-specific about
@@ -528,7 +534,7 @@ A likely initial Vue structure, following :doc:`module-plotter`'s and
     ├── layout.js             dagre.graphlib.Graph construction + dagre.layout() call
     ├── transform.js          hand-rolled 2D pan/zoom affine (see "Rendering")
     └── store/
-          graphBoard.js             nodes/edges keyed by resource (store/keyedCollection.js)
+          graphBoard.js             nodes/edges keyed by resource, live over connection.js
           graphLayout.js            per-diagram-instance layout options (see "Diagrams")
           graphLayoutPersistence.js installPersistence hook for the above
 
@@ -653,7 +659,8 @@ The first implementation should provide:
 
 Multi-resource board merging (several sources on one board, "Boards"
 above) should be supported by the architecture from the beginning, since it
-falls out of reusing ``store/keyedCollection.js`` the same way
+falls out for free from ``dataByResource`` already being a live getter
+over every matching resource (:doc:`data-model`), the same way
 :doc:`module-plotter`'s desk already does, but is not itself a primary
 goal of the first pass.
 

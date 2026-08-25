@@ -53,31 +53,6 @@ register_module({
         // needed here.
         selection: make_selection_module
     },
-    // Same {mutation, payload} shape connection.js's RESOURCE_TYPE_HANDLERS
-    // used to hardcode -- now owned by the module instead of by core. A
-    // function of the resource's contextId, since graphBoard is registered
-    // per-context rather than under one fixed namespace.
-    payloadMutation: contextId => `graphBoard_${contextId}/update_graph_data`,
-    payload(resource, data) {
-        // `data` is the raw fetched body -- doc/module-graph.rst's
-        // "graphData" envelope ({layout, nodes, edges, nestedGraphs, clusters}).
-        const graph = data?.graphData ?? null;
-        return {
-            name: resource.name,
-            nodes: graph?.nodes ?? [],
-            edges: graph?.edges ?? [],
-            layout: graph?.layout ?? null,
-            nestedGraphs: graph?.nestedGraphs ?? [],
-            clusters: graph?.clusters ?? []
-        };
-    },
-    // Mirrors payloadMutation/payload, for dropping a resource's data from
-    // a context it's leaving (removed, or reassigned to a different board --
-    // see connection.js's remove_resource/reassign_resource_context).
-    removeMutation: contextId => `graphBoard_${contextId}/remove_graph_data`,
-    removePayload(resource) {
-        return resource.name;
-    },
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
     // Doesn't discriminate what it receives -- GraphSinkPanel.vue lists
     // whatever lands, same as modules/sink-view/'s dev stub (doc/module-
@@ -93,25 +68,65 @@ register_module({
     // (store/graphBoard.js's dataByResource, not DiagramViewport.vue's own
     // merged/composite-id'd getters) the same way
     // build_graph_selection_snapshot used to (store/sinkDispatch.js, before
-    // this became a registry-declared, generically-dispatched function). A
-    // selection can mix nodes and edges, so unlike three-view's single
-    // 'geo-item' type, each item is tagged with its own kind here.
+    // this became a registry-declared, generically-dispatched function).
+    //
+    // `payloadType` names the type of whatever named sub-aspect of the
+    // item's own ``subjectData`` matches a known sink-item type -- today
+    // just `plot` (``subjectData.plot``, shaped like this module's own
+    // plotData envelope per doc/module-graph.rst's "Subject data") -- never
+    // the item's own structural role (node vs. edge) within this module. A
+    // node and an edge carrying the same kind of subjectData forward
+    // identically; the receiver (doc/ui-session.rst's "Selection sinks")
+    // never learns which one it selected, only what's in the payload --
+    // 'graph'-flavored tags like 'graph-node'/'graph-edge' would leak this
+    // module's own internals into every receiver's acceptsPayloadTypes
+    // list, which is exactly what the vocabulary is meant to avoid. An item
+    // with no subjectData, or none of its recognized sub-aspects, yields
+    // nothing -- there's nothing typed to forward.
+    //
+    // `_kind` (node/edge) rides along on the forwarded snapshot rather than
+    // driving payloadType -- a link's facetsSelector can still discriminate
+    // on it (e.g. `{_kind: 'node'}`) if a receiver only wants one of the two.
+    //
+    // `resolve_selected_item` below is the one place that knows how to turn
+    // a composite selection id into current node/edge data -- shared by
+    // buildSinkSnapshot (iterating the current selection) and
+    // resolveSinkItem (looking up one item later, regardless of whether
+    // it's still selected) so there's exactly one lookup to keep correct.
     buildSinkSnapshot(store, contextId) {
-        const boardNS = `graphBoard_${contextId}`;
-        const selectionNS = `selection_${contextId}`;
-        const selectedIds = store.getters[`${selectionNS}/selectedItemIDs`];
-        const dataByResource = store.state[boardNS]?.dataByResource ?? {};
-
-        return [...selectedIds].map(compositeId => {
-            const {kind, resourceName, localId} = destruct_selection_id(compositeId);
-            const resource = dataByResource[resourceName];
-            const collection = kind === 'node' ? resource?.nodes : resource?.edges;
-            const item = collection?.find(entry => entry._id === localId) ?? null;
-            return {
-                itemId: localId, srcID: resourceName,
-                payloadType: kind === 'node' ? 'graph-node' : 'graph-edge',
-                snapshot: item && {...item, _kind: kind}
-            };
-        });
+        const selectedIds = store.getters[`selection_${contextId}/selectedItemIDs`];
+        return [...selectedIds].flatMap(compositeId => resolve_selected_item(store, contextId, compositeId));
+    },
+    // `originRef` is the same composite selection id buildSinkSnapshot
+    // iterated -- opaque to every other module, only this one needs to
+    // decode it (doc/ui-session.rst's "Selection sinks", modules/registry
+    // .js's resolveSinkItem). Returns null once the item -- or the whole
+    // context -- no longer exists, which is what makes a sink item stop
+    // displaying itself when its origin goes away: nothing forwards a
+    // stale copy, there's simply nothing left to resolve.
+    resolveSinkItem(store, contextId, originRef) {
+        return resolve_selected_item(store, contextId, originRef)[0] ?? null;
     }
 });
+
+function resolve_selected_item(store, contextId, compositeId) {
+    const {kind, resourceName, localId} = destruct_selection_id(compositeId);
+    const dataByResource = store.getters[`graphBoard_${contextId}/dataByResource`] ?? {};
+    const resource = dataByResource[resourceName];
+    const collection = kind === 'node' ? resource?.nodes : resource?.edges;
+    const item = collection?.find(entry => entry._id === localId);
+    // `subjectData` is a grab-bag (doc/module-graph.rst's "Subject data"),
+    // not itself the forwarded payload -- real payloads (na64umff's FSM
+    // nodes) carry it as `{plot: {primitives: [...]}, parameters: [...],
+    // createdByTransition: {...}, ...}`, only `plot` matching a known
+    // sink-item type. Forwarding `subjectData` whole (an earlier version of
+    // this function did) put `parameters`/`createdByTransition`/etc. in the
+    // way of `snapshot.primitives`, which is what a 'plot'-typed receiver
+    // actually reads -- silently empty, not an error.
+    if(!item?.subjectData?.plot) return [];
+    return [{
+        itemId: localId, srcID: resourceName, originRef: compositeId,
+        payloadType: 'plot',
+        snapshot: {...item.subjectData.plot, _facets: item._facets, _kind: kind}
+    }];
+}

@@ -1,7 +1,7 @@
 // Persists which data sources are attached to a session -- not their
-// fetched geometry itself (never persisted anywhere in this app; sources
-// are always re-fetched live from their endpoint, same as
-// geoDataBySource/view3D are never written to storage either).
+// fetched payload itself (connection.js's own resource records keep the
+// last-fetched `data` in memory, but never persisted anywhere in this app;
+// sources are always re-fetched live from their endpoint on restore).
 import { read_stored, write_stored, register_session_key } from './store/persistence';
 import { is_plain_source } from './connection';
 

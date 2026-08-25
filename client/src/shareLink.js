@@ -20,8 +20,8 @@
 // `selection_${id}` context module -- doc/ui-session.rst's "Selection
 // model") is understood here -- there's only one contextual module type
 // today. A second one would need this generalized (e.g. via a per-module
-// "share" hook next to payloadMutation/payload in modules/registry.js)
-// rather than the hardcoded `selection_${id}` namespace below.
+// "share" hook in modules/registry.js) rather than the hardcoded
+// `selection_${id}` namespace below.
 import { full_geo_id, destruct_geo_id } from './modules/three-view/utils';
 
 const FORMAT = 'viewer-share';

@@ -25,32 +25,17 @@ register_module({
         // for a directly-attached resource's own data.
         sinkInbox: make_sink_inbox_module
     },
-    // connection.js's generic hook into module internals (doc/ui-session.rst's
-    // "Extension points"): a function of the resource's contextId, since
-    // plotDesk is registered per-context rather than under one fixed
-    // namespace.
-    payloadMutation: contextId => `plotDesk_${contextId}/update_plot_data`,
-    payload(resource, data) {
-        // `data` is the raw fetched body -- doc/module-plotter.rst's
-        // "plotData" envelope. `subjectData` has no consumer yet (its shape
-        // is still an open question in that doc), so only primitives are
-        // forwarded.
-        return {name: resource.name, primitives: data?.plotData?.primitives ?? []};
-    },
-    removeMutation: contextId => `plotDesk_${contextId}/remove_plot_data`,
-    removePayload(resource) {
-        return resource.name;
-    },
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
-    // Unlike graph/table's origin-agnostic '*': the plotter only knows how
-    // to turn a *specific* set of payload shapes into primitives
-    // (PlotViewport.vue's sinkPrimitives) -- a graph node/edge that happens
-    // to carry `subjectData.plot.primitives` (e.g. na64utils-msadc/viewer/
-    // plugin's FSM nodes), or a table column projection
-    // (`{xColumn, yColumn, data}`, doc/module-table.rst's "Plot dispatch").
-    // Anything else received is simply not renderable and is dropped by
-    // sinkPrimitives, not by this list -- the list only gates which *links*
-    // ConnectScopeModal.vue offers creating in the first place.
-    acceptsPayloadTypes: ['graph-node', 'graph-edge', 'table-projection'],
+    // Unlike graph/table's origin-agnostic '*': the plotter only accepts
+    // items already typed 'plot' -- whatever produced them (a graph node's
+    // subjectData, e.g. na64utils-msadc/viewer/plugin's FSM nodes, or any
+    // future origin) tagged the item that way itself, meaning its snapshot
+    // is already shaped like this module's own plotData envelope
+    // (`{primitives: [...]}`, doc/module-plotter.rst's "Data") --
+    // PlotViewport.vue's sinkPrimitives reads it exactly like directly
+    // -loaded data, no per-origin conversion. Table's own former "Plot
+    // dispatch" projection is intentionally not part of this (doc/module
+    // -table.rst) -- postponed, see that doc's "Plot dispatch".
+    acceptsPayloadTypes: ['plot'],
     removeIncomingOrigin: contextId => `sinkInbox_${contextId}/clear_incoming_origin`
 });

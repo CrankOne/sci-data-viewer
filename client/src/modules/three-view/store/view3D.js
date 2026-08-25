@@ -1,21 +1,32 @@
 // Vuex state module -- a factory, not a singleton object, since one
-// instance is registered per context (see store/modules/contexts.js).
+// instance is registered per context (see store/modules/contexts.js, which
+// passes this context's own id as `contextId`).
 //
-// Holds this module's own domain-specific state only: the loaded geometry
-// cache and marker-level (sub-item) hover, which stays here since it has
-// only one origin (scene raycast) and doesn't fit the generic "several
-// origins, unioned" hover shape. Whole-item hover, the
-// highlightAllUnderCursor behavior toggle, selection, hidden items, facet
-// presets, and selection sets used to live here too; they've moved to the
-// generic `selection` context module (store/selection.js), registered
-// alongside this one (modules/three-view/index.js) -- see doc/ui-session
-// .rst's "Selection model" for what moved and why.
-export function make_view3D_module() {
+// Holds this module's own domain-specific state only: marker-level
+// (sub-item) hover, which stays here since it has only one origin (scene
+// raycast) and doesn't fit the generic "several origins, unioned" hover
+// shape. Whole-item hover, the highlightAllUnderCursor behavior toggle,
+// selection, hidden items, facet presets, and selection sets used to live
+// here too; they've moved to the generic `selection` context module
+// (store/selection.js), registered alongside this one (modules/three-view/
+// index.js) -- see doc/ui-session.rst's "Selection model" for what moved
+// and why. The loaded geometry cache itself used to live here too (a copy
+// pushed in by connection.js's apply_resource_data); doc/data-model.rst's
+// "Resolution is always live, never copied" retired that -- `geoData`
+// below now reads straight from connection.js's own `resources`, which
+// keeps each resource's last-fetched raw payload on the resource record
+// itself.
+export function make_view3D_module(contextId) {
+    // A geo3d source's raw fetched body is shaped `{geometryData:
+    // {materials, geometry}, ...}` (mirrors the old payload()'s `pl.geoData`
+    // -> `pl.geometryData` unwrap in the `geoData` getter below).
+    function extract_geo_data(rawData) {
+        return rawData?.geometryData ?? null;
+    }
+
     return {
     namespaced: true,
     state: () => ({
-        geoDataBySource: {},
-
         // Behavior control -- specific to how a hidden-but-selected item's
         // overlay renders in this module's own silhouette pass, unlike
         // highlightAllUnderCursor (moved to the generic `selection` module,
@@ -26,32 +37,6 @@ export function make_view3D_module() {
         highlightedMarkers: new Map() // geoID -> Set(point indeces)
     }),
     mutations: {
-        // This mutation gets called from within the API's `add_data_source()'
-        // action upon geometry is loaded or updated.
-        update_geo_data(state, pl) {
-            // CAVEAT: this does not seem to work:
-            //state.geoDataBySource[pl.name] = pl.geoData;
-            // since the watcher seem to rely on the object ID here and it is
-            // not updated; one way to overcome is to rely on JSON.stringify(pl.geoData)
-            // or:
-            state.geoDataBySource = {
-                ...state.geoDataBySource,
-                [pl.name]: pl.geoData
-            };
-            // suceeds
-            console.debug(`mutation:view3d/update_geo_data commited with data from "${pl.name}": "${pl.geoData}"`);
-        },
-
-        // Drops a source's geometry -- used when a source is removed or
-        // reassigned to a different context/scene (see SourceListItem.vue),
-        // so its data doesn't linger in a context it no longer belongs to.
-        remove_geo_data(state, sourceName) {
-            if(!Object.hasOwn(state.geoDataBySource, sourceName)) return;
-            const geoDataBySource = {...state.geoDataBySource};
-            delete geoDataBySource[sourceName];
-            state.geoDataBySource = geoDataBySource;
-        },
-
         toggle_highlight_hidden(state, value) {
             state.highlightHiddenSelection = value;
         },
@@ -83,9 +68,14 @@ export function make_view3D_module() {
         // ...
     },
     getters: {
-        // See CAVEAT at update_geo_data() mutation; return JSON.stringify(state.geoDataBySource);
-        geoData: state => Object.fromEntries(
-            Object.entries(state.geoDataBySource).map(([key, pl]) => [key, pl.geometryData])
+        // Live view over connection.js's own resources -- every geo3d
+        // source currently attached to this context, keyed by resource
+        // name, shaped the way GeometryManager.js/ItemsTree.vue/
+        // SelectedMarkersPanel.vue already expect ({materials, geometry}).
+        geoData: (state, getters, rootState) => Object.fromEntries(
+            Object.values(rootState.connection.resources)
+                .filter(r => r.contextId === contextId && r.type === 'geo3d' && r.data != null)
+                .map(r => [r.name, extract_geo_data(r.data)])
         ),
 
         highlightHiddenSelection: state => state.highlightHiddenSelection,

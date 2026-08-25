@@ -1,6 +1,17 @@
 <template>
   <div class="connect-scope-modal">
     <h3>Connect to scope</h3>
+
+    <div v-if="kind === 'sink' && existingLinks.length" class="connect-scope-existing">
+      <p class="connect-scope-existing__label">Already sending to:</p>
+      <ul>
+        <li v-for="link in existingLinks" :key="link.linkId">
+          <span>{{ link.targetLabel }} / {{ link.targetName }} ({{ link.payloadType }})</span>
+          <button type="button" class="connect-scope-existing__remove" title="Remove this link" @click="remove_link(link.linkId)">✕</button>
+        </li>
+      </ul>
+    </div>
+
     <p>{{ subjectLabel }}</p>
 
     <form @submit.prevent="submit">
@@ -59,24 +70,7 @@ const props = defineProps({
     // restricted to any one target type (doc/ui-session.rst's "Selection
     // sinks").
     dataType: {type: String, required: true},
-    currentContextId: {type: String, default: null},
-    // Pre-fills the payload-type/facets-selector fields when reopening this
-    // modal for a link that already exists (store/modules/contexts.js's
-    // sinkTargets[dataType]) -- both ignored unless they line up with the
-    // *initial* dataType, same reasoning as currentContextId below.
-    currentPayloadType: {type: String, default: null},
-    currentFacetsSelector: {type: Object, default: null},
-    // Optional, for kind === 'sink' only: overrides send_selection_to_sink
-    // (store/sinkDispatch.js) -- a caller whose dispatch isn't "the
-    // origin's current selection" (e.g. modules/table/'s plot column-
-    // projection dispatch) supplies its own (store, {originContextId,
-    // targetDataType}) => void here instead. Still goes through
-    // deliver_to_sink's own payloadType/facetsSelector filtering -- only
-    // *how the items are built* is overridden, not delivery.
-    dispatchFn: {type: Function, default: null},
-    // Optional override for the default per-kind subject line below --
-    // dispatchFn callers typically want one, since "Send selection to:" is
-    // inaccurate for a non-selection payload.
+    // Optional override for the default per-kind subject line below.
     label: {type: String, default: null}
 });
 const emit = defineEmits(['close']);
@@ -92,8 +86,28 @@ const sinkTargetTypes = computed(() =>
         .map(mod => ({dataType: mod.dataType, label: mod.label ?? mod.dataType}))
 );
 
+// This origin's current outgoing links (store/modules/contexts.js's
+// sinkLinks -- true N:N, doc/ui-session.rst's "Selection sinks"), shown so
+// "Connect" reads as *adding one more* rather than replacing a single slot.
+// Removing one here is the entire "manage existing links" affordance for
+// now -- deliberately no inline edit; re-adding is one click away, and a
+// proper list-and-edit UI is what the wiring diagram is for (see the
+// conversation this modal predates).
+const existingLinks = computed(() => {
+    if(props.kind !== 'sink' || !props.originContextId) return [];
+    return store.getters['contexts/linksFrom'](props.originContextId).map(link => ({
+        ...link,
+        targetLabel: get_module(link.targetDataType)?.label ?? link.targetDataType,
+        targetName: store.getters['contexts/context'](link.targetContextId)?.name ?? link.targetContextId
+    }));
+});
+
+function remove_link(linkId) {
+    store.commit('contexts/remove_sink_link', {contextId: props.originContextId, linkId});
+}
+
 const selectedDataType = ref(props.dataType);
-const selectedContextId = ref(props.currentContextId ?? '');
+const selectedContextId = ref('');
 const error = ref(null);
 
 // The chosen target module's own closed vocabulary (modules/registry.js's
@@ -109,23 +123,18 @@ const payloadTypeOptions = computed(() => {
     if(!accepted) return [];
     return accepted === '*' ? [{value: '*', label: 'Any'}] : accepted.map(pt => ({value: pt, label: pt}));
 });
-const selectedPayloadType = ref(props.currentPayloadType ?? payloadTypeOptions.value[0]?.value ?? null);
+const selectedPayloadType = ref(payloadTypeOptions.value[0]?.value ?? null);
 
-const initialFacetEntry = Object.entries(props.currentFacetsSelector ?? {})[0] ?? ['', ''];
-const facetKey = ref(initialFacetEntry[0]);
-const facetValue = ref(initialFacetEntry[1]);
+const facetKey = ref('');
+const facetValue = ref('');
 
-// currentContextId/currentPayloadType only make sense for the initially-
-// suggested dataType -- switching the target module has no established
-// scope or prior payload-type choice yet, so default back to "New scope…"
-// / this new target's own first accepted type, rather than carrying over
-// values that belonged to a different link.
-watch(selectedDataType, (next, prev) => {
-    if(next === prev) return;
-    selectedContextId.value = next === props.dataType ? (props.currentContextId ?? '') : '';
-    selectedPayloadType.value = next === props.dataType
-        ? (props.currentPayloadType ?? payloadTypeOptions.value[0]?.value ?? null)
-        : (payloadTypeOptions.value[0]?.value ?? null);
+// Switching the target module has no established scope or payload-type
+// choice yet -- always reset to "New scope…" / that target's own first
+// accepted type, since this form only ever *adds* a link (existingLinks
+// above is where any prior link for this origin is shown/removed).
+watch(selectedDataType, () => {
+    selectedContextId.value = '';
+    selectedPayloadType.value = payloadTypeOptions.value[0]?.value ?? null;
 });
 
 const effectiveDataType = computed(() => props.kind === 'sink' ? selectedDataType.value : props.dataType);
@@ -156,7 +165,10 @@ async function submit() {
             if(!selectedPayloadType.value) {
                 throw new Error(`"${effectiveDataType.value}" declares no acceptsPayloadTypes -- cannot receive`);
             }
-            store.commit('contexts/set_sink_target', {
+            // Always adds a new link (store/modules/contexts.js's true N:N
+            // sinkLinks) rather than replacing one -- existingLinks above is
+            // where a prior link gets removed, if that's what's wanted.
+            const linkId = await store.dispatch('contexts/create_sink_link', {
                 contextId: props.originContextId,
                 targetDataType: effectiveDataType.value,
                 targetContextId: contextId,
@@ -167,7 +179,7 @@ async function submit() {
             // existed -- store/sinkAutoDispatch.js takes over from here,
             // resending automatically on every future selection change in
             // this origin context.
-            (props.dispatchFn ?? send_selection_to_sink)(store, {originContextId: props.originContextId, targetDataType: effectiveDataType.value});
+            send_selection_to_sink(store, {originContextId: props.originContextId, linkId});
         } else {
             store.commit('widgetInstances/set_instance_context', {instanceId: props.instanceId, contextId});
         }
@@ -200,6 +212,36 @@ async function submit() {
 
 .modal-error {
   color: var(--clr-fg-main-highlighted);
+}
+
+.connect-scope-existing {
+  margin-bottom: 8pt;
+  padding-bottom: 6pt;
+  border-bottom: 1px solid var(--clr-border-inactive);
+}
+
+.connect-scope-existing__label {
+  margin: 0 0 3pt;
+  color: var(--clr-fg-main-muted);
+}
+
+.connect-scope-existing ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2pt;
+}
+
+.connect-scope-existing li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6pt;
+}
+
+.connect-scope-existing__remove {
+  flex: none;
 }
 
 .connect-scope-actions {

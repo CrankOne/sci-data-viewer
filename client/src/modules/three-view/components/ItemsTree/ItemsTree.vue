@@ -532,20 +532,14 @@ export default {
         // other "pick or create a scene" affordance in the app uses, in its
         // 'sink' mode. 'sink-view' is only the initially suggested target --
         // the modal itself offers every registered receiveSinkMutation-
-        // capable module (ConnectScopeModal.vue). No dispatchFn override:
-        // geo3d's own buildSinkSnapshot (modules/three-view/index.js) is
-        // send_selection_to_sink's (store/sinkDispatch.js) generic default.
+        // capable module (ConnectScopeModal.vue).
         open_sink_picker() {
-            const link = this.$store.getters['contexts/sinkTarget'](this.contextId, 'sink-view');
             this.$store.commit('ui/open_modal', {
                 name: 'connect-scope',
                 props: {
                     kind: 'sink',
                     originContextId: this.contextId,
-                    dataType: 'sink-view',
-                    currentContextId: link?.targetContextId ?? null,
-                    currentPayloadType: link?.payloadType ?? null,
-                    currentFacetsSelector: link?.facetsSelector ?? null
+                    dataType: 'sink-view'
                 }
             });
         },

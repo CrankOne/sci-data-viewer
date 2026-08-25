@@ -31,31 +31,6 @@ register_module({
         // persistence for free.
         selection: make_selection_module
     },
-    // Same {mutation, payload} shape connection.js's RESOURCE_TYPE_HANDLERS
-    // used to hardcode -- now owned by the module instead of by core.
-    // A function of the resource's contextId, since tableDesk is registered
-    // per-context rather than under one fixed namespace.
-    payloadMutation: contextId => `tableDesk_${contextId}/update_table_data`,
-    payload(resource, data) {
-        // `data` is the raw fetched body -- doc/module-table.rst's
-        // "tableData" envelope ({schema, rows}, plus `total` when the
-        // source is row-windowed, doc/sources.rst's "Row-window
-        // pagination" -- falls back to this (first) page's own row count
-        // for a source that isn't, so a local table's `total` is correct
-        // without the source needing to declare one itself).
-        const table = data?.tableData ?? null;
-        return {
-            name: resource.name,
-            table: table && {...table, total: table.total ?? table.rows?.length ?? 0}
-        };
-    },
-    // Mirrors payloadMutation/payload, for dropping a resource's data from
-    // a context it's leaving (removed, or reassigned to a different table
-    // scene -- see connection.js's remove_resource/reassign_resource_context).
-    removeMutation: contextId => `tableDesk_${contextId}/remove_table_data`,
-    removePayload(resource) {
-        return resource.name;
-    },
     receiveSinkMutation: contextId => `sinkInbox_${contextId}/receive_sink_items`,
     // Doesn't discriminate what it receives -- the "Selection view" section
     // (TableViewport.vue) renders whatever lands, origin-agnostic (doc/
@@ -63,7 +38,8 @@ register_module({
     // items).
     acceptsPayloadTypes: '*',
     removeIncomingOrigin: contextId => `sinkInbox_${contextId}/clear_incoming_origin`
-    // No buildSinkSnapshot: table's own sink dispatch ("Plot dispatch",
-    // TableViewport.vue's open_plot_dispatch) isn't selection-based -- see
-    // send_table_projection_to_sink (store/sinkDispatch.js).
+    // No buildSinkSnapshot: this module isn't a sink origin. It used to
+    // dispatch a column projection ("Plot dispatch") outside the selection
+    // mechanism entirely; that's been pulled out (doc/module-table.rst's
+    // "Plot dispatch" is postponed, not redesigned yet).
 });

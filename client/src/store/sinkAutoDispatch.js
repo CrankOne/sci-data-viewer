@@ -1,12 +1,15 @@
 // "Less tedious updates" for the cross-module "selection sink" mechanism
 // (doc/ui-session.rst's "Extension points"): once a link exists (store/
-// modules/contexts.js's sinkTargets), its origin's selection changing
-// re-sends the (still-a-snapshot, still-filtered-by-payloadType/
-// facetsSelector) payload automatically -- no more manually re-clicking
-// "Send selection to sink" after every click in the origin. Still a
-// snapshot resent on your behalf, deliberately not a live bare pointer
-// (store/sinkDispatch.js's own header comment) -- the only thing this adds
-// is *when* send_selection_to_sink gets called, never how.
+// modules/contexts.js's sinkLinks), its origin's selection changing
+// re-sends the (still-filtered-by-payloadType/facetsSelector) reference set
+// automatically, for *every* link that origin has -- no more manually
+// re-clicking "Send selection to sink" after every click in the origin.
+// This governs *which* items currently qualify for each link, re-evaluated
+// on every selection change; it has nothing to do with the *data* those
+// references resolve to, which is never cached here or at the target
+// (store/sinkResolve.js reads it fresh on demand) -- the only thing this
+// adds is *when* send_selection_to_sink's identity-set gets recomputed,
+// never how the underlying data is read.
 //
 // Installed once, globally, independent of any one session (main.js,
 // right after the store is created) -- unlike store/persistence.js's
@@ -43,17 +46,17 @@ export function install_sink_auto_dispatch(store) {
         // place (ConnectScopeModal.vue only offers that for such modules).
         if(!originModule?.buildSinkSnapshot) return;
 
-        const sinkTargets = store.getters['contexts/sinkTargets'](originContextId);
-        for(const targetDataType of Object.keys(sinkTargets)) {
+        const links = store.getters['contexts/linksFrom'](originContextId);
+        for(const {linkId, targetDataType} of links) {
             try {
-                send_selection_to_sink(store, {originContextId, targetDataType});
+                send_selection_to_sink(store, {originContextId, linkId});
             } catch(error) {
                 // A stale link (its target module's registry declaration
                 // changed since the link was created/persisted) shouldn't
                 // break every other active link or spam an uncaught error
                 // on every single click -- surfaced once per attempt, not
                 // thrown.
-                console.warn(`Auto sink dispatch "${originContextId}" -> "${targetDataType}" failed:`, error);
+                console.warn(`Auto sink dispatch "${originContextId}" -> "${targetDataType}" (${linkId}) failed:`, error);
             }
         }
     });

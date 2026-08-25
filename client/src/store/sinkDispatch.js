@@ -1,17 +1,18 @@
 // The one sanctioned path for routing something out of an origin context
-// into whatever context its sinkTargets[targetDataType] *link* points at
-// (doc/ui-session.rst's "Extension points", the cross-module "selection
-// sink" mechanism) -- mirrors sceneCreation.js's role as the single
-// sanctioned path for creating a scene.
+// into whatever context one of its sinkLinks *link* points at (doc/ui-
+// session.rst's "Extension points", the cross-module "selection sink"
+// mechanism) -- mirrors sceneCreation.js's role as the single sanctioned
+// path for creating a scene. A link is identified by `linkId`, not
+// `targetDataType` -- any number of links may share a targetDataType (true
+// N:N fan-out, contexts.js's own header comment on `sinkLinks`).
 //
-// Update-by-snapshot, but no longer purely one-shot: calling
-// send_selection_to_sink still snapshots/builds+sends the payload once,
-// but store/sinkAutoDispatch.js now calls it again automatically every
-// time the origin's selection changes for as long as the link exists --
-// "less tedious updates" without turning a sink into a live pointer (the
-// dispatched payload is still a snapshot, just resent on your behalf). A
-// link's own `payloadType`/`facetsSelector` (store/modules/contexts.js)
-// narrow what actually gets through on every such resend.
+// Deciding *what currently qualifies* is still triggered on demand --
+// calling send_selection_to_sink builds+delivers once, and store/
+// sinkAutoDispatch.js calls it again automatically every time the origin's
+// selection changes for as long as the link exists. What actually gets
+// persisted at the target, though, is identity only -- see deliver_to_sink
+// below -- never a data copy: store/sinkResolve.js resolves each landed
+// reference's current value fresh, on demand, whenever a consumer needs it.
 import { get_module, payload_type_accepted } from '@/modules/registry';
 
 // AND-matches `facetsSelector` (a plain `{[facetKey]: value}` object, or
@@ -26,21 +27,27 @@ function matches_facets_selector(facets, selector) {
 }
 
 // The part every dispatch flavor shares, regardless of how `items` was
-// built: resolve the origin's sinkTargets link, confirm the target module
-// still actually accepts that link's payloadType (a link persists across
-// reloads -- modules/registry.js's declarations could in principle have
-// changed since), narrow `items` down to the link's payloadType +
-// facetsSelector, and commit.
-export function deliver_to_sink(store, {originContextId, targetDataType, items}) {
+// built: resolve the named link (by id, not targetDataType -- several
+// links may share one), confirm the target module still actually accepts
+// that link's payloadType (a link persists across reloads -- modules/
+// registry.js's declarations could in principle have changed since),
+// narrow `items` down to the link's payloadType + facetsSelector, and
+// commit -- identity only, never `item.snapshot` itself (store/
+// sinkResolve.js re-derives current data from `originRef` whenever a
+// consumer actually needs it; see modules/registry.js's `resolveSinkItem`).
+// Filtering still needs the *current* snapshot's `_facets`, which `items`
+// still carries at this point -- only what gets persisted afterward is
+// stripped down.
+export function deliver_to_sink(store, {originContextId, linkId, items}) {
     const origin = store.getters['contexts/context'](originContextId);
-    const link = origin?.sinkTargets?.[targetDataType];
+    const link = origin?.sinkLinks?.[linkId];
     if(!link) {
-        throw new Error(`No sink target of type "${targetDataType}" set for context "${originContextId}"`);
+        throw new Error(`No sink link "${linkId}" set for context "${originContextId}"`);
     }
 
-    const targetModule = get_module(targetDataType);
-    if(!targetModule?.receiveSinkMutation || !payload_type_accepted(targetDataType, link.payloadType)) {
-        throw new Error(`Data type "${targetDataType}" cannot receive "${link.payloadType}" sink items`);
+    const targetModule = get_module(link.targetDataType);
+    if(!targetModule?.receiveSinkMutation || !payload_type_accepted(link.targetDataType, link.payloadType)) {
+        throw new Error(`Data type "${link.targetDataType}" cannot receive "${link.payloadType}" sink items`);
     }
 
     const filtered = items.filter(item =>
@@ -52,36 +59,23 @@ export function deliver_to_sink(store, {originContextId, targetDataType, items})
         ? targetModule.receiveSinkMutation(link.targetContextId)
         : targetModule.receiveSinkMutation;
 
-    store.commit(mutation, {originContextId, payloadType: link.payloadType, items: filtered}, {root: true});
+    const refs = filtered.map(({itemId, srcID, payloadType, originRef}) => ({itemId, srcID, payloadType, originRef}));
+    store.commit(mutation, {originContextId, payloadType: link.payloadType, items: refs}, {root: true});
 }
 
 // Generic selection-based dispatch: looks up the origin *context*'s own
 // dataType, then that module's `buildSinkSnapshot` (modules/registry.js)
 // to get its current selection as sink items -- no per-dataType branching
 // here, unlike the geo3d-only/graph-only functions this replaced. A module
-// that never declares `buildSinkSnapshot` (e.g. table, whose "Plot
-// dispatch" isn't selection-based at all -- see send_table_projection_to_sink
-// below) simply isn't usable as a *selection* sink origin; nothing calls
-// this for it.
-export function send_selection_to_sink(store, {originContextId, targetDataType}) {
+// that never declares `buildSinkSnapshot` (e.g. table, which has no
+// selection-based sink dispatch at all) simply isn't usable as a
+// *selection* sink origin; nothing calls this for it.
+export function send_selection_to_sink(store, {originContextId, linkId}) {
     const origin = store.getters['contexts/context'](originContextId);
     const originModule = get_module(origin?.dataType);
     if(!originModule?.buildSinkSnapshot) {
         throw new Error(`Data type "${origin?.dataType}" has no selection to send to a sink`);
     }
     const items = originModule.buildSinkSnapshot(store, originContextId);
-    deliver_to_sink(store, {originContextId, targetDataType, items});
-}
-
-// doc/module-table.rst's "Plot dispatch": a *different* thing from
-// "Selection sinks" above despite sharing delivery -- this carries a
-// column projection (x/y values across the currently loaded rows), not
-// "the current selection", so it has no `buildSinkSnapshot` counterpart
-// and isn't auto-resent by store/sinkAutoDispatch.js (that only reacts to
-// selection changes). `items` is built by the caller
-// (modules/table/TableViewport.vue), tagged with its own `payloadType`
-// (`'table-projection'`) the same as any other item -- what counts as a
-// projection, and what type it is, is entirely this module's own concern.
-export function send_table_projection_to_sink(store, {originContextId, targetDataType, items}) {
-    deliver_to_sink(store, {originContextId, targetDataType, items});
+    deliver_to_sink(store, {originContextId, linkId, items});
 }

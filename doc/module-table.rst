@@ -47,8 +47,8 @@ The module supports the following workflows.
 
    Objects selected in another viewer module may be represented as rows in a
    table shown in a secondary panel -- this is :doc:`ui-session`'s
-   cross-module "Selection sinks" mechanism (a context's ``sinkTargets``
-   pointer, manual one-shot ``send_selection_to_sink``), with this module as
+   cross-module "Selection sinks" mechanism (a context's ``sinkLinks``,
+   manual one-shot ``send_selection_to_sink``), with this module as
    the sink *target*: it registers ``receiveSinkMutation`` the same way
    ``modules/sink-view/``'s dev stub does, but renders the routed-in rows
    through the real ``TableView`` rather than dumping raw JSON. This is the
@@ -60,17 +60,22 @@ The module supports the following workflows.
    The tabular module shall not depend on the selection originating from any
    particular module.
 
-3. **Plot dispatch**
+3. **Plot dispatch** (postponed)
 
-   For small tables and random-access resources, the user may select a small
-   number of columns and request a plot.
+   For small tables and random-access resources, the user may eventually
+   select a small number of columns and request a plot.
 
-   Plot rendering belongs to the plotting module. The tabular module only
-   selects the relevant columns and dispatches the corresponding data request
-   or projection -- a UI-level hook, not a functioning round trip yet:
-   :doc:`module-plotter` has no selection model or sink-consuming mechanism
-   of its own to receive such a dispatch (that module's own "Open questions"
-   still applies), so this stays a one-way stub until it does.
+   An earlier attempt wired this through :doc:`ui-session`'s "Selection
+   sinks" as a bespoke ``'table-projection'`` payload type, converted to
+   primitives on the *receiving* (plotter) side. That's been removed:
+   :doc:`ui-session`'s sink mechanism now expects every payload type to be
+   self-describing (the type of whatever secondary data an item itself
+   carries, see :doc:`module-graph`'s "Subject data" for the pattern this
+   module would need to follow) rather than receiver-specific conversion
+   logic per producer. What this module's own "column projection" should
+   look like under that model -- and whether column selection even is the
+   right unit, versus per-row ``subjectData`` -- is genuinely open; this
+   document takes no position until that's designed.
 
 4. **Pivoting**
 
@@ -461,8 +466,8 @@ A likely initial Vue structure, following :doc:`module-plotter`'s and
     ├── controller.js
     ├── schema.js
     ├── store/
-    │     tableDesk.js        directly-loaded rows, keyed by resource
-    │                         (``store/keyedCollection.js``, mirroring
+    │     tableDesk.js        directly-loaded rows, keyed by resource,
+    │                         live over connection.js (mirroring
     │                         ``modules/plotter/store/plotDesk.js``)
     └── sources/
           local.js
@@ -532,24 +537,23 @@ use case.
 Server-driven sorting (both source kinds -- client-side for `local`,
 ``sort-column``/``sort-direction`` row-window query params for
 `random-access`, a convention local to this adapter and its demo backend,
-not part of :doc:`sources`'s own row-window spec), CSV export for local
+not part of :doc:`sources`'s own row-window spec) and CSV export for local
 tables (``export.js``, using a Blob-download helper -- ``client/src/
 download.js`` -- extracted from ``SessionPickerModal.vue``'s prior inline
-copy so both have one place to share it), and a real (not faked) plot-
-dispatch hook are built too. The last of these reuses "Selection sinks"'
-delivery mechanism (``store/sinkDispatch.js``'s newly-extracted
-``deliver_to_sink()``) with its own payload -- a column projection, not a
-selection -- via ``send_table_projection_to_sink()``;
-``ConnectScopeModal.vue`` gained an optional ``dispatchFn`` prop so a
-non-selection dispatch flavor can still reuse its "pick or create a
-target scene" UI. Since :doc:`module-plotter` declares no
-``receiveSinkMutation`` yet, using it surfaces the same "cannot receive"
-error any other not-yet-ready sink target gets -- confirmed working as
-intended, not a bug to fix.
+copy so both have one place to share it) are built.
+
+A first plot-dispatch hook was built and then removed: it forwarded a
+column projection as a bespoke ``'table-projection'`` payload type,
+converted to primitives by the *plotter*, which turned out to be exactly
+the receiver-side-conversion shape :doc:`ui-session`'s "Selection sinks"
+mechanism no longer wants (see "Plot dispatch" above). Removed along with
+it: ``send_table_projection_to_sink()`` (``store/sinkDispatch.js``) and
+``ConnectScopeModal.vue``'s ``dispatchFn`` escape hatch it was the only
+caller of.
 
 **Not built yet**: sequential sources (``sources/sequential.js`` is shape
--only, per "Row access" above), pivot-source creation, and backend-assisted
-export.
+-only, per "Row access" above), pivot-source creation, backend-assisted
+export, and plot dispatch (postponed, see "Plot dispatch" above).
 
 Open questions
 ---------------

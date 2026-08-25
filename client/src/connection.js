@@ -8,19 +8,23 @@ import { get_module } from './modules/registry';
 // name -> {controller, generation}
 const gManifestRequests = new Map();
 
-// Drops a loaded resource's data from its (current) context's module, via
-// the owning viewer module's removeMutation/removePayload (mirrors
-// payloadMutation/payload) -- a no-op for a resource that was never loaded,
-// isn't contextual, or whose module declares no removeMutation.
-function clean_up_resource_data(commit, resource) {
-    if(resource.status !== 'loaded' || !resource.type || !resource.contextId) return;
+// Fails fast, before a fetch is even attempted, when a resource's type
+// needs a context (doc/data-model.rst's "data source" entity always
+// declares exactly one contextual-or-not `type`) but none is assigned yet
+// -- used by every data-fetching action below (load_resource_data/
+// create_resource_cursor/advance_resource_cursor). Used to be checked only
+// once the fetch had already completed (the old apply_resource_data), which
+// wasted a round-trip on a request doomed to fail; checking up front is
+// strictly better and costs nothing extra to call three times.
+function require_resource_module(resource) {
     const module = get_module(resource.type);
-    if(!module?.removeMutation) return;
-    const mutation = typeof module.removeMutation === 'function'
-        ? module.removeMutation(resource.contextId)
-        : module.removeMutation;
-    const payload = module.removePayload ? module.removePayload(resource) : resource.name;
-    commit(mutation, payload, {root: true});
+    if(!module) {
+        throw new Error(`No viewer module registered for resource type ${JSON.stringify(resource.type)}`);
+    }
+    if(module.contextual && !resource.contextId) {
+        throw new Error(`Resource "${resource.name}" has type "${resource.type}", which requires a context, but none is assigned`);
+    }
+    return module;
 }
 
 //                          * * *   * * *   * * *
@@ -175,8 +179,8 @@ const stateModule = {
         // a context and the (potentially large) data fetch; see
         // assign_resource_context below and SourcesList.vue's add-source
         // flow. `contextId' defaults to unassigned; a contextual-type
-        // resource with no contextId fails at apply_resource_data() below,
-        // not silently.
+        // resource with no contextId fails fast (require_resource_module,
+        // above) the moment a data fetch is attempted, not silently.
         async add_resource({commit, dispatch}, {
             name, endpoint, load = true, contextId = null, selectedItemId = null, page = 0, signal = undefined
         }) {
@@ -190,6 +194,17 @@ const stateModule = {
                 dataSize: null,
                 error: null,
                 contextId,
+                // Last-fetched raw payload (doc/data-model.rst's
+                // "Resolution is always live, never copied"): the one
+                // owned copy of this resource's data -- every contextual
+                // module's own per-context getters read this live instead
+                // of keeping a pushed copy of their own (e.g. modules/
+                // three-view/store/view3D.js's `geoData` getter). Also
+                // doubles as a sequential resource's last-applied cursor
+                // `current` item, so reassign_resource_context has nothing
+                // to re-deliver -- there's simply nothing to invalidate
+                // when contextId changes underneath a live getter.
+                data: null,
                 // current values of the source's advertised query options
                 // (doc/sources.rst, "Query options"); populated with
                 // defaults once the manifest resolves, see below.
@@ -219,11 +234,7 @@ const stateModule = {
                 cursorFinished: false,
                 // Local "how many advances have I seen" UI counter -- NOT
                 // a server-side sequence number or item identifier.
-                cursorStep: 0,
-                // Last-applied `current` payload, kept so
-                // reassign_resource_context can re-deliver it to a new
-                // context without creating a new (non-replayable) cursor.
-                cursorLastData: null
+                cursorStep: 0
             });
 
             return dispatch('fetch_resource_manifest', {name, load});
@@ -331,47 +342,28 @@ const stateModule = {
                 if(resource.cursorURL) {
                     fetch(resource.cursorURL, {method: 'DELETE'}).catch(() => {});
                 }
-                clean_up_resource_data(commit, resource);
             }
             gManifestRequests.get(name)?.controller.abort();
             gManifestRequests.delete(name);
             commit('remove_resource', name);
         },
 
-        // Reassigns an already-added, already-loaded resource to a
-        // different context: drops its data from the old context and
-        // re-fetches/re-applies it under the new one (see
-        // SourceListItem.vue's scene-reassignment control). A no-op if the
-        // resource isn't loaded yet or is already on that context.
-        async reassign_resource_context({state, commit, dispatch}, {name, contextId}) {
+        // Reassigns a resource to a different context (see
+        // SourceListItem.vue's scene-reassignment control) -- a plain field
+        // flip, nothing more: no module owns a copy of this resource's data
+        // any more (doc/data-model.rst's "Resolution is always live, never
+        // copied"), so every contextual module's own getters simply start
+        // filtering this resource under its new contextId on their very
+        // next read, with no re-fetch, no cleanup, and (for a sequential
+        // resource) no special-cased cursor-data re-delivery needed either
+        // -- `resource.data` already holds whatever was last applied,
+        // cursor or not, and reassignment never touches it. A no-op if
+        // already on that context.
+        reassign_resource_context({state, commit}, {name, contextId}) {
             const resource = state.resources[name];
             if(!resource) throw new Error(`Unknown resource ${name}`);
             if(resource.contextId === contextId) return;
-
-            const wasLoaded = resource.status === 'loaded';
-            if(wasLoaded) clean_up_resource_data(commit, resource);
-
             commit('update_resource', {name, changes: {contextId}});
-
-            if(wasLoaded && resource.cursorURL) {
-                // A sequential cursor (doc/sources.rst) is resource-scoped
-                // and forward-only/non-replayable -- moving contexts must
-                // not start a new cursor or re-fetch (GET data-url isn't
-                // an item for a sequential source). Re-deliver the last
-                // item that was applied instead.
-                if(resource.cursorLastData !== null && resource.cursorLastData !== undefined) {
-                    await dispatch('apply_resource_data', {
-                        resource: state.resources[name], data: resource.cursorLastData
-                    });
-                }
-            } else if(wasLoaded) {
-                // Re-apply whichever item was loaded (if any -- addressable
-                // sources only) under the new context; a plain source has
-                // no selectedItemId and just re-fetches its one payload.
-                await dispatch('load_resource_data', {
-                    name, ...(resource.selectedItemId ? {itemId: resource.selectedItemId} : {})
-                });
-            }
         },
 
         // Records a new value for one of the resource's advertised query
@@ -457,7 +449,7 @@ const stateModule = {
         // (plain-source) payload, or -- when `itemId' is given -- one item
         // of an addressable source, at GET {data-url}/{itemId} (doc/
         // sources.rst, "Addressable capability").
-        async load_resource_data({state, commit, dispatch}, {name, itemId = undefined, query = undefined, signal = undefined}) {
+        async load_resource_data({state, commit}, {name, itemId = undefined, query = undefined, signal = undefined}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
@@ -465,6 +457,7 @@ const stateModule = {
             if(!resource.manifest) {
                 throw new Error(`Manifest for resource ${name} has not been loaded`);
             }
+            require_resource_module(resource);
             console.debug(resource);  // XXX
             const url = itemId !== undefined
                 ? resource_item_url(resource.dataURL, itemId)
@@ -490,11 +483,11 @@ const stateModule = {
 
             try {
                 const data = await fetch_json(url.href, {signal});
-                await dispatch('apply_resource_data', {resource, data});
                 commit('update_resource', {
                     name,
                     changes: {
                         status: 'loaded',
+                        data,
                         dataSize: JSON.stringify(data).length,
                         error: null,
                         ...(itemId !== undefined ? {selectedItemId: itemId} : {})
@@ -512,16 +505,17 @@ const stateModule = {
         // traversal cursor and applies its initial item, if any. Mirrors
         // load_resource_data's role for an addressable source, except
         // there's no itemId -- the server decides the starting position.
-        async create_resource_cursor({state, commit, dispatch}, {name}) {
+        async create_resource_cursor({state, commit}, {name}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
             }
+            require_resource_module(resource);
             // 'loading-data' drives the app-wide LoadingOverlay (see the
             // loadingResourceNames getter) -- set before the fetch, so the
-            // overlay is already painted by the time apply_resource_data's
-            // synchronous work (e.g. GeometryManager rebuilding three.js
-            // objects) runs.
+            // overlay is already painted by the time this commit's
+            // synchronous downstream work (e.g. GeometryManager rebuilding
+            // three.js objects, driven by a module's own live getter) runs.
             commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
             try {
                 const url = new URL('cursors', resource.dataURL.endsWith('/') ? resource.dataURL : `${resource.dataURL}/`);
@@ -542,11 +536,10 @@ const stateModule = {
                         cursorId: location.split('/').filter(Boolean).pop(),
                         cursorFinished: Boolean(body.finished),
                         cursorStep: 0,
-                        cursorLastData: body.current ?? null
+                        data: body.current ?? null
                     }
                 });
                 if(body.current !== null && body.current !== undefined) {
-                    await dispatch('apply_resource_data', {resource: state.resources[name], data: body.current});
                     commit('update_resource', {
                         name,
                         changes: {status: 'loaded', dataSize: JSON.stringify(body.current).length, error: null}
@@ -562,7 +555,7 @@ const stateModule = {
 
         // Advances an active cursor by exactly one item (doc/sources.rst)
         // and applies the result the same way create_resource_cursor does.
-        async advance_resource_cursor({state, commit, dispatch}, {name}) {
+        async advance_resource_cursor({state, commit}, {name}) {
             const resource = state.resources[name];
             if(!resource) {
                 throw new Error(`Unknown resource ${name}`);
@@ -570,6 +563,7 @@ const stateModule = {
             if(!resource.cursorURL) {
                 throw new Error(`Resource "${name}" has no active cursor`);
             }
+            require_resource_module(resource);
             // See create_resource_cursor's identical note on ordering this
             // before the fetch, for LoadingOverlay's benefit.
             commit('update_resource', {name, changes: {status: 'loading-data', error: null}});
@@ -584,11 +578,10 @@ const stateModule = {
                     changes: {
                         cursorFinished: Boolean(body.finished),
                         cursorStep: (resource.cursorStep ?? 0) + 1,
-                        cursorLastData: body.current ?? null
+                        data: body.current ?? null
                     }
                 });
                 if(body.current !== null && body.current !== undefined) {
-                    await dispatch('apply_resource_data', {resource: state.resources[name], data: body.current});
                     commit('update_resource', {
                         name,
                         changes: {status: 'loaded', dataSize: JSON.stringify(body.current).length, error: null}
@@ -620,25 +613,12 @@ const stateModule = {
             });
         },
 
-        // fwd a resource payload to its type-specific viewer module.
-        apply_resource_data({commit}, {resource, data}) {
-            const module = get_module(resource.type);
-            if(!module) {
-                throw new Error(`No viewer module registered for resource type ${JSON.stringify(resource.type)}`);
-            }
-            if(module.contextual && !resource.contextId) {
-                throw new Error(`Resource "${resource.name}" has type "${resource.type}", which requires a context, but none is assigned`);
-            }
-            const mutation = typeof module.payloadMutation === 'function'
-                ? module.payloadMutation(resource.contextId)
-                : module.payloadMutation;
-            commit(mutation, module.payload(resource, data), {root: true});
-        },
-
         // Moves every resource currently targeting `fromContextId` to
         // `toContextId` -- used when a context is removed (see
         // store/modules/contexts.js) so its sources aren't silently
-        // orphaned.
+        // orphaned. Already just a plain field flip, same as
+        // reassign_resource_context above -- no module owns a copy to clean
+        // up or re-fetch.
         reassign_context_sources({state, commit}, {fromContextId, toContextId}) {
             for(const resource of Object.values(state.resources)) {
                 if(resource.contextId !== fromContextId) continue;
