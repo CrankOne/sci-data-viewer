@@ -107,9 +107,12 @@ Named camera presets are saved per session (not per scene) via
 session-wide affordance, and a fresh viewport starts from the module's
 built-in defaults rather than an empty state.
 
-When ``highlightAllUnderCursor`` is off, only one under-cursor item is
-highlighted at a time; the mouse wheel cycles through the last raycast's
-hit stack instead of zooming (``ThreeView.cycle_hover``/``handle_wheel``).
+When ``highlightAllUnderCursor`` is off (the default), only one under-cursor
+item is highlighted at a time; shift+wheel cycles through the last
+raycast's hit stack instead of zooming (``ThreeView.cycle_hover``/
+``handle_wheel``). A plain wheel always zooms regardless of the toggle --
+shift+wheel only cycles when there's a single item to cycle *through*, and
+falls through to zoom too whenever ``highlightAllUnderCursor`` is on.
 
 Transformation groups
 ----------------------
@@ -160,9 +163,9 @@ and persists until changed. Both can additionally be grouped/filtered by
 ``_facets`` via saved facet presets, and items can be
 hidden (``hiddenItemIDs``) without being deselected. Whether hovering (and
 shift+click) affects every pickable item under the cursor at once, or only
-the single nearest -- cycled by wheel -- is a shared behavior toggle
-(``highlightAllUnderCursor``) the ``selection`` module also owns, not
-specific to this rendering technique.
+the single nearest -- cycled by shift+wheel -- is a shared behavior toggle
+(``highlightAllUnderCursor``, off by default) the ``selection`` module also
+owns, not specific to this rendering technique.
 
 Whole-selection state (selected items *and* selected markers together, see
 below) can be saved under a name and later re-applied with set semantics
@@ -221,8 +224,10 @@ than answered:
   originated from") and the lack of a dispatch equivalent to its "Plot
   dispatch" are both now covered by :doc:`ui-session`'s "Selection sinks":
   geo3d is that mechanism's one real sink *origin* today
-  (``selectedGeoItemIDs`` via ``ItemsTree.vue``'s "Send selection to sink"),
-  though whole-item only -- ``selectedMarkers`` (per-marker selection)
+  (``selectedGeoItemIDs``, reached via ``components/SinkWiringPanel.vue``'s
+  "Connect output" -- ``ItemsTree.vue``'s own former "Send selection to
+  sink" button was retired in its favor), though whole-item only --
+  ``selectedMarkers`` (per-marker selection)
   dispatch remains unimplemented, and the one real sink target is a
   dev-only stub, not the real tabular view.
 * :doc:`plugins`' ``ResolverDeclaration`` ("associated data for objects

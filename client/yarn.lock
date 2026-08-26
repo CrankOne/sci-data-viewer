@@ -557,6 +557,11 @@ fsevents@~2.3.2, fsevents@~2.3.3:
   resolved "https://registry.yarnpkg.com/internmap/-/internmap-2.0.3.tgz#6685f23755e43c524e251d29cbc97248e3061009"
   integrity sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==
 
+jjsontree.js@^4.7.1:
+  version "4.7.1"
+  resolved "https://registry.yarnpkg.com/jjsontree.js/-/jjsontree.js-4.7.1.tgz#936be6df5f33dcbfb2d52c34929539201f6e91ee"
+  integrity sha512-z4qiV4iET5hv16wTM1roZ12C/Ls/k2Eh376rnMjmsms4hKSJM5bsZv5xAe0vvhOGUp3chzKaRengdt63J21IZQ==
+
 lodash@^4.17.21:
   version "4.17.21"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"

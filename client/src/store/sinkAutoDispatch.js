@@ -2,8 +2,8 @@
 // (doc/ui-session.rst's "Extension points"): once a link exists (store/
 // modules/contexts.js's sinkLinks), its origin's selection changing
 // re-sends the (still-filtered-by-payloadType/facetsSelector) reference set
-// automatically, for *every* link that origin has -- no more manually
-// re-clicking "Send selection to sink" after every click in the origin.
+// automatically, for *every* link that origin has -- no manual re-send
+// needed after every click in the origin.
 // This governs *which* items currently qualify for each link, re-evaluated
 // on every selection change; it has nothing to do with the *data* those
 // references resolve to, which is never cached here or at the target

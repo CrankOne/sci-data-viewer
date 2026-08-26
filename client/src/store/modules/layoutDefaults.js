@@ -10,7 +10,7 @@
 // camera presets) is stable across reloads rather than orphaned every time
 // the app boots.
 import { all_modules } from '@/modules/registry';
-import { make_split, make_items_leaf } from './layout';
+import { make_split, make_items_leaf, make_wiring_leaf } from './layout';
 
 export const DEFAULT_CONTEXT_ID = 'ctx-default';
 
@@ -39,16 +39,23 @@ function ensure_default_context() {
 
 // Builds a brand-new default tree from scratch -- used when nothing was
 // persisted at all. Deliberately minimal: a session starts empty, with
-// nothing but a place to add sources from -- no scene/viewport is
-// pre-created (that's now a user-initiated action, same as any other
-// module's content; see AddSourceModal.vue and AddContentModal.vue), and
-// no other core items are pre-populated either (they remain reachable via
-// "add content" on the empty main panel, same as always).
+// nothing but a place to add sources from and the wiring diagram (store/
+// modules/layout.js's 'wiring' leaf kind) -- no scene/viewport is
+// pre-created (that's now the wiring widget's own job, via its "New …
+// scope" context-menu item or hovering toolbar, same as any other content
+// a user creates; see AddSourceModal.vue and AddContentModal.vue for the
+// other ways). The wiring widget specifically -- unlike every other piece
+// of default content -- is seeded rather than left to "add content" on an
+// empty panel: it's the only UI left anywhere in the app for renaming or
+// deleting a scope (AppControls.vue's former "Scopes" table and each
+// contextual module's own "Send selection to sink" button were retired in
+// its favor, doc/ui-session.rst's "Extension points"), so a session with no
+// wiring widget present would have no path to either at all.
 export function build_default_root(store) {
     const sourcesId = ensure_item_instance(store, 'core:sources', null);
     const appControlsId = ensure_item_instance(store, 'core:appearance', null);
     const leftLeaf = make_items_leaf([sourcesId, appControlsId]);
-    const mainLeaf = make_items_leaf([]);
+    const mainLeaf = make_wiring_leaf();
     return make_split('row', 25, [leftLeaf, mainLeaf]);
 }
 

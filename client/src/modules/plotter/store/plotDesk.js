@@ -18,13 +18,12 @@
 // connection.js's own `resources`, which keeps each resource's last-fetched
 // raw payload on the resource record itself.
 import { with_data_source_facet, matches_facets_selector } from '@/store/facets';
+import { resolve_incoming_sink_items } from '@/store/sinkResolve';
 
 export function make_plot_desk_module(contextId) {
     // A plot source's raw fetched body is shaped `{plotData: {primitives}}`
     // (doc/module-plotter.rst's "plotData" envelope) -- mirrors the old
-    // payload()'s unwrap. `subjectData` has no consumer yet (its shape is
-    // still an open question in that doc), so only primitives are forwarded.
-    // Every primitive gets a `dataSource` facet merged into its own
+    // payload()'s unwrap. Every primitive gets a `dataSource` facet merged into its own
     // `_facets` (store/facets.js) -- doc/module-plotter.rst's per-item
     // convention, now guaranteed present regardless of what the source
     // itself declares -- then the resource's own facetsSelector, if any,
@@ -34,7 +33,14 @@ export function make_plot_desk_module(contextId) {
         const primitives = rawData?.plotData?.primitives ?? [];
         return primitives
             .map(item => with_data_source_facet(item, resourceName))
-            .filter(item => matches_facets_selector(item._facets, facetsSelector));
+            .filter(item => matches_facets_selector(item._facets, facetsSelector))
+            // Position-based id, minted after facet filtering so it stays
+            // dense (no gaps from filtered-out items) -- fine since a
+            // resource's array is always replaced wholesale, never diffed
+            // in place (this file's own header comment), so index
+            // stability within one payload is all a hover/selection id
+            // needs (doc/module-plotter.rst's "Open questions").
+            .map((item, index) => ({...item, _id: `${resourceName}#${index}`}));
     }
 
     return {
@@ -56,4 +62,25 @@ export function make_plot_desk_module(contextId) {
             allPrimitives: (state, getters) => Object.values(getters.primitivesByResource).flat()
         }
     };
+}
+
+// Sink-forwarded primitives (doc/ui-session.rst's "Selection sinks"), read
+// live off this context's own sinkInbox sub-state (store/sinkInbox.js's
+// make_sink_inbox_module, registered alongside plotDesk in modules/plotter/
+// index.js) -- kept out of plotDesk's own `allPrimitives` above (a sink
+// item's forwarded data is never mistaken for a directly-attached
+// resource's own), but exposed here as a plain function (not a Vuex
+// getter) so it's reusable both by PlotViewport.vue's own rendering and by
+// index.js's buildSinkSnapshot/resolveSinkItem (a selected primitive may be
+// either a desk primitive or one forwarded in from elsewhere, e.g. an FSM
+// node's own dashed pulse curves -- doc/module-plotter.rst's "Subject
+// data" primitives don't exist on directly-loaded plot sources today,
+// only on sink-forwarded ones). `_id` minted the same way as plotDesk's
+// own -- `${originRef}#${index}`, unique per forwarded primitive within
+// this context regardless of which origin item it came from.
+export function resolve_forwarded_primitives(store, contextId) {
+    const incoming = store.getters[`sinkInbox_${contextId}/incomingList`] ?? [];
+    return resolve_incoming_sink_items(store, incoming).flatMap(item =>
+        (item.snapshot?.primitives ?? []).map((p, index) => ({...p, _id: `${item.originRef}#${index}`}))
+    );
 }

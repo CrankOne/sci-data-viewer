@@ -307,7 +307,7 @@ class ThreeView {
 
     // Steps which single item (from the last raycast's under-cursor stack,
     // built by update_pointer()) is highlighted, without re-raycasting --
-    // driven by the wheel while `highlightAllUnderCursor' is off (see
+    // driven by shift+wheel while `highlightAllUnderCursor' is off (see
     // handle_wheel()). A no-op with nothing under the cursor.
     cycle_hover(direction) {  // {{{
         const n = this._hoverStack.length;
@@ -324,10 +324,16 @@ class ThreeView {
     // stopPropagation() it before OrbitControls' own wheel listener (bound
     // directly on the canvas) sees it, so scrolling doesn't also zoom.
     // Leaves OrbitControls entirely alone otherwise (no `enableZoom'
-    // toggling, no controls reconstruction): normal zoom behavior when
-    // `highlightAllUnderCursor' is on is completely unaffected.
+    // toggling, no controls reconstruction) whenever cycling doesn't apply:
+    // a plain wheel always zooms regardless of `highlightAllUnderCursor'
+    // (the common case, hence the default), and shift+wheel only cycles
+    // when there's something single-item to cycle *through*
+    // (`highlightAllUnderCursor' off) -- shift+wheel while it's on falls
+    // through to zoom too, same as a plain wheel, since "cycle the one
+    // hovered item" doesn't mean anything when every under-cursor item is
+    // already highlighted at once.
     handle_wheel(event) {  // {{{
-        if(this._vuexStore.state[this._selection].highlightAllUnderCursor) return false;
+        if(!event.shiftKey || this._vuexStore.state[this._selection].highlightAllUnderCursor) return false;
         this.cycle_hover(event.deltaY > 0 ? 1 : -1);
         return true;
     }  // }}}

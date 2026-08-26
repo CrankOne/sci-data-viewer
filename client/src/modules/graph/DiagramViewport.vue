@@ -38,17 +38,6 @@
       <button type="button" title="Fit diagram to view" @click="fit_to_view">
         Fit to view
       </button>
-
-      <span class="toolbar-separator" />
-
-      <button
-        type="button"
-        title="Send selection to sink"
-        :disabled="selectedIDs.size === 0"
-        @click="open_sink_picker"
-      >
-        Send selection to sink
-      </button>
     </div>
 
     <div ref="hostEl" class="diagram-viewport__canvas">
@@ -188,24 +177,6 @@ function on_unhover() {
     store.commit(`${selectionNS.value}/clear_hover`, 'diagram');
 }
 
-// Cross-module "selection sink" mechanism (doc/ui-session.rst's "Extension
-// points") -- opens the same connect-scope modal every other "pick or
-// create a scene" affordance in the app uses, in its 'sink' mode, mirroring
-// ItemsTree.vue's own open_sink_picker. 'sink-view' is only the initially
-// suggested target -- the modal itself offers every registered
-// receiveSinkMutation-capable module (ConnectScopeModal.vue), so 'plot'
-// (modules/plotter/) is reachable from here too.
-function open_sink_picker() {
-    store.commit('ui/open_modal', {
-        name: 'connect-scope',
-        props: {
-            kind: 'sink',
-            originContextId: contextId.value,
-            dataType: 'sink-view'
-        }
-    });
-}
-
 // --- Pan/zoom (doc's "Rendering") ---
 
 const hostEl = ref(null);
@@ -324,10 +295,6 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: 0.3rem;
-}
-
-.diagram-viewport__toolbar .toolbar-separator {
-    flex: 1;
 }
 
 .diagram-viewport__canvas {

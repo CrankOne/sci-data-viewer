@@ -6,8 +6,9 @@
   {itemId, path, label} shape the doc defines, na64umff-specific or not.
 
   Drilling itself is plain cross-namespace orchestration in this component,
-  the same pattern DiagramViewport.vue's own open_sink_picker already uses
-  for its root-level 'ui'/'contexts' calls: read the resource's current
+  the same pattern components/SinkWiringPanel.vue's own context-menu
+  actions (e.g. rename_scope) already use for their root-level 'ui'/
+  'contexts' calls: read the resource's current
   selectedItemId (connection.js, root), remember it as this resource's
   drill ancestor (store/graphBoard.js), then re-fetch the resource at the
   chosen itemId via connection.js's existing load_resource_data -- no new

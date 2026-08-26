@@ -426,10 +426,10 @@ pass, which exists only because three.js has no reactive DOM to lean on).
 This is also what makes "forward data associated with them to the plotter"
 concrete: forwarding a node or edge's ``subjectData.plot`` downstream
 reuses :doc:`ui-session`'s existing "Selection sinks" mechanism exactly as
-geo3d already does (a "Send selection to sink" affordance building a
-snapshot -- id, source, and current ``subjectData.plot`` -- and calling
-``send_selection_to_sink``), making this module a second sink *origin*
-alongside geo3d. Each selected node/edge is tagged by whichever named
+geo3d already does (``buildSinkSnapshot`` building a snapshot -- id,
+source, and current ``subjectData.plot`` -- for whichever sink link
+``components/SinkWiringPanel.vue``'s "Connect output" created), making
+this module a second sink *origin* alongside geo3d. Each selected node/edge is tagged by whichever named
 sub-aspect of its own ``subjectData`` matches a known sink-item type --
 today just ``plot`` (a node embedding a fitted state's parameters, e.g.
 na64utils-msadc's viewer plugin, shaped ``{primitives: [...]}`` like this
@@ -655,8 +655,9 @@ The first implementation should provide:
 5. hover/selection via the shared ``selection`` context module, node and
    edge ids namespaced and disambiguated as described in "Boards" and
    "Selection and forwarding";
-6. a "Send selection to sink" affordance mirroring geo3d's, even though it
-   currently has nowhere ready to land (see "Selection and forwarding");
+6. sink *origin* support (``buildSinkSnapshot``) mirroring geo3d's, reached
+   via ``SinkWiringPanel.vue``'s "Connect output" rather than a per-module
+   button (see "Selection and forwarding");
 7. sink *target* support (``sinkInbox``, ``GraphSinkPanel.vue``), same as
    "Selection and forwarding" above describes;
 8. the ``demo.graph-showroom`` fixture described above.

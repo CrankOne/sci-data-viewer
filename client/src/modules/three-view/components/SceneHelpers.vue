@@ -5,7 +5,7 @@
     <template #content>
       <div>Highlight invis. selection <input type="checkbox" v-model="highlightInvisibleOnHover"/></div>
       <div
-        title="When off, only one item under the cursor is highlighted at a time; the scroll wheel cycles between them instead of zooming."
+        title="When off (the default), only one item under the cursor is highlighted at a time; shift+scroll-wheel cycles between them. The scroll wheel alone always zooms."
       >
         Highlight all items under cursor
         <input type="checkbox" v-model="highlightAllUnderCursor"/>

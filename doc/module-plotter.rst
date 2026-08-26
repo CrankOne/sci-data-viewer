@@ -39,8 +39,20 @@ hit-testing).
 Supported interactions in the MP (affects all axes simultaneously):
 - left drag: rectangular zoom;
 - middle drag: pan;
-- wheel: zoom around pointer;
-- click: nearest-object selection;
+- wheel: zoom around pointer, always -- regardless of the toggle below;
+- shift+wheel: while "highlight all items under cursor" is off (this
+  scope's own ``selection`` module, ``highlightAllUnderCursor``, off by
+  default, exposed by this module's own "Plot Helpers" side panel) -- cycles
+  which single under-cursor item is hovered instead of zooming, mirroring
+  :doc:`module-3d-viewer`'s own scene picking exactly; falls through to zoom
+  (same as a plain wheel) when the toggle is on, since there's nothing
+  single-item to cycle through;
+- plain click: selects nothing (hover is driven purely by pointer movement,
+  never touched by a click itself);
+- shift+click: toggles selection membership of whatever's currently
+  hovered -- the whole under-cursor stack, or just the single cycled item,
+  depending on the same toggle -- multiple primitives at once when they
+  overlap;
 - shift+drag: data selection;
 
 Axes boxes:
@@ -121,6 +133,7 @@ Common properties for every item:
   own name (``store/facets.js``) -- so a primitive is never entirely
   unfaceted even when a source declares none of its own.
 - Transformation domain name (``_transfDomain``).
+- Subject data (``subjectData``, optional) -- see "Subject data" below.
 
 Markers
 ~~~~~~~
@@ -148,7 +161,10 @@ A polyline may set its own stroke style via ``dash``: a Canvas
 ``setLineDash``-compatible array of numbers (e.g. ``[6, 3]``); omitted or
 empty means solid. This is the primitive's own explicit choice -- the
 broader facet-based styling sub-panel "Styling" above anticipates is
-separate, larger, and still undesigned.
+separate, larger, and still undesigned. ``width`` (stroke width in px) and
+``alpha`` (0-1 opacity) are the same kind of explicit, primitive-level
+choice, e.g. for rendering a wide, faded connecting line behind its own
+per-sample point markers.
 
 **Raster picture** (bitmap). See "Styling" below for a note on appearance
 limits anticipated for especially demanding raster content.
@@ -168,8 +184,33 @@ or horizontally.
 Subject data
 ~~~~~~~~~~~~
 
-Any data associated to a primitive: an application-defined payload the
-client passes through without interpreting.
+An application-defined payload the client passes through without
+interpreting -- the same "opaque, passed through as-is" convention
+:doc:`module-graph` uses for a node/edge's own ``subjectData``. Two
+distinct levels, not to be confused with each other:
+
+- **Envelope-level** ``subjectData`` (the ``plotData`` example above,
+  alongside ``primitives``) -- context for the payload as a whole, e.g. an
+  event/detector identifier a source wants a receiver to have without
+  parsing it out of every primitive.
+- **Per-primitive** ``subjectData`` (a ``primitives[i].subjectData`` field,
+  same key, one level down) -- context for *that one item* specifically,
+  e.g. na64umff's own fitting-outcome info attached to one fitted pulse's
+  curve. This is what a selection-sink forwards when a primitive is
+  selected (see :doc:`ui-session`'s "Selection sinks" -- this module is a
+  sink origin exactly like :doc:`module-graph`'s nodes/edges are, just at
+  primitive granularity instead of node/edge granularity):
+
+.. code-block:: js
+
+    {
+        "_type": "polyline",
+        "_facets": {"series": "pulse-0", "stateId": "s10"},
+        "_transfDomain": "main",
+        "dash": [3, 3],
+        "data": [ ... ],
+        "subjectData": { ... }
+    }
 
 Desks
 -----
@@ -269,23 +310,29 @@ Open questions
   that's deliberate (see "Desks" above). What actually remained open here
   was one level in -- the *content* of a context's own state -- covered by
   the next point.
-* **Answered (shape, and now built), open (this module's UX)** --
-  :doc:`ui-session`'s "Selection sinks" provides the generic cross-module
-  *dispatch* mechanism (a context's ``sinkLinks``, manual one-shot
-  send); :doc:`ui-session`'s "Selection model" decides -- and, as of the
-  container itself, now implements -- the generic *shape* this module's own
-  selection state would take: a ``selection`` context module
-  (``store/selection.js``) three-view already registers itself as the first
-  consumer of, dataType-neutral fields, algebra in
-  ``store/selectionAlgebra.js``. This module would only need to register the
-  same ``contextStoreModules.selection`` entry to get it -- no new store
-  plumbing. Per-primitive-type sub-item-selection gating is not built yet
-  (still "Selection model"'s own open item), nor is this module's own UX on
-  top of the shape: likely nearest-object click selection, persisting until
-  changed, independent of hover, adapted for 2D specifics (e.g. what
-  "shift+drag: data selection" actually selects, and which of this module's
-  primitive types -- almost certainly ``markers``, unlikely paths/raster --
-  declare themselves open to sub-item selection at all).
+* **Answered and built** -- :doc:`ui-session`'s "Selection sinks" provides
+  the generic cross-module *dispatch* mechanism (a context's ``sinkLinks``);
+  :doc:`ui-session`'s "Selection model" decides the generic *shape* this
+  module's own selection state takes: the same ``selection`` context module
+  (``store/selection.js``) three-view/:doc:`module-graph` already register,
+  dataType-neutral. This module registers the same
+  ``contextStoreModules.selection`` entry -- no new store plumbing was
+  needed. Hover (nearest-under-cursor, ``modules/plotter/hitTest.js``,
+  ordered nearest-first into a hover stack) and shift+click multi-selection
+  (toggling membership of whatever's hovered -- the whole stack, or just the
+  single shift+wheel-cycled item, per ``highlightAllUnderCursor``, off by
+  default) are both built, at whole-primitive granularity -- mirroring
+  :doc:`module-3d-viewer`'s own
+  ``cycle_hover``/``toggle_hover_selection`` (``three/index.js``) exactly,
+  just against a 2D hit-test instead of a 3D raycast; a plain click no
+  longer selects anything (only re-hits hover at the release point), same
+  as the 3D view. The module is a sink *origin* too now
+  (``modules/plotter/index.js``'s ``buildSinkSnapshot``/``resolveSinkItem``),
+  forwarding a selected primitive's own ``subjectData`` (see "Subject data"
+  above) exactly like a graph node/edge does. Still open: what "shift+drag:
+  data selection" actually selects, and per-primitive-type sub-item
+  -selection gating (still "Selection model"'s own open item -- almost
+  certainly relevant only to ``markers``, unlikely paths/raster).
 * The axis right-click menu (linear/log2/log10, zoom out) is a plot-local,
   component-level UI element; its exact trigger (including any modifier-key
   semantics) and contents are an implementation detail expected to change,

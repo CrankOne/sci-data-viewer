@@ -72,51 +72,6 @@
         <button type="button" @click="switch_session">Switch session&hellip;</button>
       </div>
 
-      <div class="scenes-section">
-        <h4 class="scenes-heading">Scopes</h4>
-
-        <table v-if="scenes.length" class="scenes-table">
-          <thead>
-            <tr><th>Name</th><th>Type</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="scene in scenes" :key="scene.id">
-              <td>
-                <input
-                  type="text"
-                  :value="scene.name"
-                  @change="rename_scene(scene.id, $event.target.value)"
-                >
-              </td>
-              <td>{{ scene.dataType }}</td>
-              <td>
-                <button
-                  type="button"
-                  class="header-action"
-                  title="Remove scope"
-                  aria-label="Remove scope"
-                  @click="remove_scene(scene.id)"
-                >
-                  <span class="vi vi-trash-bin" aria-hidden="true" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="empty-state">No scopes yet.</p>
-
-        <div v-if="contextualModules.length" class="add-scene-row">
-          <select
-            v-if="contextualModules.length > 1"
-            v-model="addSceneType"
-            aria-label="New scope type"
-          >
-            <option v-for="m in contextualModules" :key="m.dataType" :value="m.dataType">{{ m.label }}</option>
-          </select>
-          <button type="button" @click="add_scene">+ Add scope</button>
-        </div>
-      </div>
-
       <div class="share-section">
         <h4 class="scenes-heading">Share</h4>
         <button type="button" :disabled="!shareable" @click="copy_permalink">Copy permalink</button>
@@ -132,8 +87,6 @@
 
 <script>
 import NavBarEntity from './NavBarEntity.vue';
-import { all_modules } from '@/modules/registry';
-import { create_scene_with_viewport, remove_scene_with_confirmation } from '@/sceneCreation';
 import { build_permalink, has_shareable_content } from '@/shareLink';
 import { fetch_plugin_manifest } from '@/pluginManifest';
 
@@ -150,9 +103,6 @@ export default {
       // 'copied' | 'error' | null -- transient feedback for copy_permalink,
       // cleared a couple seconds after either outcome.
       copyStatus: null,
-      // Which contextual module's scene "+ Add scene" creates -- only
-      // exposed as a picker (template above) when more than one exists.
-      addSceneType: all_modules().find(mod => mod.contextual)?.dataType ?? null,
       // {serverVersion, plugins: [{id, version}]} from GET /api/plugins,
       // fetched once on mount -- purely informational, so a failed fetch
       // just leaves this null (no server-info line shown) rather than
@@ -175,14 +125,6 @@ export default {
 
     sessionName() {
       return this.$store.state.session.activeName ?? '(unnamed)';
-    },
-
-    scenes() {
-      return this.$store.getters['contexts/list'];
-    },
-
-    contextualModules() {
-      return all_modules().filter(mod => mod.contextual);
     },
 
     // Whether there's anything a permalink could carry at all -- see
@@ -209,24 +151,6 @@ export default {
 
     switch_session() {
       this.$store.commit('ui/open_modal', {name: 'session-picker', props: {mode: 'switch'}});
-    },
-
-    rename_scene(id, name) {
-      this.$store.commit('contexts/rename_context', {id, name});
-    },
-
-    async remove_scene(id) {
-      await remove_scene_with_confirmation(this.$store, id);
-    },
-
-    // Creates a new scene and immediately gives it a viewport -- a scene
-    // can't usefully exist without one -- by wrapping the entire current
-    // layout in a new split, so this always has somewhere valid to place
-    // it regardless of the current tree shape. See sceneCreation.js: every
-    // "New scene…" option in the app goes through the same helper.
-    async add_scene() {
-      if(!this.addSceneType) return;
-      await create_scene_with_viewport(this.$store, {dataType: this.addSceneType});
     },
 
     // Builds a permalink snapshotting which items are currently loaded
@@ -300,47 +224,16 @@ export default {
   font-weight: bold;
 }
 
-.scenes-section {
-  margin-top: .6em;
-}
-
 .scenes-heading {
   margin: 0 0 .3em;
   font-size: .85rem;
   color: var(--clr-fg-main-muted);
 }
 
-.scenes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: .85rem;
-}
-
-.scenes-table th {
-  text-align: left;
-  color: var(--clr-fg-main-muted);
-  font-weight: normal;
-}
-
-.scenes-table td {
-  padding: .15em 0;
-}
-
-.scenes-table input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 .empty-state {
   color: var(--clr-fg-main-muted);
   font-style: italic;
   margin: .3em 0;
-}
-
-.add-scene-row {
-  display: flex;
-  align-items: center;
-  gap: .3em;
 }
 
 .share-section {

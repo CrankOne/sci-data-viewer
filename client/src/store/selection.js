@@ -75,11 +75,13 @@ export function make_selection_module() {
         // Behavior toggle common to any "graphical depiction" module
         // (three-view, the plotter, a future graph/block-diagram module):
         // when on, hovering highlights (and shift+click selects) every
-        // pickable item under the cursor at once; when off, only one item
-        // at a time. Anticipated here for any such module to read/write;
-        // no subpanel widget exposes it outside three-view yet (doc/
-        // ui-session.rst's "Selection model").
-        highlightAllUnderCursor: true,
+        // pickable item under the cursor at once; when off (the default --
+        // one item highlighted per hover is the more common case, "all
+        // under cursor" is the opt-in special case), only one item at a
+        // time, shift+wheel cycling through the rest. Exposed by
+        // three-view's SceneHelpers.vue and the plotter's
+        // PlotHelpersPanel.vue.
+        highlightAllUnderCursor: false,
 
         facetPresets: clone_presets(DEFAULT_FACET_PRESETS),
         activeFacetPresetName: "Source and transf.groups",

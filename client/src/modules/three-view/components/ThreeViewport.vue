@@ -244,8 +244,9 @@ function cancel_pointer_update() {
 // renderer's canvas -- OrbitControls listens for 'wheel' on the canvas
 // itself, so stopping propagation here, during the capture phase, keeps the
 // event from ever reaching OrbitControls' own listener and zooming. Only
-// takes effect while "highlight all items under cursor" is off; otherwise
-// view.handle_wheel() returns false and the event is left untouched.
+// takes effect for shift+wheel while "highlight all items under cursor" is
+// off; a plain wheel (the common zoom gesture) always leaves
+// view.handle_wheel() returning false and the event untouched.
 const WHEEL_LISTENER_OPTIONS = {capture: true, passive: false};
 
 function on_wheel(event) {

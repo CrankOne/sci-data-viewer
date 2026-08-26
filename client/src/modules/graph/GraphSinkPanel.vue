@@ -18,8 +18,8 @@
 
     <template #content>
       <div v-if="!incomingList.length" class="empty-state">
-        Nothing routed in yet -- another module's "Send selection to sink"
-        can target this board.
+        Nothing routed in yet -- connect another scope's output to this
+        board from the wiring diagram.
       </div>
 
       <div v-else class="graph-sink-panel">

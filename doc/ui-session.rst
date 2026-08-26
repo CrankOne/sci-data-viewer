@@ -447,13 +447,14 @@ the shape costs nothing unused.
 
 A behavior toggle equivalent to three-view's former
 ``highlightAllUnderCursor`` (everything-under-the-cursor vs.
-single-nearest-cycle-by-wheel) now lives in the shared module too --
+single-nearest-cycle-by-shift+wheel, off by default -- one item highlighted
+per hover is the more common case) now lives in the shared module too --
 meaningful to any "graphical depiction" module (three-view, the plotter, a
 future graph/block-diagram module) but not to a non-graphical one (a future
-tabular/object-browser module). No subpanel widget exposes it outside
-three-view yet -- the plotter has none designed (:doc:`module-plotter`) --
-so it stays wired to its default there, present but unreachable from that
-module's UI until such a widget exists.
+tabular/object-browser module). A plain wheel always zooms regardless of the
+toggle; shift+wheel only cycles when the toggle is off, falling through to
+zoom too otherwise. Both three-view's ``SceneHelpers.vue`` and the plotter's
+``PlotHelpersPanel.vue`` (:doc:`module-plotter`) expose a checkbox for it.
 
 What stays per-module, deliberately not generalized:
 
@@ -545,8 +546,8 @@ watches every ``selection_<ctx>`` module's selection-changing mutations
 (``select_items``/``unselect_items``/``clear_selection``/
 ``apply_selection_set``) and calls ``send_selection_to_sink`` again, for
 every active link on that context, whenever the selection actually changes
--- so a link, once created, stays current without the user re-clicking
-"Send selection to sink" after every click in the origin. A stale link
+-- so a link, once created, stays current without the user re-triggering a
+send after every click in the origin. A stale link
 (its target's registry declaration changed since the link was created, or
 it was persisted under the pre-payloadType shape) fails that resend with a
 caught, logged warning rather than breaking every other active link.

@@ -349,12 +349,14 @@ function edge_path(edgeProps) {
 
 const contextMenu = ref(null); // {x, y, items} | null
 
-// Opens the same "Send selection to sink" picker every module's own
-// affordance already uses (e.g. modules/graph/DiagramViewport.vue's
-// open_sink_picker) -- for a scope node, its own selection; for a resource
-// node, ConnectScopeModal's 'resource' kind reassigns which scope the
-// resource's data flows into (mirrors SourceListItem.vue's own "Connect to
-// scope" button).
+// Opens the connect-scope picker in its 'sink' mode -- the one remaining
+// way to send a scope's selection to a sink, now that each module's own
+// former "Send selection to sink" button (DiagramViewport.vue's
+// open_sink_picker, ItemsTree.vue's own) was retired in this widget's
+// favor -- for a scope node, its own selection; for a resource node,
+// ConnectScopeModal's 'resource' kind reassigns which scope the resource's
+// data flows into (mirrors SourceListItem.vue's own "Connect to scope"
+// button).
 function connect_scope_output(contextId) {
     store.commit('ui/open_modal', {
         name: 'connect-scope',
