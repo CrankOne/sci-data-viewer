@@ -8,3 +8,4 @@ Modules
    module-plotter
    module-table
    module-graph
+   module-journal

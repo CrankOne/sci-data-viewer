@@ -197,6 +197,18 @@ already defines it for its own primitives. This is the vehicle for "forward
 data associated with [nodes and edges] to the plotter" -- see "Selection and
 forwarding" below for how it actually travels there.
 
+Two named sub-aspects are recognized as sink-forwardable today (``modules/
+graph/index.js``'s ``resolve_selected_item``, doc/ui-session.rst's
+"Selection sinks"): a node's own ``subjectData.plot`` (na64umff's fitted-state
+curves, :doc:`module-plotter`) and an edge's own ``subjectData.journal``
+(na64umff's per-transition log messages, :doc:`module-journal`) --
+``{"messages": [{"level": "debug" | "error", "message": "..."}, ...]}``,
+verbatim from the C++ fitter's own results logger. Assumed mutually
+exclusive by item kind (a node forwards ``plot``, an edge forwards
+``journal``, never both) -- everything else under ``subjectData`` (e.g. a
+node's own ``createdByTransition``/``parameters``) stays opaque, never
+matched against a sink-item type.
+
 Nested graphs
 ~~~~~~~~~~~~~
 

@@ -613,19 +613,25 @@ originRef, snapshot}]`` (optional)
     (``modules/graph/index.js``) reads ``graphBoard_<ctx>``'s
     ``dataByResource`` directly (not ``DiagramViewport.vue``'s own merged
     getters) and tags each selected node/edge by whichever named sub-aspect
-    of its own ``subjectData`` matches a known type -- today just ``'plot'``
-    (``subjectData.plot``, a node embedding a fitted state's parameters,
-    :doc:`module-graph`'s "Subject data") -- never by the item's structural
-    kind (node vs. edge), by graph's own ``dataType``, or by ``subjectData``
-    as a whole (it's a grab-bag of several named aspects, only some of
-    which match a sink-item type); an item with no ``subjectData.plot``
-    yields nothing. This is the point of payload
+    of its own ``subjectData`` matches a known type -- ``subjectData.plot``
+    (a node embedding a fitted state's evaluated curves,
+    :doc:`module-graph`'s "Subject data") or ``subjectData.journal`` (an
+    edge's own per-transition log messages, :doc:`module-journal`) -- never
+    by the item's structural kind (node vs. edge), by graph's own
+    ``dataType``, or by ``subjectData`` as a whole (it's a grab-bag of
+    several named aspects, only some of which match a sink-item type); an
+    item with neither yields nothing. The two are assumed mutually
+    exclusive in practice (a node carries `plot`, an edge carries
+    ``journal``, never both on one item) -- only the first match is
+    forwarded, so this would need generalizing if that assumption ever
+    stops holding. This is the point of payload
     type being per-*item* rather than a fixed property of the module: a
     receiver only ever learns what *type* of data arrived, never which
     module or which kind of item it came from, so ``acceptsPayloadTypes``
     can stay a small, origin-agnostic vocabulary (``'geo3d'``/``'plot'``/
-    ``'table'``/...) shared with what a directly-loaded resource itself
-    carries, rather than one bespoke tag per producing module. A module
+    ``'table'``/``'journal'``/...) shared with what a directly-loaded
+    resource itself carries, rather than one bespoke tag per producing
+    module. A module
     with no ``buildSinkSnapshot`` (e.g. table, which has no selection-based
     dispatch of any kind) simply isn't a selection-based sink origin:
     nothing calls it, and ``sinkAutoDispatch.js`` skips such a context's
