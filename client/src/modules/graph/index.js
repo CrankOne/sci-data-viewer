@@ -71,10 +71,11 @@ register_module({
     // this became a registry-declared, generically-dispatched function).
     //
     // `payloadType` names the type of whatever named sub-aspect of the
-    // item's own ``subjectData`` matches a known sink-item type -- today
-    // just `plot` (``subjectData.plot``, shaped like this module's own
-    // plotData envelope per doc/module-graph.rst's "Subject data") -- never
-    // the item's own structural role (node vs. edge) within this module. A
+    // item's own ``subjectData`` matches a known sink-item type -- `plot`
+    // (``subjectData.plot``, shaped like this module's own plotData
+    // envelope) or `journal` (``subjectData.journal``, doc/module-journal
+    // .rst) per doc/module-graph.rst's "Subject data" -- never the item's
+    // own structural role (node vs. edge) within this module. A
     // node and an edge carrying the same kind of subjectData forward
     // identically; the receiver (doc/ui-session.rst's "Selection sinks")
     // never learns which one it selected, only what's in the payload --
@@ -117,16 +118,25 @@ function resolve_selected_item(store, contextId, compositeId) {
     const item = collection?.find(entry => entry._id === localId);
     // `subjectData` is a grab-bag (doc/module-graph.rst's "Subject data"),
     // not itself the forwarded payload -- real payloads (na64umff's FSM
-    // nodes) carry it as `{plot: {primitives: [...]}, parameters: [...],
-    // createdByTransition: {...}, ...}`, only `plot` matching a known
-    // sink-item type. Forwarding `subjectData` whole (an earlier version of
-    // this function did) put `parameters`/`createdByTransition`/etc. in the
-    // way of `snapshot.primitives`, which is what a 'plot'-typed receiver
-    // actually reads -- silently empty, not an error.
-    if(!item?.subjectData?.plot) return [];
+    // nodes/edges) carry it as `{plot: {primitives: [...]}, parameters:
+    // [...], createdByTransition: {...}, ...}` (a node) or `{journal:
+    // {messages: [...]}, transitionId, ...}` (an edge), only `plot`/
+    // `journal` matching a known sink-item type. Forwarding `subjectData`
+    // whole (an earlier version of this function did) put `parameters`/
+    // `createdByTransition`/etc. in the way of `snapshot.primitives`, which
+    // is what a 'plot'-typed receiver actually reads -- silently empty, not
+    // an error.
+    //
+    // Assumed mutually exclusive by item kind today (a node carries `plot`,
+    // an edge carries `journal`, never both on one item) -- only the first
+    // match is ever forwarded/resolved (`resolveSinkItem`'s own `[0]`
+    // below), so this would need to return/resolve more than one if that
+    // assumption ever stops holding.
+    const aspect = item?.subjectData?.plot ? 'plot' : item?.subjectData?.journal ? 'journal' : null;
+    if(!aspect) return [];
     return [{
         itemId: localId, srcID: resourceName, originRef: compositeId,
-        payloadType: 'plot',
-        snapshot: {...item.subjectData.plot, _facets: item._facets, _kind: kind}
+        payloadType: aspect,
+        snapshot: {...item.subjectData[aspect], _facets: item._facets, _kind: kind}
     }];
 }

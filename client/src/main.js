@@ -22,6 +22,7 @@ import './modules/three-view';  // registers itself as a viewer module (dataType
 import './modules/plotter';  // registers itself as a viewer module (dataType: 'plot')
 import './modules/table';  // registers itself as a viewer module (dataType: 'table')
 import './modules/graph';  // registers itself as a viewer module (dataType: 'graph')
+import './modules/journal';  // registers itself as a viewer module (dataType: 'journal')
 // Dev-only stub proving the cross-module "selection sink" mechanism end to
 // end (doc/ui-session.rst's "Extension points") -- deliberately last, so
 // layoutDefaults.js's ensure_default_context() (which picks the first
