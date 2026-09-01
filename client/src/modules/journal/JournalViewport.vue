@@ -1,12 +1,11 @@
 <!--
   Journal viewport (doc/module-journal.rst) -- lists whatever has landed in
-  this context's own sinkInbox sub-state (store/sinkInbox.js), one plain
-  -text message list per origin, resolved to current data (store/
-  sinkResolve.js -- sinkInbox itself only holds references, resolution is
-  always live). Deliberately dumb about anything beyond `{level, message}`
-  per message (doc's "Data") -- no columns, sorting, or per-message
-  selection yet, same "draft, for now" scope as the module registration
-  itself (index.js).
+  this context's own sinkInbox sub-state (store/sinkInbox.js), one
+  JournalTree per origin, resolved to current data (store/sinkResolve.js --
+  sinkInbox itself only holds references, resolution is always live).
+  Deliberately dumb about anything beyond `{log, children}` per item (doc's
+  "Data") -- no columns, sorting, or per-message selection yet, same
+  "draft, for now" scope as the module registration itself (index.js).
 -->
 <template>
   <div class="journal-viewport">
@@ -16,15 +15,8 @@
     </p>
     <div v-for="entry in entries" :key="entry.originContextId + ':' + entry.itemId" class="journal-viewport__entry">
       <div class="journal-viewport__entry-label">From {{ entry.originContextId }} ({{ entry.itemId }})</div>
-      <p v-if="!entry.messages.length" class="journal-viewport__empty">(no messages on this item)</p>
-      <ul v-else class="journal-viewport__messages">
-        <li
-          v-for="(msg, i) in entry.messages"
-          :key="i"
-          class="journal-viewport__message"
-          :class="`journal-viewport__message--${msg.level ?? 'debug'}`"
-        >{{ msg.message }}</li>
-      </ul>
+      <p v-if="!entry.tree" class="journal-viewport__empty">(no messages on this item)</p>
+      <JournalTree v-else :tree="entry.tree" />
     </div>
   </div>
 </template>
@@ -33,6 +25,7 @@
 import { computed } from 'vue';
 import { useStore } from 'vuex';
 import { resolve_incoming_sink_items } from '@/store/sinkResolve';
+import JournalTree from './JournalTree.vue';
 
 const props = defineProps({
     instanceId: {type: String, required: true}
@@ -44,14 +37,17 @@ const contextId = computed(() => store.getters['widgetInstances/instance'](props
 const sinkInboxNS = computed(() => `sinkInbox_${contextId.value}`);
 const incomingList = computed(() => contextId.value ? store.getters[`${sinkInboxNS.value}/incomingList`] : []);
 
-// One entry per resolved sink item -- `snapshot.messages` is this module's
-// only recognized field (doc's "Data"); anything else a producer's own
-// journal payload carries is silently ignored, same "opaque passthrough,
-// read only what you know" convention every other sink consumer follows.
+// One entry per resolved sink item -- `snapshot` itself *is* the journal
+// tree root (`{log, children}`, plus `_facets`/`_kind` riding along from
+// the generic sink-resolve envelope, which JournalTree simply never reads)
+// -- this module's only recognized shape (doc's "Data"); anything else a
+// producer's own journal payload carries is silently ignored, same
+// "opaque passthrough, read only what you know" convention every other
+// sink consumer follows.
 const entries = computed(() => resolve_incoming_sink_items(store, incomingList.value).map(item => ({
     originContextId: item.originContextId,
     itemId: item.itemId,
-    messages: item.snapshot?.messages ?? []
+    tree: item.snapshot ?? null
 })));
 </script>
 
@@ -79,32 +75,5 @@ const entries = computed(() => resolve_incoming_sink_items(store, incomingList.v
     margin-bottom: 4px;
     font-size: 8pt;
     color: var(--clr-fg-main-muted);
-}
-
-.journal-viewport__messages {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-family: var(--font-data);
-}
-
-.journal-viewport__message {
-    padding: 1px 4px;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-.journal-viewport__message--debug {
-    color: var(--clr-fg-panel);
-}
-
-/* A small preview of the "severity" column planned later (doc's
-   "Rendering") -- an error-level message reads distinctly without waiting
-   on that redesign. No dedicated "error"/"danger" token exists app-wide
-   yet, so this borrows the same first categorical palette slot the
-   plotter uses for its own default marker color (--clr-legend1) rather
-   than inventing a new global CSS variable for one draft component. */
-.journal-viewport__message--error {
-    color: var(--clr-legend1);
 }
 </style>

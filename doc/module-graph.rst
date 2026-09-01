@@ -201,10 +201,12 @@ Two named sub-aspects are recognized as sink-forwardable today (``modules/
 graph/index.js``'s ``resolve_selected_item``, doc/ui-session.rst's
 "Selection sinks"): a node's own ``subjectData.plot`` (na64umff's fitted-state
 curves, :doc:`module-plotter`) and an edge's own ``subjectData.journal``
-(na64umff's per-transition log messages, :doc:`module-journal`) --
-``{"messages": [{"level": "debug" | "error", "message": "..."}, ...]}``,
-verbatim from the C++ fitter's own results logger. Assumed mutually
-exclusive by item kind (a node forwards ``plot``, an edge forwards
+(na64umff's per-transition log tree, :doc:`module-journal`) -- ``{"log":
+[{"level": "debug" | "error", "message": "..."}, ...], "children":
+{"<nested procedure name>": <same shape>, ...}}``, ``log``/``level``/
+``message`` verbatim from the C++ fitter's own results logger, nested
+procedures kept as their own named subtree rather than flattened in.
+Assumed mutually exclusive by item kind (a node forwards ``plot``, an edge forwards
 ``journal``, never both) -- everything else under ``subjectData`` (e.g. a
 node's own ``createdByTransition``/``parameters``) stays opaque, never
 matched against a sink-item type.
