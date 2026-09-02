@@ -58,25 +58,22 @@ export default {
 
 <style scoped>
 div#navbarEntity {
-  margin-bottom: 5pt;
   background-color: var(--clr-bg-panel);
 }
 
 div#header {
+  font-size: var(--um1);
   background-color: var(--clr-bg-panel-header);
   color: var(--clr-fg-panel-header);
 
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--um1);
 
-  padding: 2pt 5pt;
-  font-family: var(--font-ui);
   font-weight: bold;
   text-align: left;
-  letter-spacing: 1pt;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-size: 9pt;
   cursor: pointer;
 }
 
@@ -86,6 +83,7 @@ div#header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: var(--um3);
 }
 
 #header-actions {
@@ -107,9 +105,8 @@ div.closed:before {
 }
 
 div#content {
-  font-size: 9pt;
   background-color: var(--clr-bg-panel);
-  padding: 2pt 5pt;
+  padding: var(--um3);
 
   /* Bounded instead of the old percentage-of-parent cap: an accordion's
      content used to be able to grow past its own box (max-height:30% of a

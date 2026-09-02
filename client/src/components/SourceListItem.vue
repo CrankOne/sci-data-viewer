@@ -1,42 +1,44 @@
 <template>
   <FramedDisclosure v-model="expanded">
     <template #header>
-      <span class="source-name">{{ name }}</span>
+      <span class="source-name text-heavier">{{ name }}</span>
     </template>
 
     <template #actions>
-      <button
-        v-if="contextualDataType"
-        type="button"
-        class="header-action"
-        title="Connect to scope"
-        aria-label="Connect to scope"
-        @click="open_connect_scope"
-      >
-        <span class="vi vi-cube" aria-hidden="true" />
-      </button>
+      <div class="button-group">
+        <button
+          v-if="contextualDataType"
+          type="button"
+          class="header-action"
+          title="Connect to scope"
+          aria-label="Connect to scope"
+          @click="open_connect_scope"
+        >
+          <span class="vi vi-cube" aria-hidden="true" />
+        </button>
 
-      <button
-        v-if="!noRefreshManifest"
-        type="button"
-        class="header-action"
-        title="Reload manifest"
-        aria-label="Reload manifest"
-        @click="reload_manifest"
-      >
-        <span class="vi vi-reload" aria-hidden="true" />
-      </button>
+        <button
+          v-if="!noRefreshManifest"
+          type="button"
+          class="header-action"
+          title="Reload manifest"
+          aria-label="Reload manifest"
+          @click="reload_manifest"
+        >
+          <span class="vi vi-reload" aria-hidden="true" />
+        </button>
 
-      <button
-        v-if="!noRemove"
-        type="button"
-        class="header-action"
-        title="Remove source"
-        aria-label="Remove source"
-        @click="remove_resource"
-      >
-        <span class="vi vi-trash-bin" aria-hidden="true" />
-      </button>
+        <button
+          v-if="!noRemove"
+          type="button"
+          class="header-action"
+          title="Remove source"
+          aria-label="Remove source"
+          @click="remove_resource"
+        >
+          <span class="vi vi-trash-bin" aria-hidden="true" />
+        </button>
+      </div>
     </template>
 
     <component :is="concreteSourceItemComponent" v-bind="definition"/>
@@ -142,13 +144,9 @@ export default {
 <style scoped>
 .source-name {
   min-width: 0;
-
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-
-  font-size: .9rem;
-  font-weight: 600;
 }
 
 </style>

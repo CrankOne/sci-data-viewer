@@ -33,4 +33,7 @@ export default {
 </script>
 
 <style scoped>
+.dataSourceList > section {
+  margin: var(--up1) var(--um3);
+}
 </style>

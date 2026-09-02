@@ -1,5 +1,5 @@
-/*                                                                 ___________
- * ________________________________________________________________/ Typography
+/*                                                                  __________
+ * _______________________________________________________________/ Typography
  * Two root-defined font stacks -- every component should reference these
  * rather than hardcoding a family, so the whole app's typography can be
  * changed in one place. `--font-ui` (sans-serif) is for labels, buttons,
@@ -123,7 +123,10 @@
     --clr-fg-options: var(--clr-neutral-fg);
 
     --clr-bg-button: var(--clr-neutral-brighten2);
-    --clr-fg-button: var(--clr-accent);
+    --clr-fg-button: var(--clr-accent-darken);
+
+    --clr-bg-input: var(--clr-bg-main);
+    --clr-fg-input: var(--clr-supporting);
 
     /* - graph entities (plots, 3D, etc) */
     --clr-graph-background: var(--clr-neutral);
@@ -149,8 +152,8 @@
     --clr-bg-panel: var(--clr-neutral);
     --clr-fg-panel: var(--clr-supporting-brighten);
 
-    --clr-bg-panel-header: var(--clr-neutral-brighten);
-    --clr-fg-panel-header: var(--clr-supporting-brighten);
+    --clr-bg-panel-header: var(--clr-bg-main);
+    --clr-fg-panel-header: var(--clr-bg-highlight2);
 
     --clr-border-active: var(--clr-supporting);
     --clr-border-inactive: var(--clr-supporting-darken);
@@ -166,6 +169,9 @@
 
     --clr-bg-button: var(--clr-supporting-brighten);
     --clr-fg-button: var(--clr-bg-main);
+
+    --clr-bg-input: var(--clr-neutral-darken);
+    --clr-fg-input: var(--clr-neutral-brighten2);
 
     /* - graph entities (plots, 3D, etc) */
     --clr-graph-background: var(--clr-neutral);
@@ -209,18 +215,105 @@ output {
     font-family: var(--font-data);
 }
 
-button,
-select {
-    font-family: var(--font-ui);
-}
-
-button {
-    border-radius: 0.2rem;
-    border: 1px solid var(--clr-border-inactive);
-}
-
-button:hover {
-    border: 1px solid var(--clr-accent);;
+button:hover:not(:disabled) {
+    border: 1px solid var(--clr-accent);
     background-color: var(--clr-accent);
     color: var(--clr-neutral-darken);
 }
+
+/* Sizes and layout */
+
+html {
+    font-size: 14px;
+}
+
+:root {
+    --um3: 0.25rem;
+    --um2: 0.5rem;
+    --um1: 0.75rem;
+    --u0:  1.00rem;
+    --up1: 1.25rem;
+    --up2: 1.5rem;
+    --up3: 2rem;
+
+    --control-height: var(--up2);
+
+    --border-thin: 1px;
+
+    --border-radius: var(--um2);
+}
+
+input, select, button {
+    height: var(--control-height);
+    min-width: var(--control-height);
+    border: var(--border-thin) solid var(--clr-border-active);
+    font-family: var(--font-ui);
+    border-radius: var(--border-radius);
+
+    font-size: var(--u0);
+}
+
+button, select {
+    color: var(--clr-fg-button);
+    background-color: var(--clr-bg-button);
+}
+
+input {
+    color: var(--clr-fg-input);
+    background-color: var(--clr-bg-input);
+}
+
+/* background should be set for standalone buttons, inputs, selection, but
+ * only when they're not (immediate) part of the button group */
+:is(button, select, input):not(.button-group > *) {
+    /* background-color: transparent; */
+}
+
+/* Align (lift) slightly the baseline of the immediate content within button
+ * when it's content is not iconic (.vi) */
+:is(button, select) > :not(.vi) {
+    position: relative;
+    bottom: .125rem;
+}
+
+input[type="number"] {
+  box-sizing: border-box;
+  width: calc(6ch + 1.2rem);
+  text-align: right;
+}
+
+.button-group > button + button {
+  border-left: 1px dotted var(--clr-border-active);
+}
+
+.button-group {
+  border-radius: var(--border-radius);
+  border: var(--border-thin) solid var(--clr-border-active);
+  display: inline-flex;
+  background-color: var(--clr-bg-button);
+}
+
+.button-group button {
+  border: none;
+  border-radius: var(--border-radius);
+}
+
+button > span.vi {
+  font-size: var(--up1);
+}
+
+/*
+ * Text styling
+ */
+
+/* Used for titles and groups */
+.text-heavier {
+  font-weight: bolder;
+}
+
+/* Used for supplementary information */
+.text-faint {
+  font-size: var(--um1);
+  color: var(--clr-fg-main-muted);
+}
+

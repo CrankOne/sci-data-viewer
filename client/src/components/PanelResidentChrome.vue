@@ -96,49 +96,54 @@ function on_drag_start(event) {
 .resident-chrome__knob {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 22px;
-  height: 22px;
-  clip-path: polygon(100% 0, 100% 100%, 0 0);
-  background: var(--clr-accent-darken);
+  left: 0;
+  width: var(--up3);
+  height: var(--up3);
+  clip-path: polygon(100% 0, 0 100%, 0 0);
+  background-filter: blur(3px);
   cursor: grab;
   z-index: 10;
+  color: var(--clr-supporting);
+}
+
+.resident-chrome__knob:hover {
+  color: var(--clr-main);
+  background-color: var(--clr-accent);
 }
 
 .resident-chrome__knob-icon {
   position: absolute;
-  top: 1px;
-  right: 6px;
-  font-size: 10px;
+  top: var(--um3);
+  left: var(--um3);
+  font-size: var(--u0);
   line-height: 1;
-  color: var(--clr-fg-panel-header);
   pointer-events: none;
 }
 
 .resident-chrome__remove {
   position: absolute;
-  top: 0.3rem;
-  /* Clears the knob's footprint at the actual corner above. */
-  right: 1.7rem;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  width: var(--up3);
+  height: var(--up3);
+  background-filter: blur(3px);
   z-index: 10;
 }
 
-/* Hovering toolbar row -- visual language matches ThreeViewport.vue's own
-   .camera-widget/.camera-widget__bar (blurred backdrop, compact flex row),
-   not a shared stylesheet -- scoped CSS can't cross components, and this is
-   simple enough not to be worth a CSS-variables-only extraction yet. */
+/* Hovering toolbar row */
 .resident-chrome__toolbar {
   position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
+  top: var(--um2);
+  left: calc(3*var(--um2));
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem;
+  gap: var(--um3);
+  padding: var(--um3);
   max-width: min(36rem, calc(100% - 1.5rem));
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 4pt;
+  border: var(--border-thin) solid var(--clr-border-inactive);
+  border-radius: var(--border-radius);
   background: var(--clr-neutral-transparent);
   backdrop-filter: blur(3px);
 }

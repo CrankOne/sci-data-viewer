@@ -1,17 +1,17 @@
 <template>
   <div>
-    <div v-if="selectedItemId" class="addr-status">
+    <div v-if="selectedItemId" class="text-faint addr-status">
       Loaded "<strong>{{ selectedItemId }}</strong>"<span v-if="dataSize != null"> ({{ dataSize }} bytes)</span>
     </div>
-    <div v-else class="addr-status addr-status-muted">No file loaded yet -- pick one below.</div>
+    <div v-else class="text-faint addr-status">Nothing loaded yet -- pick an item below.</div>
     <div v-if="status === 'error' && error" class="addr-error">{{ error }}</div>
 
     <QueryOptionsForm :name="name" :queryOptions="queryOptions" :queryValues="queryValues"/>
 
     <div v-if="listError" class="addr-error">{{ listError }}</div>
     <ul v-else class="addr-list">
-      <li v-if="listLoading" class="addr-list-note">Loading files&hellip;</li>
-      <li v-else-if="!items.length" class="addr-list-note">No matching files.</li>
+      <li v-if="listLoading" class="addr-list-note">Loading&hellip;</li>
+      <li v-else-if="!items.length" class="addr-list-note">No match.</li>
       <li
         v-for="id in items"
         :key="id"
@@ -23,7 +23,7 @@
     </ul>
 
     <div class="addr-pagination">
-      <button type="button" :disabled="!hasPrevPage || listLoading" @click="prev_page">&lsaquo; Prev</button>
+      <button type="button" :disabled="!hasPrevPage || listLoading" @click="prev_page"><span>&lsaquo;</span></button>
       <span class="addr-page-label">
         Page
         <input
@@ -38,7 +38,7 @@
         <template v-if="totalPages"> of {{ totalPages }}</template>
         <template v-if="total != null"> ({{ total }} files)</template>
       </span>
-      <button type="button" :disabled="!hasNextPage || listLoading" @click="next_page">Next &rsaquo;</button>
+      <button type="button" :disabled="!hasNextPage || listLoading" @click="next_page"><span>&rsaquo;</span></button>
     </div>
   </div>
 </template>
@@ -156,38 +156,29 @@ export default {
 </script>
 
 <style scoped>
-.addr-status {
-  font-size: .85rem;
-}
-
-.addr-status-muted {
-  color: var(--clr-fg-main-muted);
-}
-
 .addr-error {
   color: var(--clr-fg-main-highlighted);
-  font-size: .85rem;
 }
 
 .addr-list {
   list-style: none;
-  margin: 6pt 0 0;
+  margin: var(--um3) 0 0;
   padding: 0;
   max-height: 12rem;
   overflow-y: auto;
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 3pt;
+  border: var(--border-thin) solid var(--clr-border-inactive);
+  border-radius: var(--border-radius);
 }
 
 .addr-list-note {
-  padding: 4pt 6pt;
-  font-size: .85rem;
+  padding: var(--um3) var(--um2);
+  font-size: var(--u0);
   color: var(--clr-fg-main-muted);
 }
 
 .addr-item {
-  padding: 3pt 6pt;
-  font-size: .8rem;
+  padding: var(--um3) var(--um2);
+  font-size: var(--u0);
   font-family: var(--font-data);
   white-space: nowrap;
   overflow: hidden;
@@ -201,27 +192,23 @@ export default {
 
 .addr-item.selected {
   background-color: var(--clr-bg-highlight1);
-  font-weight: 600;
 }
 
 .addr-pagination {
-  margin-top: 4pt;
+  margin-top: var(--um3);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6pt;
-  font-size: .8rem;
+  gap: var(--um3);
 }
 
 .addr-page-label {
   color: var(--clr-fg-main-muted);
-  text-align: center;
   flex: 1 1 auto;
 }
 
 .addr-page-input {
-  width: 3.2em;
-  text-align: center;
-  font-size: .8rem;
+  width: calc(6ch + 1.2rem);
+  font-size: var(--u0);
 }
 </style>

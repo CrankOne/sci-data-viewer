@@ -325,7 +325,6 @@ function on_item_drop(event, item) {
     min-width: 0;
     min-height: 0;
     overflow: auto;
-    padding: 0 3pt;
 }
 
 .panel--drop-target {

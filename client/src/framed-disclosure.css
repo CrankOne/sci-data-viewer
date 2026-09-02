@@ -1,14 +1,14 @@
 .framed-disclosure {
-  --fd-padding-x: 0.75rem;
-  --fd-padding-top: 1.1rem;
-  --fd-padding-bottom: 0.65rem;
+  --fd-padding-x: var(--um1);
+  --fd-padding-top: var(--up1);
+  --fd-padding-bottom: var(--um2);
   --fd-header-background: var(--clr-bg-panel);
   --fd-border-color: var(--clr-border-inactive);
 
   position: relative;
   min-width: 0;
 
-  margin-top: 0.75rem;
+  margin-top: var(--um1);
 
   /*
    * Reserve the same header/frame space in both states.
@@ -21,18 +21,16 @@
   /*
    * Collapsed appearance: only a subdued upper rule.
    */
-  border-top: 1px solid var(--fd-border-color);
+  border-top: var(--border-thin) solid var(--fd-border-color);
   background: transparent;
 }
 
 .framed-disclosure--open {
   padding-bottom: var(--fd-padding-bottom);
 
-  border:
-    1px solid
-    var(--fd-border-color);
+  border: 1px solid var(--fd-border-color);
 
-  border-radius: 0.4rem;
+  border-radius: var(--um3);
   background: var(--fd-header-background);
 }
 
@@ -45,7 +43,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--um2);
 
   min-width: 0;
 
@@ -54,8 +52,12 @@
 
 .framed-disclosure__header,
 .framed-disclosure__actions {
-  padding-inline: 0.35rem;
+  padding-inline: var(--um3);
+}
+
+.framed-disclosure__header span {
   background: var(--fd-header-background);
+  padding: var(--um2);
 }
 
 .framed-disclosure__header {
@@ -63,13 +65,11 @@
 
   display: flex;
   align-items: center;
-  gap: 0.35rem;
 }
 
 .framed-disclosure__actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
 }
 
 .framed-disclosure:not(.framed-disclosure--open)
@@ -81,12 +81,12 @@
   display: inline-grid;
   place-items: center;
 
-  width: 1.5em;
-  height: 1.5em;
+  width: var(--up1);
+  height: var(--up1);
   padding: 0;
+  margin-left: var(--up2);
 
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 0.2rem;
+  border: none;
 
   background: var(--clr-bg-options);
   color: var(--clr-fg-options);
@@ -112,22 +112,17 @@
   display: inline-grid;
   place-items: center;
 
-  width: 1.5em;
-  height: 1.5em;
+  width: var(--up2);
+  height: var(--up2);
   padding: 0;
 
-  border: 1px solid var(--clr-border-inactive);
-  border-radius: 0.2rem;
+  border: var(--border-thin) solid var(--clr-border-inactive);
+  border-radius: var(--border-radius);
 
   background: var(--clr-bg-button);
   color: var(--clr-fg-button);
 
   cursor: pointer;
-}
-
-.header-action:hover:not(:disabled) {
-  background: var(--clr-bg-highlight2);
-  color: var(--clr-fg-highlight2);
 }
 
 .header-action:disabled {

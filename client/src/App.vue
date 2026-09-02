@@ -31,25 +31,4 @@ import SplitModeOverlay from './components/SplitModeOverlay.vue';
 .splitpanes--vertical > .splitpanes__splitter:before {left: -5px;right: -5px;height: 100%;}
 .splitpanes--horizontal > .splitpanes__splitter:before {top: -5px;bottom: -5px;width: 100%;}
 
-input {
-  color: var(--clr-fg-panel);
-  background-color: var(--clr-bg-panel);
-  border: 1px solid var(--clr-border-inactive);
-  width: 45pt;
-  font-size: 7.5pt;
-  padding: 2pt 5pt;
-  margin: 2pt 5pt;
-  border-radius: .25em;
-}
-
-button, select {
-  background-color: var(--clr-bg-button);
-  border: 1px solid var(--clr-border-inactive);
-  color: var(--clr-fg-button);
-  padding: 3pt 5pt;
-  text-decoration: none;
-  margin: 4pt 2pt;
-  cursor: pointer;
-  font-weight: bolder;
-}
 </style>
