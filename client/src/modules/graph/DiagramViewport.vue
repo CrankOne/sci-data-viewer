@@ -56,6 +56,7 @@
         @pointerup="on_pointer_up"
         @pointercancel="on_pointer_cancel"
         @lostpointercapture="on_pointer_cancel"
+        @click="on_svg_click"
         @dblclick="fit_to_view"
       >
         <defs>
@@ -196,13 +197,19 @@ function on_select(id, event) {
             store.commit(`${selectionNS.value}/unselect_items`, [id]);
         else
             store.commit(`${selectionNS.value}/select_items`, [id]);
+    } else if(selectedIDs.value.size === 1 && selectedIDs.value.has(id)) {
+        // Repeat plain click on the item that's already the *entire*
+        // current selection -- the one case "replace selection with just
+        // this" would otherwise look like a no-op, so it means "deselect"
+        // instead.
+        store.commit(`${selectionNS.value}/clear_selection`);
     } else {
         store.commit(`${selectionNS.value}/clear_selection`);
         store.commit(`${selectionNS.value}/select_items`, [id]);
     }
 }
 
-// Toolbar action (mirrors clicking empty background, see on_pointer_up
+// Toolbar action (mirrors clicking empty background, see on_svg_click
 // below) -- an explicit escape hatch for when nothing's conveniently empty
 // to click, e.g. a diagram that's fully packed with nodes/edges.
 function clear_selection() {
@@ -231,7 +238,6 @@ let didInitialFit = false;
 
 let resizeObserver;
 let dragging = false;
-let dragMoved = false;
 let dragStartClientPx = [0, 0];
 let dragStartTransform = make_identity_transform();
 
@@ -265,27 +271,29 @@ function on_wheel(event) {
     transform.value = zoom_around(transform.value, px, py, factor);
 }
 
-// Middle-button drag anywhere, or left-button drag starting on the empty
-// background rect, pans; a plain (non-dragged) left click on the
-// background instead clears the current selection -- node/edge clicks are
-// handled by their own @select, never reaching here since DiagramNode.vue/
-// DiagramEdge.vue's own <g> is what's under the pointer there.
+// Middle-button drag pans; left is selection-only now (see on_select for
+// node/edge clicks, on_svg_click below for the empty background) -- it
+// never pans or drags anything here.
 function on_pointer_down(event) {
-    const isBackground = event.target === svgEl.value || event.target.classList?.contains('diagram-viewport__background');
-    if(event.button !== 1 && !(event.button === 0 && isBackground)) return;
-    event.preventDefault();
-    svgEl.value.setPointerCapture(event.pointerId);
-    dragging = true;
-    dragMoved = false;
-    dragStartClientPx = [event.clientX, event.clientY];
-    dragStartTransform = transform.value;
+    if(event.button === 1) {
+        event.preventDefault();
+        svgEl.value.setPointerCapture(event.pointerId);
+        dragging = true;
+        dragStartClientPx = [event.clientX, event.clientY];
+        dragStartTransform = transform.value;
+    } else if(event.button === 0) {
+        // Suppresses the browser's own native drag-select affordance over
+        // the SVG -- left has no drag gesture of its own to preserve here,
+        // only clicks (this doesn't affect the `click` event firing on
+        // release, only default browser actions tied to pointerdown itself).
+        event.preventDefault();
+    }
 }
 
 function on_pointer_move(event) {
     if(!dragging) return;
     const dx = event.clientX - dragStartClientPx[0];
     const dy = event.clientY - dragStartClientPx[1];
-    if(Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
     transform.value = {k: dragStartTransform.k, tx: dragStartTransform.tx + dx, ty: dragStartTransform.ty + dy};
 }
 
@@ -293,12 +301,24 @@ function on_pointer_up(event) {
     if(!dragging) return;
     dragging = false;
     svgEl.value.releasePointerCapture(event.pointerId);
-    if(!dragMoved && event.button === 0 && contextId.value)
-        store.commit(`${selectionNS.value}/clear_selection`);
 }
 
 function on_pointer_cancel() {
     dragging = false;
+}
+
+// A plain click on the empty background clears the current selection --
+// node/edge clicks are handled by their own @select (DiagramNode.vue/
+// DiagramEdge.vue), never reaching here since their own <g> is what's
+// under the pointer there, not the svg/background rect. Native `click`
+// (not pointerup) so this only ever fires for the primary button and only
+// once per press+release, with no drag-state bookkeeping needed of its
+// own -- middle-button panning above uses pointer events directly and
+// can't produce a `click`.
+function on_svg_click(event) {
+    if(!contextId.value) return;
+    const isBackground = event.target === svgEl.value || event.target.classList?.contains('diagram-viewport__background');
+    if(isBackground) store.commit(`${selectionNS.value}/clear_selection`);
 }
 
 onMounted(() => {

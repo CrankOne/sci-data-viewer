@@ -151,9 +151,12 @@ export function clear(ctx, widthPx, heightPx) {
     ctx.clearRect(0, 0, widthPx, heightPx);
 }
 
-// In-progress rectangular-zoom drag preview (doc's "left drag: rectangular
-// zoom"). [x0, y0]/[x1, y1] are raw on-screen pixels, in either order.
-export function draw_zoom_rect(ctx, [x0, y0], [x1, y1], color) {
+// In-progress rectangle-drag preview, shared by both of PlotViewport.vue's
+// left-drag gestures -- plain left-drag (rectangle select) and ctrl+left-
+// drag (rectangle zoom, this function's original and only purpose before
+// the former existed) -- distinguished only by the `color` the caller
+// passes in. [x0, y0]/[x1, y1] are raw on-screen pixels, in either order.
+export function draw_drag_rect(ctx, [x0, y0], [x1, y1], color) {
     const x = Math.min(x0, x1), y = Math.min(y0, y1);
     const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
     ctx.save();

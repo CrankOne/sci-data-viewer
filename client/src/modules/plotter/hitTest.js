@@ -72,3 +72,23 @@ export function find_hovered_items(items, xScale, yScale, px, py, thresholdPx) {
     hits.sort((a, b) => a.distance - b.distance);
     return hits;
 }
+
+// Rectangle-drag selection (PlotViewport.vue's own left-drag gesture): an
+// item counts as "in" the rectangle the moment any single one of its own
+// data points falls inside it -- deliberately not "entirely inside", so a
+// mostly off-screen curve that just clips the corner of a drawn box still
+// reads as part of what was just boxed, matching how a user visually judges
+// what they dragged over rather than requiring the whole shape to fit.
+// `xLo/yLo/xHi/yHi` are screen pixels, same space `find_hovered_items`'s own
+// `px`/`py` are in.
+export function find_items_in_rect(items, xScale, yScale, xLo, yLo, xHi, yHi) {
+    const ids = [];
+    for(const item of items) {
+        const inside = item.data?.some(([x, y]) => {
+            const px = xScale(x), py = yScale(y);
+            return px >= xLo && px <= xHi && py >= yLo && py <= yHi;
+        });
+        if(inside) ids.push(item._id);
+    }
+    return ids;
+}

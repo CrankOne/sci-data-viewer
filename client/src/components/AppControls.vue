@@ -34,40 +34,27 @@
       <div class="layout-section">
         <h4 class="scenes-heading">Layout</h4>
         <div class="split-buttons">
-          <!-- Enters button-triggered split mode (SplitModeOverlay.vue):
-               hover a panel to preview the split line, click to apply,
-               Escape to cancel. Icons are placeholders pending hand-drawn
-               ones -- swap for real vi-* icon-font classes once added to
-               viewer-icons.* (see components/App/viewer-icons.*). -->
-          <button
-            type="button"
-            class="split-mode-btn"
-            title="Split panel vertically"
-            aria-label="Split panel vertically"
-            @click="enter_split_mode('row')"
-          >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/>
-              <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" stroke-width="1.3"/>
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="split-mode-btn"
-            title="Split panel horizontally"
-            aria-label="Split panel horizontally"
-            @click="enter_split_mode('column')"
-          >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/>
-              <line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.3"/>
-            </svg>
-          </button>
+          <div class="button-group">
+            <button
+              type="button"
+              class="split-mode-btn"
+              title="Split panel vertically"
+              aria-label="Split panel vertically"
+              @click="enter_split_mode('row')"
+            >
+              <span class="vi vi-split-vertical" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="split-mode-btn"
+              title="Split panel horizontally"
+              aria-label="Split panel horizontally"
+              @click="enter_split_mode('column')"
+            >
+              <span class="vi vi-split-horizontal" aria-hidden="true" />
+            </button>
+          </div>
 
-          <!-- Enters button-triggered clean mode (CleanModeOverlay.vue):
-               click a module or wiring panel to remove it, mirroring the
-               two split buttons above -- replaces the old Remove button
-               that used to live on every such panel's own corner. -->
           <button
             type="button"
             class="split-mode-btn"
@@ -75,7 +62,7 @@
             aria-label="Clean panel"
             @click="enter_clean_mode"
           >
-            <span class="vi vi-trash-bin" aria-hidden="true" />
+            <span class="vi vi-x-cross-framed" aria-hidden="true" />
           </button>
         </div>
       </div>

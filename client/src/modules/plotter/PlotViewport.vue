@@ -14,13 +14,24 @@
   right-click context menu, and where a transformation domain's own extent/
   scale-type configuration comes from -- defaultTransfDomain below is a
   hardcoded stand-in until that's designed. Hover/selection (store/
-  selection.js) mirrors modules/three-view/three/index.js's own scene
-  picking: hitTest.js's nearest-under-cursor hover feeds a hover stack
-  shift+wheel cycles through one item at a time (cycle_hover/on_wheel,
-  while highlightAllUnderCursor is off -- the default, exposed by
-  PlotHelpersPanel.vue's checkbox; a plain wheel always zooms regardless),
-  and shift+click toggles selection of whatever's hovered (toggle_hover_
-  selection); a plain click selects nothing.
+  selection.js) mirrors
+  modules/three-view/three/index.js's own scene picking: hitTest.js's
+  nearest-under-cursor hover feeds a hover stack, shift+wheel cycles
+  through one item at a time (cycle_hover/on_wheel, while
+  highlightAllUnderCursor is off -- the default, exposed by
+  PlotHelpersPanel.vue's checkbox; a plain wheel always zooms regardless).
+
+  MP mouse bindings: plain left-drag draws a selection rectangle (any item
+  with a data point inside it, hitTest.js's find_items_in_rect);
+  ctrl+left-drag draws the zoom rectangle instead (left-drag's own
+  unconditional meaning before rectangle-select existed). A left click
+  below the drag threshold, either binding, (de)selects whatever's
+  currently hovered instead of drawing anything (apply_hover_selection) --
+  replacing the current selection outright, or toggling just the hovered
+  ids into/out of it with shift held, mirroring DiagramViewport.vue's own
+  plain-click-replaces/shift-click-toggles convention (clicking empty space
+  hovers nothing, so this is also how selection gets cleared). Middle-drag
+  always pans, regardless of any of the above.
 
   Layout note: unlike the doc's ASCII art (where UH/LH are drawn full-width),
   UH/LH here only span the MP column -- the conventional plotting-library
@@ -136,10 +147,10 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useStore } from 'vuex';
 
 import { make_scale } from './scales';
-import { draw_markers, draw_polyline, draw_markers_outline, draw_polyline_outline, draw_zoom_rect, clear, resolve_css_var } from './draw';
+import { draw_markers, draw_polyline, draw_markers_outline, draw_polyline_outline, draw_drag_rect, clear, resolve_css_var } from './draw';
 import { make_identity_transform, apply_transform, zoom_around, pan_by, zoom_to_rect } from './zoom';
 import { compute_fit_transforms } from './viewFit';
-import { find_hovered_items } from './hitTest';
+import { find_hovered_items, find_items_in_rect } from './hitTest';
 import { resolve_forwarded_primitives } from './store/plotDesk';
 
 const props = defineProps({
@@ -234,10 +245,8 @@ const mpHeight = ref(0);
 const xTransform = ref(make_identity_transform());
 const yTransform = ref(make_identity_transform());
 
-// MP-only for now (doc's "Supported interactions in the MP"); click/
-// shift+drag selection is deliberately not implemented here -- see the
-// doc's "Open questions".
-const dragMode = ref(null); // null | 'rect-zoom' | 'pan'
+// MP-only for now (doc's "Supported interactions in the MP").
+const dragMode = ref(null); // null | 'rect-zoom' | 'rect-select' | 'pan'
 const dragStartPx = ref([0, 0]);
 const dragCurrentPx = ref([0, 0]);
 let panLastPx = [0, 0]; // not reactive: read/written only within one drag, redraw is driven by xTransform/yTransform instead
@@ -483,8 +492,10 @@ function redraw() {
             draw_item(item, sinkColor);
     }
 
-    if(dragMode.value === 'rect-zoom')
-        draw_zoom_rect(ctx, dragStartPx.value, dragCurrentPx.value, resolve_css_var('--clr-border-active'));
+    if(dragMode.value === 'rect-zoom' || dragMode.value === 'rect-select') {
+        const color = dragMode.value === 'rect-zoom' ? '--clr-border-active' : '--clr-graph-selection';
+        draw_drag_rect(ctx, dragStartPx.value, dragCurrentPx.value, resolve_css_var(color));
+    }
 }
 
 watch(
@@ -499,9 +510,8 @@ function pointer_px(event) {
 }
 
 function on_pointer_down(event) {
-    // Left button: rectangular zoom. Middle button: pan. (Doc also lists
-    // plain click and shift+drag for selection -- deliberately not
-    // implemented here, see the doc's "Open questions".)
+    // Left button: rectangle select, or rectangle zoom with ctrl held.
+    // Middle button: pan.
     if(event.button !== 0 && event.button !== 1)
         return;
     event.preventDefault(); // stops the browser's native middle-click autoscroll UI
@@ -511,7 +521,7 @@ function on_pointer_down(event) {
     // whatever it already was for the duration of an actual drag) -- a
     // below-threshold "click" needs whatever's already hovered (including
     // a wheel-cycled non-nearest item) to still be there at pointer-up for
-    // shift+click to toggle, exactly like ThreeView's own on_click
+    // apply_hover_selection to act on, exactly like ThreeView's own on_click
     // (ThreeViewport.vue) relies on continuous mousemove hover, never
     // recomputed by the click itself. A prior version cleared hover here
     // and re-hit-tested at pointer-up instead, which silently discarded
@@ -519,7 +529,7 @@ function on_pointer_down(event) {
     // by driving this live, not by reading the code.
     const px = pointer_px(event);
     if(event.button === 0) {
-        dragMode.value = 'rect-zoom';
+        dragMode.value = event.ctrlKey ? 'rect-zoom' : 'rect-select';
         dragStartPx.value = px;
         dragCurrentPx.value = px;
     } else {
@@ -573,41 +583,69 @@ function cycle_hover(direction) {
     store.commit(`${selectionNS.value}/set_hover`, {origin: 'mp', ids: [hoverStack[hoverCycleIndex]]});
 }
 
-// Toggles selection membership of whichever item(s) are currently
-// mp-hovered -- the full under-cursor stack, or just the single cycled
-// item, depending on `highlightAllUnderCursor` -- driven by shift+click
-// (see on_pointer_up below). Mirrors ThreeView's own
-// toggle_hover_selection (three/index.js) exactly, minus its
-// marker-vs-whole-item distinction (the plotter has no sub-item selection
-// yet, see this file's header comment).
-function toggle_hover_selection() {
+// The one place both of the MP's click-driven selection gestures below
+// (hover-based and rectangle-based) actually touch the store: `incremental`
+// (shift held) toggles each id's own membership against whatever's already
+// selected -- everything else about the current selection is left alone --
+// while a plain click instead replaces the current selection outright,
+// `ids` becoming the *entire* new selection (including the empty set, which
+// is exactly how clicking empty space -- nothing hovered, nothing in the
+// drawn rectangle -- ends up clearing it; no separate "clear" case needed).
+function apply_selection(ids, incremental) {
+    if(!selectionNS.value) return;
+    if(incremental) {
+        const selected = store.getters[`${selectionNS.value}/selectedItemIDs`];
+        const toSelect = [];
+        const toUnselect = [];
+        for(const id of ids) {
+            if(selected.has(id)) toUnselect.push(id);
+            else toSelect.push(id);
+        }
+        if(toUnselect.length) store.commit(`${selectionNS.value}/unselect_items`, toUnselect);
+        if(toSelect.length) store.commit(`${selectionNS.value}/select_items`, toSelect);
+    } else {
+        store.commit(`${selectionNS.value}/clear_selection`);
+        if(ids.length) store.commit(`${selectionNS.value}/select_items`, ids);
+    }
+}
+
+// A below-drag-threshold left click/ctrl+click (on_pointer_up below) --
+// (de)selects whichever item(s) are currently mp-hovered, the full
+// under-cursor stack or just the single cycled item depending on
+// `highlightAllUnderCursor`, mirroring ThreeView's own on_click
+// (ThreeViewport.vue) exactly, minus its marker-vs-whole-item distinction
+// (the plotter has no sub-item selection yet, see this file's header
+// comment).
+function apply_hover_selection(incremental) {
     if(!selectionNS.value) return;
     const hovered = store.getters[`${selectionNS.value}/hoveredIDs`]('mp');
-    if(hovered.size === 0) return;
+    apply_selection([...hovered], incremental);
+}
 
-    const selected = store.getters[`${selectionNS.value}/selectedItemIDs`];
-    const toSelect = [];
-    const toUnselect = [];
-    for(const id of hovered) {
-        if(selected.has(id)) toUnselect.push(id);
-        else toSelect.push(id);
-    }
-
-    if(toUnselect.length) store.commit(`${selectionNS.value}/unselect_items`, toUnselect);
-    if(toSelect.length) store.commit(`${selectionNS.value}/select_items`, toSelect);
+// An at-or-past-threshold plain left drag (on_pointer_up below) -- selects
+// every item with at least one data point inside the drawn rectangle
+// (hitTest.js's find_items_in_rect), same incremental-vs-replace choice as
+// apply_hover_selection above.
+function select_rect(px0, py0, px1, py1, incremental) {
+    if(!selectionNS.value) return;
+    const [xLo, xHi] = px0 < px1 ? [px0, px1] : [px1, px0];
+    const [yLo, yHi] = py0 < py1 ? [py0, py1] : [py1, py0];
+    const domainItems = [...primitives.value, ...sinkPrimitives.value]
+        .filter(item => item._transfDomain === defaultTransfDomain.name);
+    const ids = find_items_in_rect(domainItems, xScale.value, yScale.value, xLo, yLo, xHi, yHi);
+    apply_selection(ids, incremental);
 }
 
 // Toolbar action -- an explicit escape hatch alongside the implicit
-// plain-click-on-empty-space clear (reset_all_transforms's own dblclick
-// aside, there's no single-click-clears-selection gesture on the plotter
-// today, unlike DiagramViewport.vue's background click).
+// plain-click/drag-on-empty-space clear (apply_selection/select_rect above,
+// reset_all_transforms's own dblclick aside).
 function clear_selection() {
     if(!selectionNS.value) return;
     store.commit(`${selectionNS.value}/clear_selection`);
 }
 
 function on_pointer_move(event) {
-    if(dragMode.value === 'rect-zoom') {
+    if(dragMode.value === 'rect-zoom' || dragMode.value === 'rect-select') {
         dragCurrentPx.value = pointer_px(event);
     } else if(dragMode.value === 'pan') {
         const [px, py] = pointer_px(event);
@@ -628,24 +666,28 @@ function on_pointer_leave() {
 function on_pointer_up(event) {
     if(dragMode.value === null)
         return;
-    if(dragMode.value === 'rect-zoom') {
-        const [px0, py0] = dragStartPx.value;
-        const [px1, py1] = dragCurrentPx.value;
-        // Below-threshold drags are treated as a plain click. Hover was
-        // never touched by pointerdown/this drag (see on_pointer_down's own
-        // comment), so it's still whatever the last real pointermove left
-        // it as -- shift+click toggles selection of exactly that (including
-        // a wheel-cycled non-nearest item); a plain click selects nothing.
-        // Mirrors ThreeView's own on_click (ThreeViewport.vue) exactly:
-        // click never re-hit-tests, only continuous movement does.
-        if(Math.abs(px1 - px0) >= MIN_DRAG_PX && Math.abs(py1 - py0) >= MIN_DRAG_PX) {
-            const [xLo, xHi] = px0 < px1 ? [px0, px1] : [px1, px0];
-            const [yLo, yHi] = py0 < py1 ? [py0, py1] : [py1, py0];
-            xTransform.value = zoom_to_rect(xTransform.value, xLo, xHi, mpWidth.value);
-            yTransform.value = zoom_to_rect(yTransform.value, yLo, yHi, mpHeight.value);
-        } else if(event.shiftKey) {
-            toggle_hover_selection();
-        }
+    const [px0, py0] = dragStartPx.value;
+    const [px1, py1] = dragCurrentPx.value;
+    const dragged = Math.abs(px1 - px0) >= MIN_DRAG_PX && Math.abs(py1 - py0) >= MIN_DRAG_PX;
+
+    if(!dragged) {
+        // Below-threshold drags are treated as a plain click, regardless of
+        // which of the two below dragMode was armed for -- ctrl only
+        // matters once an actual drag distinguishes "select" from "zoom".
+        // Hover was never touched by pointerdown/this drag (see
+        // on_pointer_down's own comment), so it's still whatever the last
+        // real pointermove left it as -- including a wheel-cycled
+        // non-nearest item. Mirrors ThreeView's own on_click
+        // (ThreeViewport.vue) exactly: click never re-hit-tests, only
+        // continuous movement does.
+        apply_hover_selection(event.shiftKey);
+    } else if(dragMode.value === 'rect-zoom') {
+        const [xLo, xHi] = px0 < px1 ? [px0, px1] : [px1, px0];
+        const [yLo, yHi] = py0 < py1 ? [py0, py1] : [py1, py0];
+        xTransform.value = zoom_to_rect(xTransform.value, xLo, xHi, mpWidth.value);
+        yTransform.value = zoom_to_rect(yTransform.value, yLo, yHi, mpHeight.value);
+    } else if(dragMode.value === 'rect-select') {
+        select_rect(px0, py0, px1, py1, event.shiftKey);
     }
     dragMode.value = null;
     canvasEl.value.releasePointerCapture(event.pointerId);

@@ -37,7 +37,10 @@ targets whichever axis is under the pointer at the time (position-based
 hit-testing).
 
 Supported interactions in the MP (affects all axes simultaneously):
-- left drag: rectangular zoom;
+- left drag: rectangle select -- every primitive with at least one data
+  point inside the drawn rectangle;
+- ctrl+left drag: rectangular zoom (left drag's own unconditional meaning
+  before rectangle-select existed);
 - middle drag: pan;
 - wheel: zoom around pointer, always -- regardless of the toggle below;
 - shift+wheel: while "highlight all items under cursor" is off (this
@@ -47,13 +50,15 @@ Supported interactions in the MP (affects all axes simultaneously):
   :doc:`module-3d-viewer`'s own scene picking exactly; falls through to zoom
   (same as a plain wheel) when the toggle is on, since there's nothing
   single-item to cycle through;
-- plain click: selects nothing (hover is driven purely by pointer movement,
-  never touched by a click itself);
-- shift+click: toggles selection membership of whatever's currently
-  hovered -- the whole under-cursor stack, or just the single cycled item,
-  depending on the same toggle -- multiple primitives at once when they
-  overlap;
-- shift+drag: data selection;
+- plain click (a left click/left drag below the drag threshold, either
+  binding above): (de)selects whatever's currently hovered -- the whole
+  under-cursor stack, or just the single cycled item, depending on the same
+  toggle -- replacing the current selection outright (clicking empty space,
+  nothing hovered, is how selection gets cleared this way);
+- shift+click: same as plain click, except incremental -- toggles just the
+  hovered ids' own membership into/out of whatever's already selected
+  instead of replacing it, mirroring :doc:`module-graph`'s own plain-click-
+  replaces/shift-click-toggles convention;
 
 Axes boxes:
 - axis right click: opens a context menu (e.g. switch between linear/log2/
@@ -324,15 +329,19 @@ Open questions
   default) are both built, at whole-primitive granularity -- mirroring
   :doc:`module-3d-viewer`'s own
   ``cycle_hover``/``toggle_hover_selection`` (``three/index.js``) exactly,
-  just against a 2D hit-test instead of a 3D raycast; a plain click no
-  longer selects anything (only re-hits hover at the release point), same
-  as the 3D view. The module is a sink *origin* too now
+  just against a 2D hit-test instead of a 3D raycast. **Answered and
+  built**: a plain click now (de)selects whatever's hovered too (replacing
+  the current selection, same replace/toggle split :doc:`module-graph`
+  uses), and "shift+drag: data selection" landed as plain left-drag drawing
+  a selection rectangle (``hitTest.js``'s ``find_items_in_rect``, any
+  primitive with a data point inside it) -- with left-drag's own prior,
+  unconditional meaning (rectangular zoom) demoted to ctrl+left-drag rather
+  than dropped. The module is a sink *origin* too now
   (``modules/plotter/index.js``'s ``buildSinkSnapshot``/``resolveSinkItem``),
   forwarding a selected primitive's own ``subjectData`` (see "Subject data"
-  above) exactly like a graph node/edge does. Still open: what "shift+drag:
-  data selection" actually selects, and per-primitive-type sub-item
-  -selection gating (still "Selection model"'s own open item -- almost
-  certainly relevant only to ``markers``, unlikely paths/raster).
+  above) exactly like a graph node/edge does. Still open: per-primitive-type
+  sub-item-selection gating (still "Selection model"'s own open item --
+  almost certainly relevant only to ``markers``, unlikely paths/raster).
 * The axis right-click menu (linear/log2/log10, zoom out) is a plot-local,
   component-level UI element; its exact trigger (including any modifier-key
   semantics) and contents are an implementation detail expected to change,

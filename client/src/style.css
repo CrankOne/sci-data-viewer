@@ -124,6 +124,7 @@
 
     --clr-bg-button: var(--clr-neutral-brighten2);
     --clr-fg-button: var(--clr-accent-darken);
+    --clr-fg-button-disabled: var(--clr-neutral-fg-muted);
 
     --clr-bg-input: var(--clr-bg-main);
     --clr-fg-input: var(--clr-supporting);
@@ -169,6 +170,7 @@
 
     --clr-bg-button: var(--clr-supporting-brighten);
     --clr-fg-button: var(--clr-bg-main);
+    --clr-fg-button-disabled: var(--clr-bg-main);
 
     --clr-bg-input: var(--clr-neutral-darken);
     --clr-fg-input: var(--clr-neutral-brighten2);
@@ -269,6 +271,11 @@ input, select, button {
 button, select {
     color: var(--clr-fg-button);
     background-color: var(--clr-bg-button);
+}
+
+:is(button, select):disabled {
+    color: var(--clr-fg-button-disabled);
+    border: var(--border-thin) solid var(--clr-border-inactive);
 }
 
 input {
