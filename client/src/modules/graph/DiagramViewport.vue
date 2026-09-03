@@ -13,34 +13,40 @@
 -->
 <template>
   <div class="diagram-viewport">
-    <div class="diagram-viewport__toolbar">
-      <label>
-        Direction
-        <select :value="layoutOptions.direction" @change="set_direction($event.target.value)">
-          <option value="TB">Top &rarr; Bottom</option>
-          <option value="BT">Bottom &rarr; Top</option>
-          <option value="LR">Left &rarr; Right</option>
-          <option value="RL">Right &rarr; Left</option>
-        </select>
-      </label>
-
-      <label>
-        Align
-        <select :value="layoutOptions.align ?? ''" @change="set_align($event.target.value)">
-          <option value="">Center</option>
-          <option value="UL">Upper-left</option>
-          <option value="UR">Upper-right</option>
-          <option value="DL">Lower-left</option>
-          <option value="DR">Lower-right</option>
-        </select>
-      </label>
-
-      <button type="button" title="Fit diagram to view" @click="fit_to_view">
-        Fit to view
-      </button>
-    </div>
-
     <div ref="hostEl" class="diagram-viewport__canvas">
+      <div class="diagram-viewport__toolbar toolbar-floating">
+        <div class="button-group">
+          <ActionSelect
+            label="Layout direction"
+            :title="`Layout direction: ${directionLabel}`"
+            :model-value="layoutOptions.direction"
+            :options="directionOptions"
+            @select="set_direction"
+          />
+          <ActionSelect
+            label="Alignment"
+            :title="`Alignment: ${alignLabel}`"
+            :model-value="layoutOptions.align ?? ''"
+            :options="alignOptions"
+            @select="set_align"
+          />
+        </div>
+
+        <button type="button" class="icon-button" title="Fit diagram to view" @click="fit_to_view">
+          <span class="vi vi-frame-selected" aria-hidden="true" />
+        </button>
+
+        <button
+          type="button"
+          class="icon-button"
+          title="Clear selection"
+          :disabled="selectedIDs.size === 0"
+          @click="clear_selection"
+        >
+          <span class="vi vi-clear-selection" aria-hidden="true" />
+        </button>
+      </div>
+
       <svg
         ref="svgEl"
         :width="width" :height="height"
@@ -111,8 +117,28 @@ import { useStore } from 'vuex';
 import DiagramNode from './DiagramNode.vue';
 import DiagramEdge from './DiagramEdge.vue';
 import DiagramCluster from './DiagramCluster.vue';
+import ActionSelect from '@/components/ActionSelect.vue';
 import { compute_layout, merge_layout_defaults } from './layout';
 import { make_identity_transform, to_svg_transform, zoom_around, fit_transform } from './transform';
+
+// Single-glyph option sets for the two layout ActionSelects below (U+219x
+// plain arrows for direction, U+21Bx corner arrows for a corner alignment
+// plus U+2104 for center) -- each option's own `title` is what a caller
+// sees when the (currently closed) native dropdown is open, since the
+// select itself only ever shows one glyph, not a word.
+const directionOptions = [
+    {value: 'TB', label: '↓', title: 'Top → Bottom'},
+    {value: 'BT', label: '↑', title: 'Bottom → Top'},
+    {value: 'LR', label: '→', title: 'Left → Right'},
+    {value: 'RL', label: '←', title: 'Right → Left'}
+];
+const alignOptions = [
+    {value: '', label: '℄', title: 'Center'},
+    {value: 'UL', label: '↰', title: 'Upper-left'},
+    {value: 'UR', label: '↱', title: 'Upper-right'},
+    {value: 'DL', label: '↲', title: 'Lower-left'},
+    {value: 'DR', label: '↳', title: 'Lower-right'}
+];
 
 const props = defineProps({
     instanceId: {type: String, required: true}
@@ -141,6 +167,15 @@ const layoutOptions = computed(() =>
 
 const layoutResult = computed(() => compute_layout(nodes.value, edges.value, layoutOptions.value, clusters.value));
 
+// Human-readable current-state text for the two ActionSelects' overall
+// tooltip (each option's own `title` only shows once the dropdown is
+// open) -- e.g. "Layout direction: Left → Right" while the button itself
+// just shows "→".
+const directionLabel = computed(() =>
+    directionOptions.find(opt => opt.value === layoutOptions.value.direction)?.title ?? layoutOptions.value.direction);
+const alignLabel = computed(() =>
+    alignOptions.find(opt => opt.value === (layoutOptions.value.align ?? ''))?.title ?? 'Center');
+
 const selectedIDs = computed(() => contextId.value ? store.getters[`${selectionNS.value}/selectedItemIDs`] : new Set());
 const highlightedIDs = computed(() => contextId.value ? store.getters[`${selectionNS.value}/highlightedItemIDs`] : new Set());
 
@@ -165,6 +200,14 @@ function on_select(id, event) {
         store.commit(`${selectionNS.value}/clear_selection`);
         store.commit(`${selectionNS.value}/select_items`, [id]);
     }
+}
+
+// Toolbar action (mirrors clicking empty background, see on_pointer_up
+// below) -- an explicit escape hatch for when nothing's conveniently empty
+// to click, e.g. a diagram that's fully packed with nodes/edges.
+function clear_selection() {
+    if(!contextId.value) return;
+    store.commit(`${selectionNS.value}/clear_selection`);
 }
 
 function on_hover(id) {
@@ -272,8 +315,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .diagram-viewport {
-    display: grid;
-    grid-template-rows: auto 1fr;
     width: 100%;
     height: 100%;
     background: var(--clr-bg-panel);
@@ -281,24 +322,34 @@ onBeforeUnmount(() => {
     font-size: 9pt;
 }
 
+/* Hovering top-left overlay (ThreeViewport.vue's .camera-widget/
+   PlotViewport.vue's .plot-viewport__overlay-toolbar pattern) rather than
+   the permanent, labeled bar this used to be -- the row itself carries no
+   chrome of its own (.toolbar-floating, style.css); the direction/align
+   pair reads as one control (a .button-group of single-glyph
+   ActionSelects, tooltip carrying what the glyph means) while fit-to-view
+   sits apart as its own button, a different kind of action. */
 .diagram-viewport__toolbar {
+    position: absolute;
+    z-index: 10;
+    top: var(--hover-toolbar-top);
+    left: var(--hover-toolbar-left);
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 4pt 8pt;
-    background: var(--clr-bg-panel-header);
-    color: var(--clr-fg-panel-header);
-    border-bottom: 1px solid var(--clr-border-inactive);
 }
 
-.diagram-viewport__toolbar label {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
+.icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    padding: 0;
 }
 
 .diagram-viewport__canvas {
     position: relative;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
 }
 

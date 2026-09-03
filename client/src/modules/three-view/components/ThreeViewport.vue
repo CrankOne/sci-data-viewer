@@ -323,6 +323,17 @@ onBeforeUnmount(() => {
     inset: 0;
 }
 
+/* TODO: consolidate with the .toolbar-floating pattern (style.css) now used
+   by PanelResidentChrome.vue's #toolbar slot -- there, the container itself
+   is invisible and each button/select/button-group carries its own blurred
+   backing, so the row occupies minimal space. This widget currently blurs
+   the whole bar/panel as one block instead, which suits its expand-into-
+   editor behavior (.camera-widget__panel below); revisit once that menu
+   logic is reworked. Also switch top/left to the shared
+   --hover-toolbar-top/--hover-toolbar-left (style.css) DiagramViewport.vue
+   and PlotViewport.vue's overlays already use, once this one's rewritten --
+   they clear PanelResidentChrome.vue's corner drag-knob, which this
+   hardcoded 0.75rem currently sits underneath. */
 .camera-widget {
     position: absolute;
     z-index: 10;

@@ -21,6 +21,7 @@ import { destruct_geo_id } from './utils';
 register_module({
     dataType: 'geo3d',
     label: '3D Geometry',
+    scopeNoun: 'scene',
     viewportComponent: ThreeViewport,
     sidePanelSections: [
         // "Items"/"Selected markers" are filed under the generic "common

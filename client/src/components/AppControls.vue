@@ -63,6 +63,20 @@
               <line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.3"/>
             </svg>
           </button>
+
+          <!-- Enters button-triggered clean mode (CleanModeOverlay.vue):
+               click a module or wiring panel to remove it, mirroring the
+               two split buttons above -- replaces the old Remove button
+               that used to live on every such panel's own corner. -->
+          <button
+            type="button"
+            class="split-mode-btn"
+            title="Clean panel"
+            aria-label="Clean panel"
+            @click="enter_clean_mode"
+          >
+            <span class="vi vi-trash-bin" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -147,6 +161,10 @@ export default {
   methods: {
     enter_split_mode(direction) {
       this.$store.commit('ui/enter_split_mode', direction);
+    },
+
+    enter_clean_mode() {
+      this.$store.commit('ui/enter_clean_mode');
     },
 
     switch_session() {

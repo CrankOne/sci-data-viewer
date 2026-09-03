@@ -12,7 +12,6 @@
       <PanelResidentChrome
         drag-type="application/x-panel-module"
         :drag-payload="node.content.instanceId"
-        @remove="remove_module"
       >
         <div :id="'module-slot-' + node.id" class="module-slot" />
       </PanelResidentChrome>
@@ -22,7 +21,6 @@
       <PanelResidentChrome
         drag-type="application/x-panel-wiring"
         :drag-payload="node.id"
-        @remove="remove_wiring"
       >
         <template #toolbar>
           <CreateScopeToolbar />
@@ -180,58 +178,12 @@ function remove_item(instanceId) {
     store.commit('widgetInstances/remove_instance', instanceId);
 }
 
-async function remove_module() {
-    if(props.node.content.kind !== 'module') return;
-    const instanceId = props.node.content.instanceId;
-    const instance = store.getters['widgetInstances/instance'](instanceId);
-    const contextId = instance?.contextId ?? null;
-
-    if(contextId) {
-        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
-            .filter(other => other.instanceId !== instanceId && other.itemType.endsWith(':module'));
-
-        if(remainingViewports.length === 0) {
-            const sources = store.getters['connection/resourcesForContext'](contextId);
-            const scene = store.getters['contexts/context'](contextId);
-            if(sources.length > 0) {
-                const proceed = window.confirm(
-                    `This is the last viewport for "${scene?.name ?? contextId}". Removing it also removes the `
-                    + `scope, and its ${sources.length} assigned source(s) will be reassigned elsewhere. Continue?`
-                );
-                if(!proceed) return;
-            }
-        }
-    }
-
-    store.commit('layout/clear_instance_from_leaf', {instanceId});
-    store.commit('widgetInstances/remove_instance', instanceId);
-    store.commit('cameras/unregister_viewport', instanceId);
-    // Same cleanup, for modules/graph's own per-viewport layout state
-    // (doc/module-graph.rst's "Diagrams") -- harmless no-op for any other
-    // (non-graph) viewport id, same as the cameras call above.
-    store.commit('graphLayout/unregister_viewport', instanceId);
-
-    if(contextId) {
-        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
-            .filter(other => other.itemType.endsWith(':module'));
-        if(remainingViewports.length === 0) {
-            const otherContext = store.getters['contexts/listForType'](instance.itemType.split(':')[0])
-                .find(ctx => ctx.id !== contextId);
-            try {
-                await store.dispatch('contexts/remove_context', {id: contextId, reassignSourcesTo: otherContext?.id});
-            } catch(error) {
-                console.warn(`Could not remove context "${contextId}":`, error);
-            }
-        }
-    }
-}
-
-// Explicit, deliberate removal of the wiring leaf at this node -- mirrors
-// remove_module below, minus the confirm/cascade dance: a wiring leaf has
-// no context, source, or camera to clean up alongside it.
-function remove_wiring() {
-    store.commit('layout/remove_wiring_leaf', {leafId: props.node.id});
-}
+// A module leaf's or wiring leaf's own removal (formerly a PanelResidentChrome
+// corner button here) now goes through CleanModeOverlay.vue's click-a-panel
+// gesture instead -- see sceneCreation.js's remove_module_instance and
+// layout.js's remove_wiring_leaf mutation, which that overlay calls directly
+// by resolving the clicked panel's own content off the store rather than
+// through a Panel.vue instance's props.
 
 function drag_kind(event) {
     const types = event.dataTransfer?.types ?? [];

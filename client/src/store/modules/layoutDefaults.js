@@ -100,7 +100,7 @@ export function migrate_legacy_root(root, store) {
         store.dispatch('contexts/create_context', {
             id: DEFAULT_CONTEXT_ID,
             dataType: contextualModule.dataType,
-            name: 'Scene 1'
+            name: 'scene-1'
         });
         defaultContextId = DEFAULT_CONTEXT_ID;
     }

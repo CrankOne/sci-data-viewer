@@ -12,6 +12,7 @@ import { make_selection_module } from '@/store/selection';
 register_module({
     dataType: 'table',
     label: 'Table',
+    scopeNoun: 'table',
     viewportComponent: TableViewport,
     contextual: true,
     contextStoreModules: {

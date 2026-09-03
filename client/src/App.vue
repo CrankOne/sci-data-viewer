@@ -3,12 +3,14 @@
   <ModalHost />
   <LoadingOverlay />
   <SplitModeOverlay />
+  <CleanModeOverlay />
 </template>
 
 <script setup>
 import ModalHost from './components/ModalHost.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import SplitModeOverlay from './components/SplitModeOverlay.vue';
+import CleanModeOverlay from './components/CleanModeOverlay.vue';
 </script>
 
 <style>

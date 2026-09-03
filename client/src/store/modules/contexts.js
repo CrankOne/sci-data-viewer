@@ -33,7 +33,8 @@ function mk_default_name(state, dataType) {
     const existing = state.order
         .map(id => state.byId[id])
         .filter(ctx => ctx.dataType === dataType).length;
-    return `Scene ${existing + 1}`;
+    const noun = get_module(dataType)?.scopeNoun ?? dataType;
+    return `${noun}-${existing + 1}`;
 }
 
 // Installs persistence for the facet-preset / selection-set slices of a

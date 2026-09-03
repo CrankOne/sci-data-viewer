@@ -15,6 +15,7 @@ import { make_sink_inbox_module } from '@/store/sinkInbox';
 register_module({
     dataType: 'sink-view',
     label: 'Sink Inbox (dev)',
+    scopeNoun: 'inbox',
     viewportComponent: SinkViewport,
     contextual: true,
     contextStoreModules: {

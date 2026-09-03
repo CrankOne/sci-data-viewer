@@ -80,17 +80,6 @@
         @dblclick="reset_all_transforms"
         @wheel.prevent="on_wheel"
       />
-
-      <div class="plot-viewport__overlay-toolbar">
-        <button
-          class="icon-button"
-          type="button"
-          title="Fit view to plotted content"
-          @click="fit_to_content"
-        >
-          <span class="vi vi-frame-selected" aria-hidden="true" />
-        </button>
-      </div>
     </div>
 
     <div class="plot-viewport__box plot-viewport__box--rv" />
@@ -117,6 +106,27 @@
           class="plot-viewport__axis-drag-rect"
         />
       </svg>
+    </div>
+
+    <div class="plot-viewport__overlay-toolbar toolbar-floating">
+      <button
+        class="icon-button"
+        type="button"
+        title="Fit view to plotted content"
+        @click="fit_to_content"
+      >
+        <span class="vi vi-frame-selected" aria-hidden="true" />
+      </button>
+
+      <button
+        class="icon-button"
+        type="button"
+        title="Clear selection"
+        :disabled="selectedIds.size === 0"
+        @click="clear_selection"
+      >
+        <span class="vi vi-clear-selection" aria-hidden="true" />
+      </button>
     </div>
   </div>
 </template>
@@ -587,6 +597,15 @@ function toggle_hover_selection() {
     if(toSelect.length) store.commit(`${selectionNS.value}/select_items`, toSelect);
 }
 
+// Toolbar action -- an explicit escape hatch alongside the implicit
+// plain-click-on-empty-space clear (reset_all_transforms's own dblclick
+// aside, there's no single-click-clears-selection gesture on the plotter
+// today, unlike DiagramViewport.vue's background click).
+function clear_selection() {
+    if(!selectionNS.value) return;
+    store.commit(`${selectionNS.value}/clear_selection`);
+}
+
 function on_pointer_move(event) {
     if(dragMode.value === 'rect-zoom') {
         dragCurrentPx.value = pointer_px(event);
@@ -713,6 +732,7 @@ function on_axis_pointer_cancel(axis) {
 
 <style scoped>
 .plot-viewport {
+    position: relative;
     display: grid;
     grid-template-columns: 44px 1fr 16px;
     grid-template-rows: 28px 20px 1fr 28px;
@@ -767,22 +787,22 @@ function on_axis_pointer_cancel(axis) {
 .plot-viewport__axis-drag-rect { fill: var(--clr-border-active); opacity: 0.25; pointer-events: none; }
 
 /*
- * Hovering top-left overlay, not a permanent toolbar row (see
- * ThreeViewport.vue's own .camera-widget, the pattern this mirrors) --
- * floats over the MP canvas itself rather than claiming a dedicated,
- * always-visible strip of the panel for what's currently a single button.
+ * Hovering top-left overlay, not a permanent toolbar row -- floats over the
+ * whole panel (a direct child of .plot-viewport, positioned against *its*
+ * corner, not .plot-viewport__box--mp's -- the MP grid cell starts inset
+ * by the TB/LV boxes, which would otherwise misalign this against
+ * DiagramViewport.vue's/PanelResidentChrome.vue's own overlays, both
+ * anchored to their whole panel) rather than claiming a dedicated,
+ * always-visible strip for what's currently a single button. The row
+ * itself is invisible (.toolbar-floating, style.css); the button carries
+ * its own blurred backing, same as those other two.
  */
 .plot-viewport__overlay-toolbar {
     position: absolute;
     z-index: 10;
-    top: 0.75rem;
-    left: 0.75rem;
+    top: var(--hover-toolbar-top);
+    left: var(--hover-toolbar-left);
     display: flex;
-    padding: 0.3rem;
-    border: 1px solid var(--clr-border-inactive);
-    border-radius: 0.25rem;
-    background: var(--clr-neutral-transparent);
-    backdrop-filter: blur(3px);
 }
 
 .icon-button {

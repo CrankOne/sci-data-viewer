@@ -21,6 +21,7 @@ import { make_sink_inbox_module } from '@/store/sinkInbox';
 register_module({
     dataType: 'journal',
     label: 'Journal',
+    scopeNoun: 'journal',
     viewportComponent: JournalViewport,
     contextual: true,
     contextStoreModules: {

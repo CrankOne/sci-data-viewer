@@ -154,7 +154,14 @@ export default {
         // Every module widget instance currently placed somewhere in the
         // tree -- components/ViewerPage.vue keeps exactly one mounted
         // component per id in this list.
-        mountedModuleInstanceIds: state => collect_module_instance_ids(state.root)
+        mountedModuleInstanceIds: state => collect_module_instance_ids(state.root),
+
+        // A leaf's own `content` by panel id, or null if `id` isn't a leaf
+        // (a split node) or doesn't exist -- CleanModeOverlay.vue's only
+        // way to tell what a hovered/clicked panel actually holds, since it
+        // resolves panels by id off the DOM (`.panel[data-panel-id]`)
+        // rather than owning a Panel.vue instance's own props.
+        leafContent: state => id => find_leaf(state.root, id)?.content ?? null
     },
 
     mutations: {

@@ -241,6 +241,19 @@ html {
     --border-thin: 1px;
 
     --border-radius: var(--um2);
+
+    /*
+     * Shared top/left indent for a hovering toolbar overlaid on a module's
+     * own content (PanelResidentChrome.vue's #toolbar slot, DiagramViewport
+     * .vue, PlotViewport.vue) -- one value so every such overlay lines up
+     * the same way rather than each picking its own offset. `--hover-
+     * toolbar-left` clears PanelResidentChrome.vue's own corner drag-knob
+     * (`.resident-chrome__knob`, width/height var(--up3)), which every
+     * module viewport sits inside -- an overlay flush left would otherwise
+     * start underneath that triangular knob.
+     */
+    --hover-toolbar-top: var(--um2);
+    --hover-toolbar-left: var(--um2);
 }
 
 input, select, button {
@@ -282,7 +295,7 @@ input[type="number"] {
   text-align: right;
 }
 
-.button-group > button + button {
+.button-group > :is(button, select) + :is(button, select) {
   border-left: 1px dotted var(--clr-border-active);
 }
 
@@ -293,9 +306,48 @@ input[type="number"] {
   background-color: var(--clr-bg-button);
 }
 
-.button-group button {
+.button-group :is(button, select) {
   border: none;
   border-radius: var(--border-radius);
+}
+
+/* sets gap for a toolbar, applied between buttons/buttons groups as a whole */
+.toolbar-floating {
+  gap: var(--um3);
+}
+
+/* special colors for floating buttons in case of dark color schemes --
+ * contrary to usual button layout, the foreground should be bright. */
+:root[data-theme="dark"] .toolbar-floating :is(button, input, select):not(:disabled) {
+  color: var(--clr-bg-button);
+}
+:root[data-theme="dark"] .toolbar-floating :is(button, input, select):disabled {
+  color: var(--clr-border-inactive);
+}
+
+/*
+ * Floating variant: for a button / select / button-group placed directly on
+ * a hovering toolbar over module content (e.g. PanelResidentChrome.vue's
+ * #toolbar slot) where the toolbar container itself carries no visible
+ * chrome of its own. Each control gets its own translucent, blurred
+ * backing instead, so its label stays legible against whatever is
+ * underneath while the row as a whole occupies minimal space -- as opposed
+ * to the plain opaque background above, for a control row on a regular
+ * (non-floating) subpanel widget.
+ */
+.toolbar-floating > button,
+.toolbar-floating > select,
+.toolbar-floating > .button-group > :is(button, select) {
+  background-color: var(--clr-neutral-transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* The group itself stays an outline only -- its base opaque fill would
+   otherwise sit *behind* the (opaque) children above and never show, so
+   there's nothing worth blurring at the group level; each child already
+   carries its own blurred backing. */
+.toolbar-floating > .button-group {
+  background: transparent;
 }
 
 button > span.vi {

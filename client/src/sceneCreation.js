@@ -60,3 +60,59 @@ export async function remove_scene_with_confirmation(store, id) {
         window.alert(error.message);
     }
 }
+
+// The one sanctioned path for removing a module viewport instance --
+// formerly Panel.vue's own remove_module, generalized to take an
+// instanceId directly (any panel-resolution mechanism can call this, not
+// just a Panel.vue instance that happens to hold it -- see
+// CleanModeOverlay.vue, which resolves a clicked panel's instanceId off
+// the DOM rather than through its own props). Confirms first if this is
+// the last viewport for its scene and that scene still has sources
+// attached (removing it would reassign those elsewhere, same warning
+// remove_scene_with_confirmation gives), then clears the layout leaf,
+// drops the widget instance, unregisters its camera/graph-layout state,
+// and -- if it really was the last viewport -- removes the now-orphaned
+// scene too.
+export async function remove_module_instance(store, instanceId) {
+    const instance = store.getters['widgetInstances/instance'](instanceId);
+    const contextId = instance?.contextId ?? null;
+
+    if(contextId) {
+        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
+            .filter(other => other.instanceId !== instanceId && other.itemType.endsWith(':module'));
+
+        if(remainingViewports.length === 0) {
+            const sources = store.getters['connection/resourcesForContext'](contextId);
+            const scene = store.getters['contexts/context'](contextId);
+            if(sources.length > 0) {
+                const proceed = window.confirm(
+                    `This is the last viewport for "${scene?.name ?? contextId}". Removing it also removes the `
+                    + `scope, and its ${sources.length} assigned source(s) will be reassigned elsewhere. Continue?`
+                );
+                if(!proceed) return;
+            }
+        }
+    }
+
+    store.commit('layout/clear_instance_from_leaf', {instanceId});
+    store.commit('widgetInstances/remove_instance', instanceId);
+    store.commit('cameras/unregister_viewport', instanceId);
+    // Same cleanup, for modules/graph's own per-viewport layout state
+    // (doc/module-graph.rst's "Diagrams") -- harmless no-op for any other
+    // (non-graph) viewport id, same as the cameras call above.
+    store.commit('graphLayout/unregister_viewport', instanceId);
+
+    if(contextId) {
+        const remainingViewports = store.getters['widgetInstances/instancesForContext'](contextId)
+            .filter(other => other.itemType.endsWith(':module'));
+        if(remainingViewports.length === 0) {
+            const otherContext = store.getters['contexts/listForType'](instance.itemType.split(':')[0])
+                .find(ctx => ctx.id !== contextId);
+            try {
+                await store.dispatch('contexts/remove_context', {id: contextId, reassignSourcesTo: otherContext?.id});
+            } catch(error) {
+                console.warn(`Could not remove context "${contextId}":`, error);
+            }
+        }
+    }
+}

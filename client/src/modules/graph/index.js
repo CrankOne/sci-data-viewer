@@ -19,6 +19,7 @@ import { destruct_selection_id } from './ids';
 register_module({
     dataType: 'graph',
     label: 'Block Diagram',
+    scopeNoun: 'diagram',
     viewportComponent: DiagramViewport,
     sidePanelSections: [
         // Filed under the generic "application subpanels" category (see

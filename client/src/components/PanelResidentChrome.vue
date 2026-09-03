@@ -12,10 +12,13 @@
     MIME type/payload string this instance is told to use (`dragType`/
     `dragPayload` props) so a module drag stays `application/x-panel-module`
     +instanceId and a wiring drag becomes `application/x-panel-wiring`+the
-    leaf's own id, with no kind-specific branching in this component itself;
-  - a "remove" button, purely an emitted event -- what removal actually
-    *means* (a module's confirm-if-last-viewport dance vs. a wiring leaf's
-    unconditional revert-to-empty) is entirely the caller's concern;
+    leaf's own id, with no kind-specific branching in this component itself.
+    Sits top-right (there used to be a matching "remove" corner button/emit
+    in that corner instead -- removed in favor of CleanModeOverlay.vue's
+    click-a-panel gesture, AppControls.vue's "Clean panel" button, which
+    resolves what a clicked panel holds off the store instead of needing
+    this component to plumb an event through -- freeing this corner up for
+    the knob, out of a hovering toolbar's own top-left way);
   - an optional hovering toolbar slot (visual language borrowed from
     modules/three-view/components/ThreeViewport.vue's own `.camera-widget__
     bar`: a small always-visible floating row, never expanding into a
@@ -37,17 +40,8 @@
     >
       <span class="resident-chrome__knob-icon" aria-hidden="true">&#x283F;</span>
     </div>
-    <button
-      type="button"
-      class="header-action resident-chrome__remove"
-      title="Remove"
-      aria-label="Remove"
-      @click="$emit('remove')"
-    >
-      <span class="vi vi-trash-bin" aria-hidden="true" />
-    </button>
 
-    <div v-if="$slots.toolbar" class="resident-chrome__toolbar">
+    <div v-if="$slots.toolbar" class="resident-chrome__toolbar toolbar-floating">
       <slot name="toolbar" />
     </div>
 
@@ -67,7 +61,6 @@ const props = defineProps({
     // a module, a leaf id for a wiring widget) -- opaque to this component.
     dragPayload: {type: String, required: true}
 });
-defineEmits(['remove']);
 
 function on_drag_start(event) {
     event.dataTransfer.setData(props.dragType, props.dragPayload);
@@ -92,15 +85,18 @@ function on_drag_start(event) {
 }
 
 /* Folded-corner drag handle -- moved verbatim from Panel.vue's own former
-   .module-drag-handle, now shared. */
+   .module-drag-handle, now shared. Top-right (mirrored from its original
+   top-left) now that nothing else claims that corner (see the header
+   comment) -- top-left stays clear for a hovering toolbar's own
+   --hover-toolbar-top/left offset. */
 .resident-chrome__knob {
   position: absolute;
   top: 0;
-  left: 0;
+  right: 0;
   width: var(--up3);
   height: var(--up3);
-  clip-path: polygon(100% 0, 0 100%, 0 0);
-  background-filter: blur(3px);
+  clip-path: polygon(0 0, 100% 100%, 100% 0);
+  backdrop-filter: blur(3px);
   cursor: grab;
   z-index: 10;
   color: var(--clr-supporting);
@@ -114,37 +110,25 @@ function on_drag_start(event) {
 .resident-chrome__knob-icon {
   position: absolute;
   top: var(--um3);
-  left: var(--um3);
+  right: var(--um3);
+  transform: rotate(90deg);
   font-size: var(--u0);
   line-height: 1;
   pointer-events: none;
 }
 
-.resident-chrome__remove {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
-  width: var(--up3);
-  height: var(--up3);
-  background-filter: blur(3px);
-  z-index: 10;
-}
-
-/* Hovering toolbar row */
+/* Hovering toolbar row -- the row itself is invisible (no border/background
+   of its own, minimal padding) so it occupies as little of the module as
+   possible; each button/select/button-group it contains carries its own
+   blurred backing instead (see .toolbar-floating in style.css). */
 .resident-chrome__toolbar {
   position: absolute;
-  top: var(--um2);
-  left: calc(3*var(--um2));
+  top: var(--hover-toolbar-top);
+  left: var(--hover-toolbar-left);
   z-index: 10;
   display: flex;
   align-items: center;
   gap: var(--um3);
-  padding: var(--um3);
   max-width: min(36rem, calc(100% - 1.5rem));
-  border: var(--border-thin) solid var(--clr-border-inactive);
-  border-radius: var(--border-radius);
-  background: var(--clr-neutral-transparent);
-  backdrop-filter: blur(3px);
 }
 </style>

@@ -81,6 +81,11 @@
 // for correctness. Typically factors out the same per-item lookup
 // `buildSinkSnapshot` already does, keyed by `originRef` instead of
 // iterating the current selection (see modules/graph/index.js).
+// `scopeNoun` -- optional, meaningful only alongside `contextual: true`: the
+// short lowercase noun store/modules/contexts.js's mk_default_name uses to
+// name a newly-created context of this dataType ("plot-1", "diagram-23"),
+// distinct from `label` (a longer, capitalized phrase for menus/pickers).
+// Falls back to the dataType itself when omitted.
 const registry = new Map();
 
 export function register_module(definition) {

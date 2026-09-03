@@ -14,6 +14,7 @@ import { make_selection_module } from '@/store/selection';
 register_module({
     dataType: 'plot',
     label: '2D Plot',
+    scopeNoun: 'plot',
     viewportComponent: PlotViewport,
     // Same category three-view's own "Items" tree and graph's "Nested
     // procedures" use (CATEGORY_COMMON_SCOPE) -- a per-scope viewing
