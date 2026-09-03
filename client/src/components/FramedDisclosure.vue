@@ -5,12 +5,6 @@
   >
     <div class="framed-disclosure__bar">
       <div class="framed-disclosure__header">
-        <slot name="header" />
-      </div>
-
-      <div class="framed-disclosure__actions">
-        <slot name="actions" />
-
         <button
           type="button"
           class="framed-disclosure__toggle"
@@ -21,11 +15,17 @@
           <span
             class="vi"
             :class="modelValue
-              ? 'vi-minus-framed'
-              : 'vi-plus-framed'"
+              ? 'vi-chevron-down'
+              : 'vi-chevron-right'"
             aria-hidden="true"
           />
         </button>
+
+        <slot name="header" />
+      </div>
+
+      <div class="framed-disclosure__actions">
+        <slot name="actions" />
       </div>
     </div>
 

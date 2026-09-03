@@ -1,13 +1,17 @@
 <template>
   <div id="navbarEntity">
     <div
-      :class="openClass"
       id="header"
       :draggable="itemId != null"
       v-on:click="opened = !opened"
       v-on:dragstart="on_drag_start"
     >
-      <span id="header-title"><slot name="header"></slot></span>
+      <span id="header-title">
+          <span>
+              <span class="vi" :class="stateIcon"></span>
+              <slot name="header"></slot>
+          </span>
+      </span>
       <span
         v-if="$slots.actions"
         id="header-actions"
@@ -39,8 +43,8 @@ export default {
         return {'opened': this.defaultOpenedState};
     },
     computed: {
-        openClass() {
-            return this.opened ? 'opened' : 'closed';
+        stateIcon() {
+            return this.opened ? 'vi-chevron-down' : 'vi-chevron-right';
         },
         isContentShown() {
             return this.opened;
@@ -72,7 +76,7 @@ div#header {
 
   font-weight: bold;
   text-align: left;
-  letter-spacing: 0.2em;
+  letter-spacing: var(--um3);
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -90,18 +94,8 @@ div#header {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--um2);
   cursor: default;
-}
-
-div.opened:before {
-  content: '\229F ';
-  padding-right: 5pt;
-}
-
-div.closed:before {
-  content: '\229E ';
-  padding-right: 5pt;
 }
 
 div#content {
@@ -118,5 +112,6 @@ div#content {
   overflow-y: auto;
   overflow-x: auto;
 }
+
 </style>
 

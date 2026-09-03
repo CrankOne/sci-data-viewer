@@ -152,6 +152,7 @@ import { make_identity_transform, apply_transform, zoom_around, pan_by, zoom_to_
 import { compute_fit_transforms } from './viewFit';
 import { find_hovered_items, find_items_in_rect } from './hitTest';
 import { resolve_forwarded_primitives } from './store/plotDesk';
+import { assign_legend_colors, legend_color_var } from '@/store/legend';
 
 const props = defineProps({
     instanceId: {type: String, required: true}
@@ -217,6 +218,14 @@ const defaultTransfDomain = {
     x: {extent: [0, 10], scaleType: 'linear'},
     y: {extent: [0, 5], scaleType: 'linear'}
 };
+
+// Own-desk and sink-forwarded primitives combined, narrowed to the one
+// domain currently on screen -- what redraw()'s own drawing pass, hit-
+// testing (update_hover/select_rect) and legend-color assignment all
+// independently need the exact same "everything actually shown right now"
+// list for.
+const domainItems = computed(() =>
+    [...primitives.value, ...sinkPrimitives.value].filter(item => item._transfDomain === defaultTransfDomain.name));
 
 const lvWidth = 44;
 const lhHeight = 28;
@@ -446,15 +455,26 @@ function redraw() {
     const ctx = canvas.getContext('2d');
     clear(ctx, mpWidth.value, mpHeight.value);
 
-    const markerColor = resolve_css_var('--clr-legend1');
-    const lineColor = resolve_css_var('--clr-legend2');
-    // Distinct from the desk's own directly-loaded primitives above and
-    // from the two interaction-state colors below -- a dedicated palette
-    // slot (not `--clr-graph-selection`, despite the name similarity: that
-    // one is this app's actual "selected" color everywhere else --
-    // DiagramNode.vue/DiagramEdge.vue -- and this module now has a genuine
-    // local-selection outline of its own that needs it instead).
-    const sinkColor = resolve_css_var('--clr-legend6');
+    // Every drawable's own color, own-desk or sink-forwarded alike (doc/
+    // module-plotter.rst's "Styling"): resolved from its own `group` facet
+    // via store/legend.js's shared, facet-based legend-color scheme -- a
+    // distinct `group` value gets one of style.css's 8 --clr-legendN slots,
+    // assigned in whatever order they're first seen here; no `group` facet
+    // at all (today's actual state -- nothing populates it yet) falls back
+    // to this colorscheme's own neutral foreground instead of any slot, so
+    // "ungrouped" reads as a deliberate baseline, not as an arbitrary first
+    // color. This replaces the former fixed marker/line/sink-forwarded
+    // color triad -- there was never anything for those three colors to
+    // mean beyond "some other item drew here first"; grouping is now an
+    // explicit, source-declared choice instead of an accident of primitive
+    // type or provenance.
+    const groupColors = assign_legend_colors(domainItems.value, 'group');
+    const neutralColor = resolve_css_var('--clr-fg-main');
+    function color_for(item) {
+        const varName = legend_color_var(item, 'group', groupColors);
+        return varName ? resolve_css_var(varName) : neutralColor;
+    }
+
     // The app-wide hover/selection color pair (DiagramNode.vue/
     // DiagramEdge.vue use the same two for the same meanings) -- drawn as
     // an outline *behind* an item's own normal color now (draw.js's
@@ -468,9 +488,10 @@ function redraw() {
     const hovered = highlightedIds.value;
     const selected = selectedIds.value;
 
-    function draw_item(item, defaultColor) {
+    function draw_item(item) {
         const isHovered = hovered.has(item._id);
         const isSelected = selected.has(item._id);
+        const defaultColor = color_for(item);
         if(item._type === 'markers') {
             if(isSelected) draw_markers_outline(ctx, item, xScale.value, yScale.value, selectedColor);
             if(isHovered) draw_markers_outline(ctx, item, xScale.value, yScale.value, highlightColor);
@@ -482,15 +503,7 @@ function redraw() {
         }
     }
 
-    for(const item of primitives.value) {
-        if(item._transfDomain === defaultTransfDomain.name)
-            draw_item(item, item._type === 'markers' ? markerColor : lineColor);
-    }
-
-    for(const item of sinkPrimitives.value) {
-        if(item._transfDomain === defaultTransfDomain.name)
-            draw_item(item, sinkColor);
-    }
+    for(const item of domainItems.value) draw_item(item);
 
     if(dragMode.value === 'rect-zoom' || dragMode.value === 'rect-select') {
         const color = dragMode.value === 'rect-zoom' ? '--clr-border-active' : '--clr-graph-selection';
@@ -558,9 +571,7 @@ let hoverCycleIndex = 0;
 // outside a drag -- see on_pointer_down's clear_hover.
 function update_hover(px, py) {
     if(!selectionNS.value) return;
-    const domainItems = [...primitives.value, ...sinkPrimitives.value]
-        .filter(item => item._transfDomain === defaultTransfDomain.name);
-    const hits = find_hovered_items(domainItems, xScale.value, yScale.value, px, py, HOVER_HIT_PX);
+    const hits = find_hovered_items(domainItems.value, xScale.value, yScale.value, px, py, HOVER_HIT_PX);
     if(hits.length === 0) {
         clear_hover();
         return;
@@ -630,9 +641,7 @@ function select_rect(px0, py0, px1, py1, incremental) {
     if(!selectionNS.value) return;
     const [xLo, xHi] = px0 < px1 ? [px0, px1] : [px1, px0];
     const [yLo, yHi] = py0 < py1 ? [py0, py1] : [py1, py0];
-    const domainItems = [...primitives.value, ...sinkPrimitives.value]
-        .filter(item => item._transfDomain === defaultTransfDomain.name);
-    const ids = find_items_in_rect(domainItems, xScale.value, yScale.value, xLo, yLo, xHi, yHi);
+    const ids = find_items_in_rect(domainItems.value, xScale.value, yScale.value, xLo, yLo, xHi, yHi);
     apply_selection(ids, incremental);
 }
 

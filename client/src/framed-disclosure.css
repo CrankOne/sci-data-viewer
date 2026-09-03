@@ -55,7 +55,7 @@
   padding-inline: var(--um3);
 }
 
-.framed-disclosure__header span {
+.framed-disclosure__header > span {
   background: var(--fd-header-background);
   padding: var(--um2);
 }
@@ -84,12 +84,11 @@
   width: var(--up1);
   height: var(--up1);
   padding: 0;
-  margin-left: var(--up2);
 
   border: none;
 
-  background: var(--clr-bg-options);
-  color: var(--clr-fg-options);
+  background: var(--fd-header-background);
+  color: var(--clr-fg-main);
   cursor: pointer;
 }
 

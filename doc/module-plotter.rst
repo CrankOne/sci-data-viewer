@@ -129,6 +129,37 @@ primitives, *not* as abstract data. For instance, it is not possible at the
 client side to switch from point markers to stairs if point markers are the
 bins of 1D histogram.
 
+**Planned, not built**: the constraint above is exactly what a second,
+higher-level tier of primitives is meant to lift eventually. A source that
+wants that flexibility would supply a **chart-type** primitive instead --
+abstract *data* (bin edges/counts, per-group point+spread values, ...), not
+a rendering decision -- and the client, not the source, would pick and let
+the user change the concrete on-screen representation. Anticipated first
+two:
+
+- ``histogram1D`` -- bin edges and per-bin counts (plus whatever a given
+  representation needs beyond that, e.g. per-bin uncertainty for error
+  bars). At least three appearance choices: a (optionally filled) stairline,
+  a plain polyline through bin centers, or boxes -- plus layout control for
+  *several* histograms sharing one plot: stacked vertically (counts summed),
+  stacked horizontally (bins subdivided side by side), or alternating
+  (interleaved bin-by-bin), all still to be designed in detail.
+- ``grouped-distplot`` -- comparing a distribution (not just a single value)
+  across categories/groups, depicted via some combination of point markers,
+  error bars, and boxes (a box-plot-family chart), exact styling knobs also
+  still open.
+
+Both would sit *above*, not replace, today's literal-drawable vocabulary
+(markers/polyline/raster) -- a source already happy drawing its own markers
+and polylines directly keeps doing exactly that; chart-type primitives are
+an additional, optional tier for a source that would rather hand over an
+abstract shape and let the user (not a round trip back to the source) decide
+how it's drawn. Styling in general -- including which representation and
+layout a given chart-type primitive currently uses -- is expected to follow
+the same facet-driven, client-side control "Styling" below already
+describes for color; see that section, and "Data groups" there, once this
+tier actually exists.
+
 Common properties for every item:
 - A type (``_type``) defining how the rest of the object should be interpreted.
 - Selection (``_facets``) facets -- an object of key/value pair for advanced
@@ -136,7 +167,9 @@ Common properties for every item:
   :doc:`module-3d-viewer` and :doc:`module-graph` use. The client always
   adds one facet of its own on top -- ``dataSource``, the owning resource's
   own name (``store/facets.js``) -- so a primitive is never entirely
-  unfaceted even when a source declares none of its own.
+  unfaceted even when a source declares none of its own. One facet *key* is
+  meaningful to this module specifically: ``group`` -- see "Styling" below
+  for what a source populating it actually does.
 - Transformation domain name (``_transfDomain``).
 - Subject data (``subjectData``, optional) -- see "Subject data" below.
 
@@ -251,9 +284,44 @@ Styling affect non-bitmap drawables and implies:
 - Line width and stroke style;
 - Fill patterns and color.
 
-In a new :doc:`ui-session` a "default" style is in use for all the plotted items.
-There is a sub-panel widget to administer facet-based rules to assign
-different styles based on facets.
+**Built (color only, so far)**: every drawable's default color is resolved
+generically from its own ``group`` facet (``store/facets.js``'s ``_facets``
+convention -- no new mechanism, just a new, so-far-unpopulated facet *key*),
+via a small shared helper (``store/legend.js``) rather than being fixed by
+primitive type or where the item came from (own desk vs. sink-forwarded --
+that used to be color-coded and no longer is, since it was never a
+meaningful *data* distinction, just an accident of provenance):
+
+- Every distinct value seen for ``_facets.group`` among what's currently
+  drawn gets one of this app's 8 ``--clr-legendN`` basic-palette slots
+  (``style.css``), assigned in first-seen order and cycling past 8 -- the
+  same shared 8-color vocabulary :doc:`module-graph`'s own wiring diagram
+  already cycles through for resource/edge coloring.
+- An item with **no** ``group`` facet at all -- today, every primitive: no
+  source populates this yet -- renders in the current colorscheme's own
+  neutral foreground (``--clr-fg-main``) instead, deliberately never treated
+  as an implied "group 0" claiming a legend slot. This is why every plotted
+  curve looks alike right now: a clean, neutral baseline is the intended
+  starting point for a source that hasn't opted into grouping, not a
+  regression to fix.
+
+**Stub, not yet the real editor**: a "Data Groups" side-panel section
+(``modules/plotter/index.js``) exists as the future home for browsing and
+assigning groups and previewing the resulting legend -- today it's a plain
+dev stub (this scope's own current selection, listed by id, nothing else).
+The eventually-intended version -- an items tree, selection-preset editor,
+and facets/group-assignment UI, the same three ideas :doc:`module-3d-viewer`'s
+own Items Tree (``modules/three-view/components/ItemsTree/``) already
+combines -- is anticipated but not designed in any more detail here;
+generalizing that component to be usable across modules, rather than
+rebuilding an equivalent from scratch for this one, is a distinct, dedicated
+task of its own.
+
+Shape, line width/stroke style, and fill pattern (the other bullet points
+above) aren't wired to facets at all yet -- only color is built; the same
+"Data Groups" section is where the rest would eventually live too, likely
+per chart-type-primitive representation choices ("Primitives" above's
+``histogram1D``/``grouped-distplot``) once those exist.
 
 Some raster content is expected to be too demanding for client-side styling
 control -- dense heatmaps and rasterized massive scatterplots may need to be

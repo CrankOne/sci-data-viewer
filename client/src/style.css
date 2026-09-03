@@ -111,7 +111,7 @@
     --clr-fg-panel-header: var(--clr-neutral-brighten);
 
     --clr-border-active: var(--clr-supporting);
-    --clr-border-inactive: var(--clr-supporting-darken);
+    --clr-border-inactive: var(--clr-neutral-darken2);
 
     --clr-bg-highlight1: var(--clr-accent-brighten);
     --clr-fg-highlight1: var(--clr-fg-main);
@@ -147,7 +147,7 @@
     --clr-bg-unoccupied: var(--clr-neutral-darken);
     --clr-bg-main: var(--clr-neutral-darken);
     --clr-fg-main: var(--clr-supporting-brighten);
-    --clr-fg-main-muted: var(--clr-neutral-brighten);
+    --clr-fg-main-muted: var(--clr-supporting-darken);
     --clr-fg-main-highlighted: var(--clr-accent);
 
     --clr-bg-panel: var(--clr-neutral);
@@ -157,7 +157,7 @@
     --clr-fg-panel-header: var(--clr-bg-highlight2);
 
     --clr-border-active: var(--clr-supporting);
-    --clr-border-inactive: var(--clr-supporting-darken);
+    --clr-border-inactive: var(--clr-neutral-brighten);
 
     --clr-bg-highlight1: var(--clr-supporting-darken);
     --clr-bg-highlight2: var(--clr-supporting-brighten);
@@ -323,13 +323,17 @@ input[type="number"] {
   gap: var(--um3);
 }
 
-/* special colors for floating buttons in case of dark color schemes --
- * contrary to usual button layout, the foreground should be bright. */
+/* special colors for floating buttons in case of dark color: */
+/* for disabled buttons we also should dim the background */
+:root[data-theme="dark"] .toolbar-floating :is(button, input, select):disabled {
+  background-color: var(--clr-border-inactive);
+}
+/* contrary to usual button layout, the foreground should be bright. */
 :root[data-theme="dark"] .toolbar-floating :is(button, input, select):not(:disabled) {
   color: var(--clr-bg-button);
 }
-:root[data-theme="dark"] .toolbar-floating :is(button, input, select):disabled {
-  color: var(--clr-border-inactive);
+:root[data-theme="dark"] :is(button, input, select):disabled {
+  background-color: var(--clr-border-inactive);
 }
 
 /*

@@ -52,7 +52,7 @@
               aria-label="Connect to scope"
               @click="open_connect_scope(item)"
             >
-              <span class="vi vi-cube" aria-hidden="true" />
+              <span class="vi vi-socket-connected" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -61,7 +61,7 @@
               aria-label="Remove subpanel"
               @click="remove_item(item.id)"
             >
-              <span class="vi vi-trash-bin" aria-hidden="true" />
+              <span class="vi vi-x-cross" aria-hidden="true" />
             </button>
           </template>
         </component>
@@ -327,5 +327,20 @@ function on_item_drop(event, item) {
     opacity: 0.6;
     text-align: center;
     font-style: italic;
+}
+
+/* A very special override for buttons located on the sub-panel header forcing
+ * them to look as main header font to ease the visual feeling */
+button.header-action,
+button.header-action > span {
+  border: none;
+  background: transparent;
+  color: var(--clr-fg-panel-header);
+}
+
+button.header-action:hover:not(:disabled) {
+  border: none;
+  background-color: var(--clr-accent);
+  color: var(--clr-neutral-darken);
 }
 </style>

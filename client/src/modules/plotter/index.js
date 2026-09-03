@@ -7,6 +7,7 @@ import { CATEGORY_COMMON_SCOPE } from '@/modules/panelItems';
 
 import PlotViewport from './PlotViewport.vue';
 import PlotHelpersPanel from './PlotHelpersPanel.vue';
+import DataGroupsPanel from './DataGroupsPanel.vue';
 import { make_plot_desk_module, resolve_forwarded_primitives } from './store/plotDesk';
 import { make_sink_inbox_module } from '@/store/sinkInbox';
 import { make_selection_module } from '@/store/selection';
@@ -21,7 +22,12 @@ register_module({
     // preference (PlotViewport.vue's wheel-cycle/shift+click selection),
     // not app-level plumbing.
     sidePanelSections: [
-        {id: 'plot:helpers', title: 'Plot Helpers', component: PlotHelpersPanel, category: CATEGORY_COMMON_SCOPE}
+        {id: 'plot:helpers', title: 'Plot Helpers', component: PlotHelpersPanel, category: CATEGORY_COMMON_SCOPE},
+        // Dev stub for now (DataGroupsPanel.vue's own header comment) --
+        // filed under the same category as "Plot Helpers" above, a
+        // per-scope viewing/styling preference rather than app-level
+        // plumbing.
+        {id: 'plot:data-groups', title: 'Data Groups', component: DataGroupsPanel, category: CATEGORY_COMMON_SCOPE}
     ],
     contextual: true,
     contextStoreModules: {
