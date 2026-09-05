@@ -282,6 +282,26 @@ export default {
                 throw new Error(`Context "${id}" still has a mounted viewport -- remove or relocate it first`);
             }
 
+            // The guard above only ever blocks on a *viewport* (sceneCreation
+            // .js's "a scene can never exist without a viewport" is about the
+            // main module, not its side panels) -- a side panel bound to this
+            // context (e.g. modules/graph's own "Sink inbox"/"Nested
+            // procedures") can still be open at this point. Every dynamically
+            // -registered module this context owns (sinkInbox_<id>,
+            // selection_<id>, ...) gets unregistered below; left mounted, an
+            // orphaned side panel would keep resolving its own contextId to
+            // this now-gone id and crash the next time it re-renders (its own
+            // getter simply doesn't exist anymore) -- and since nothing would
+            // ever drop its widgetInstances/layout entries either, that crash
+            // (and the layout leaf stuck holding a dead reference) would
+            // persist across reloads. Closing them here, same as
+            // sceneCreation.js's remove_module_instance already does for the
+            // main viewport case, keeps this removal atomic instead.
+            for(const instance of stillMounted) {
+                commit('layout/clear_instance_from_leaf', {instanceId: instance.instanceId}, {root: true});
+                commit('widgetInstances/remove_instance', instance.instanceId, {root: true});
+            }
+
             dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
 
             // `id` may feed one or more transform nodes (store/modules/
