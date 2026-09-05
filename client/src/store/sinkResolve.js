@@ -14,12 +14,11 @@
 // correctness (contexts.js's removeIncomingOrigin still prunes the stale
 // reference list itself on removal, but only for tidiness -- resolution
 // already fails safe without it).
-import { get_module } from '@/modules/registry';
+import { resolve_origin } from './originResolve';
 
 export function resolve_incoming_sink_items(store, incomingList) {
     return incomingList.flatMap(({originContextId, items}) => {
-        const origin = store.getters['contexts/context'](originContextId);
-        const originModule = origin && get_module(origin.dataType);
+        const originModule = resolve_origin(store, originContextId);
         if(!originModule?.resolveSinkItem) return [];
 
         return items.flatMap(ref => {

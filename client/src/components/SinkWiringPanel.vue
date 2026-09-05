@@ -42,6 +42,25 @@
     its module has no buildSinkSnapshot) rather than being omitted, so
     "this concept exists but isn't wired up here" reads differently from
     "modules don't have outputs".
+
+  A third node kind, 'transform' (store/modules/transforms.js), is a
+  separate, still-experimental feature: a user-authored JS function, edited
+  via components/modals/TransformEditorModal.vue's CodeFlask editor, fed by
+  a context's own output the same way a sink link is (dotted 'transform'
+  -kind edge, no facet assignment -- a transform's own source is what
+  decides what it does with its whole input). Its own output, in turn,
+  feeds a context's 'in' exactly like a sink link does -- same
+  ConnectScopeModal.vue picker (`originKind: 'transform'`), same edge look
+  ('sink'-kind, solid, colored by payloadType), same "Assign facet…"/
+  "Unlink" menu -- store/originResolve.js's resolve_origin is what lets
+  store/sinkDispatch.js treat a transform id exactly like a context id
+  everywhere that matters, so this widget barely has to know the
+  difference. A transform never feeds *another* transform, though (no
+  output handle offered as a valid drag target for one) -- deliberately
+  transform -> context only, chaining is a possible future step, not this
+  one. Always console-logged too (store/transformDispatch.js), whether or
+  not it currently has any outputLinks -- handy while iterating on its
+  source, not just once something is actually wired downstream.
 -->
 <template>
   <div class="sink-wiring-panel">
@@ -103,13 +122,35 @@
         </div>
       </template>
 
+      <template #node-transform="nodeProps">
+        <div
+          class="wiring-node wiring-node--transform"
+          :class="{'wiring-node--hovered': hoveredNodeId === nodeProps.id, 'wiring-node--disabled': !nodeProps.data.enabled}"
+        >
+          <div class="wiring-node__title">{{ nodeProps.data.label }}</div>
+          <div class="wiring-node__type">transform{{ nodeProps.data.enabled ? '' : ' (disabled)' }}</div>
+          <Handle id="in" type="target" :position="Position.Left" />
+          <!-- Disabled (not just dimmed styling) while the transform itself
+               is disabled -- an imported, unreviewed transform's code
+               shouldn't be wireable into a real target before someone has
+               actually looked at it, even though an *existing* outputLinks
+               entry already delivers nothing on its own (store/
+               originResolve.js's transform_snapshot short-circuits). -->
+          <Handle
+            id="out" type="source" :position="Position.Right"
+            :connectable="nodeProps.data.enabled"
+            :class="{'wiring-handle--disabled': !nodeProps.data.enabled}"
+          />
+        </div>
+      </template>
+
       <template #edge-wiring="edgeProps">
         <BaseEdge
           :id="edgeProps.id" :path="edge_path(edgeProps)[0]"
           :style="{
             stroke: type_color(edgeProps.data.colorType),
             strokeWidth: hoveredEdgeId === edgeProps.id ? 3 : 1.5,
-            strokeDasharray: edgeProps.data.kind === 'resource' ? '4 3' : undefined
+            strokeDasharray: edgeProps.data.kind === 'resource' ? '4 3' : edgeProps.data.kind === 'transform' ? '1 3' : undefined
           }"
         />
       </template>
@@ -135,6 +176,7 @@ import dagre from '@dagrejs/dagre';
 import ContextMenu from '@/components/ContextMenu.vue';
 import { get_module, all_modules } from '@/modules/registry';
 import { send_selection_to_sink } from '@/store/sinkDispatch';
+import { dispatch_transform_feeds, dispatch_transform_feeds_from_resource } from '@/store/transformDispatch';
 import { create_scene_with_viewport, remove_scene_with_confirmation } from '@/sceneCreation';
 import '@vue-flow/core/dist/style.css';
 
@@ -226,6 +268,57 @@ function build_sink_edges() {
     );
 }
 
+// A transform is a third node kind (doc/data-model.rst, store/modules/
+// transforms.js), fed from either a context's `out` (selection-driven,
+// mirrors a sink link) or a resource's `out` (unconditional -- the
+// resource's own plain current payload/id, mirrors a source link)  --
+// `feed.resourceName` vs. `feed.originContextId` says which. `colorType:
+// null` renders the edge in the neutral "no declared type" color
+// (type_color's own fallback) either way: a transform forwards its whole
+// input untyped, there's no single payloadType to color by.
+function build_transform_nodes() {
+    return store.getters['transforms/list'].map(transform => ({
+        id: `transform:${transform.id}`,
+        type: 'transform',
+        data: {label: transform.name, enabled: transform.enabled}
+    }));
+}
+
+function build_transform_edges() {
+    return store.getters['transforms/allFeeds'].map(feed => ({
+        id: `feed:${feed.feedId}`,
+        type: 'wiring',
+        source: feed.resourceName ? `resource:${feed.resourceName}` : `context:${feed.originContextId}`,
+        sourceHandle: 'out',
+        target: `transform:${feed.transformId}`, targetHandle: 'in',
+        data: {
+            colorType: null, feedId: feed.feedId,
+            originContextId: feed.originContextId, resourceName: feed.resourceName, kind: 'transform'
+        }
+    }));
+}
+
+// A transform's own output link -- store/modules/transforms.js's
+// outputLinks, transform -> context. Drawn like a real sink link (solid,
+// colored by payloadType -- not dashed/dotted like the two "structural"
+// edge kinds above) since it *is* the same kind of connection in every way
+// that matters for data flow; kept as its own `kind` only so
+// on_edge_context_menu below can skip "Assign facet…" for it -- a
+// facetsSelector on a transform's own output isn't exposed yet (the field
+// exists in create_output_link for schema symmetry, always null for now;
+// filtering what a transform forwards is the transform's own source's job).
+function build_transform_output_edges() {
+    return store.getters['transforms/list'].flatMap(transform =>
+        store.getters['transforms/outputLinksFrom'](transform.id).map(link => ({
+            id: `tlink:${link.linkId}`,
+            type: 'wiring',
+            source: `transform:${transform.id}`, sourceHandle: 'out',
+            target: `context:${link.targetContextId}`, targetHandle: 'in',
+            data: {colorType: link.payloadType, linkId: link.linkId, originContextId: transform.id, kind: 'transform-output'}
+        }))
+    );
+}
+
 const nodes = ref([]);
 const edges = ref([]);
 
@@ -252,8 +345,10 @@ function layout_new_nodes(desiredNodes, desiredEdges, existingPositions) {
 }
 
 function sync_from_store() {
-    const desiredNodes = [...build_resource_nodes(), ...build_context_nodes()];
-    const desiredEdges = [...build_resource_edges(), ...build_sink_edges()];
+    const desiredNodes = [...build_resource_nodes(), ...build_context_nodes(), ...build_transform_nodes()];
+    const desiredEdges = [
+        ...build_resource_edges(), ...build_sink_edges(), ...build_transform_edges(), ...build_transform_output_edges()
+    ];
     const existingPositions = Object.fromEntries(nodes.value.map(node => [node.id, node.position]));
     const positions = layout_new_nodes(desiredNodes, desiredEdges, existingPositions);
 
@@ -268,7 +363,9 @@ watch(
     () => [
         store.state.connection.resources,
         store.getters['contexts/list'],
-        store.state.contexts.byId
+        store.state.contexts.byId,
+        store.state.transforms.byId,
+        store.state.transforms.feeds
     ],
     sync_from_store,
     {immediate: true, deep: true}
@@ -283,17 +380,36 @@ watch(
 // never an `id`), which must land on a context's own 'in' port either way.
 // A context source creates a sink link (any target context, own type
 // checked in on_connect below via acceptsPayloadTypes, same as a sink link
-// always could); a resource source reattaches it (only a target context of
-// the *same* dataType -- unlike a sink link's payload-type-based
-// acceptance, a resource attachment has no type-conversion story, so this
-// is checked here rather than left to fail inside on_connect).
+// always could); a resource source targeting a *context* reattaches it
+// (only a context of the *same* dataType -- unlike a sink link's payload
+// -type-based acceptance, a resource attachment has no type-conversion
+// story, so this is checked here rather than left to fail inside
+// on_connect) -- but targeting a *transform* instead, any resource is a
+// valid feed source regardless of type (a transform's own function decides
+// what to do with whatever raw payload it gets). A transform node's `in`
+// therefore accepts either a context's or a resource's output; its own
+// `out`, in turn, only ever accepts a *context* target (deliberately no
+// transform -> transform chaining, see the file header comment) -- a
+// transform is never itself a valid feed source for another transform.
 function is_valid_connection(connection, {sourceNode, targetNode}) {
     if(connection.id) return true;
-    if(connection.sourceHandle !== 'out' || connection.targetHandle !== 'in' || targetNode.type !== 'context')
-        return false;
+    if(connection.sourceHandle !== 'out' || connection.targetHandle !== 'in') return false;
+    if(targetNode.type === 'transform') return sourceNode.type === 'context' || sourceNode.type === 'resource';
+    if(sourceNode.type === 'transform') return targetNode.type === 'context';
+    if(targetNode.type !== 'context') return false;
     if(sourceNode.type === 'context') return sourceNode.id !== targetNode.id;
     if(sourceNode.type === 'resource') return sourceNode.data.dataType === targetNode.data.dataType;
     return false;
+}
+
+// The target's own first accepted payload type (or '*') -- the same
+// default ConnectScopeModal.vue's picker starts on; editing that choice, or
+// adding a facetsSelector, is still that modal's/the edge's own "Assign
+// facet…" job (a real sink link only -- see build_transform_output_edges'
+// own comment for why a transform's own output link skips this).
+function default_payload_type(targetCtx) {
+    const accepted = get_module(targetCtx?.dataType)?.acceptsPayloadTypes;
+    return accepted === '*' ? '*' : accepted?.[0] ?? null;
 }
 
 // A resource source reattaches it to the target scope directly -- no modal
@@ -301,24 +417,55 @@ function is_valid_connection(connection, {sourceNode, targetNode}) {
 // the resource node's own "Connect output" context-menu item for the same
 // effect): there's no payload-type/facet decision to make at connect time,
 // only which scope, and is_valid_connection above already guaranteed a
-// dataType match. A context source picks the target's own first accepted
-// payload type (or '*') -- the same default ConnectScopeModal.vue's picker
-// starts on; editing that choice, or adding a facetsSelector, is still
-// that modal's/the edge's own "Assign facet…" job.
+// dataType match.
 async function on_connect(connection) {
     if(connection.source.startsWith('resource:')) {
         const resourceName = connection.source.slice('resource:'.length);
+
+        if(connection.target.startsWith('transform:')) {
+            const transformId = connection.target.slice('transform:'.length);
+            await store.dispatch('transforms/create_feed', {resourceName, transformId});
+            dispatch_transform_feeds_from_resource(store, resourceName);
+            return;
+        }
+
         const targetContextId = connection.target.slice('context:'.length);
         await store.dispatch('connection/reassign_resource_context', {name: resourceName, contextId: targetContextId});
         return;
     }
 
+    if(connection.source.startsWith('transform:')) {
+        const transformId = connection.source.slice('transform:'.length);
+        const targetContextId = connection.target.slice('context:'.length);
+        const targetCtx = store.getters['contexts/context'](targetContextId);
+        const payloadType = default_payload_type(targetCtx);
+        if(!payloadType) return;
+
+        const linkId = await store.dispatch('transforms/create_output_link', {
+            transformId, targetDataType: targetCtx.dataType, targetContextId, payloadType, facetsSelector: null
+        });
+        // store/originResolve.js's resolve_origin lets this treat a
+        // transform id exactly like a context id -- same immediate-send
+        // -on-connect as a real sink link, below.
+        send_selection_to_sink(store, {originContextId: transformId, linkId});
+        return;
+    }
+
     const originContextId = connection.source.slice('context:'.length);
+
+    if(connection.target.startsWith('transform:')) {
+        const transformId = connection.target.slice('transform:'.length);
+        await store.dispatch('transforms/create_feed', {originContextId, transformId});
+        // Runs once immediately, same as a sink link's own send_selection_to_sink
+        // right after create_sink_link below -- sinkAutoDispatch.js takes over
+        // from here for every subsequent selection change.
+        dispatch_transform_feeds(store, originContextId);
+        return;
+    }
+
     const targetContextId = connection.target.slice('context:'.length);
     const targetCtx = store.getters['contexts/context'](targetContextId);
-    const targetModule = get_module(targetCtx?.dataType);
-    const accepted = targetModule?.acceptsPayloadTypes;
-    const payloadType = accepted === '*' ? '*' : accepted?.[0];
+    const payloadType = default_payload_type(targetCtx);
     if(!payloadType) return;
 
     const linkId = await store.dispatch('contexts/create_sink_link', {
@@ -334,7 +481,19 @@ async function on_connect(connection) {
 function remove_link(linkId) {
     const edge = edges.value.find(candidate => candidate.data?.linkId === linkId);
     if(!edge) return;
-    store.commit('contexts/remove_sink_link', {contextId: edge.data.originContextId, linkId});
+    // A transform's own outputLinks live under its own record (store/
+    // modules/transforms.js), not contexts.js's sinkLinks -- `kind`
+    // (build_transform_output_edges vs build_sink_edges) says which one
+    // `originContextId` actually names.
+    if(edge.data.kind === 'transform-output') {
+        store.commit('transforms/remove_output_link', {transformId: edge.data.originContextId, linkId});
+    } else {
+        store.commit('contexts/remove_sink_link', {contextId: edge.data.originContextId, linkId});
+    }
+}
+
+function remove_feed(feedId) {
+    store.commit('transforms/remove_feed', feedId);
 }
 
 function edge_path(edgeProps) {
@@ -357,10 +516,10 @@ const contextMenu = ref(null); // {x, y, items} | null
 // ConnectScopeModal's 'resource' kind reassigns which scope the resource's
 // data flows into (mirrors SourceListItem.vue's own "Connect to scope"
 // button).
-function connect_scope_output(contextId) {
+function connect_scope_output(originId, originKind = 'context') {
     store.commit('ui/open_modal', {
         name: 'connect-scope',
-        props: {kind: 'sink', originContextId: contextId, dataType: 'sink-view'}
+        props: {kind: 'sink', originContextId: originId, originKind, dataType: 'sink-view'}
     });
 }
 
@@ -398,6 +557,22 @@ function disconnect_resource(resourceName) {
     store.dispatch('connection/reassign_resource_context', {name: resourceName, contextId: null});
 }
 
+function edit_transform(transformId) {
+    store.commit('ui/open_modal', {name: 'transform-editor', props: {transformId}});
+}
+
+function rename_transform(transformId) {
+    const transform = store.getters['transforms/transform'](transformId);
+    const name = window.prompt('Rename transform', transform?.name ?? '');
+    if(name && name.trim()) store.commit('transforms/rename_transform', {id: transformId, name});
+}
+
+function toggle_transform_enabled(transformId) {
+    const transform = store.getters['transforms/transform'](transformId);
+    if(!transform) return;
+    store.commit('transforms/set_transform_enabled', {id: transformId, enabled: !transform.enabled});
+}
+
 function on_node_context_menu({event, node}) {
     event.preventDefault();
     if(node.type === 'context') {
@@ -419,18 +594,33 @@ function on_node_context_menu({event, node}) {
                 {label: 'Remove source', action: () => store.dispatch('connection/remove_resource', resourceName)}
             ]
         };
+    } else if(node.type === 'transform') {
+        const transformId = node.id.slice('transform:'.length);
+        const transform = store.getters['transforms/transform'](transformId);
+        contextMenu.value = {
+            x: event.clientX, y: event.clientY,
+            items: [
+                {label: 'Connect output', action: () => connect_scope_output(transformId, 'transform')},
+                {label: 'Edit…', action: () => edit_transform(transformId)},
+                {label: 'Rename', action: () => rename_transform(transformId)},
+                {label: transform?.enabled ? 'Disable' : 'Enable', action: () => toggle_transform_enabled(transformId)},
+                {label: 'Delete', action: () => store.dispatch('transforms/remove_transform', transformId)}
+            ]
+        };
     }
 }
 
-// Both edge kinds get the same two-item menu -- "Assign facet…" and
-// "Unlink" -- since a resource->scope attachment now carries its own
-// facetsSelector too (doc/data-model.rst's "One input concept per scope,
-// not two"), same as a sink link's; only what each actually edits/removes
-// differs (see assign_sink_facet/assign_resource_facet and
-// remove_link/disconnect_resource above).
+// Discriminated by `kind`, one branch per edge-building function above.
+// Real sink links and resource attachments both get "Assign facet…" +
+// "Unlink" (doc/data-model.rst's "One input concept per scope, not two");
+// a transform's own input feed and output link get "Unlink" only -- a
+// transform has no facetsSelector concept on either side yet, its own
+// source is what decides what it does with its whole input.
 function on_edge_context_menu({event, edge}) {
     event.preventDefault();
-    if(edge.data?.linkId) {
+    const {kind} = edge.data ?? {};
+
+    if(kind === 'sink') {
         const {linkId, originContextId} = edge.data;
         contextMenu.value = {
             x: event.clientX, y: event.clientY,
@@ -439,7 +629,7 @@ function on_edge_context_menu({event, edge}) {
                 {label: 'Unlink', action: () => remove_link(linkId)}
             ]
         };
-    } else if(edge.data?.kind === 'resource') {
+    } else if(kind === 'resource') {
         const {resourceName} = edge.data;
         contextMenu.value = {
             x: event.clientX, y: event.clientY,
@@ -447,6 +637,18 @@ function on_edge_context_menu({event, edge}) {
                 {label: 'Assign facet…', action: () => assign_resource_facet(resourceName)},
                 {label: 'Unlink', action: () => disconnect_resource(resourceName)}
             ]
+        };
+    } else if(kind === 'transform') {
+        const {feedId} = edge.data;
+        contextMenu.value = {
+            x: event.clientX, y: event.clientY,
+            items: [{label: 'Unlink', action: () => remove_feed(feedId)}]
+        };
+    } else if(kind === 'transform-output') {
+        const {linkId} = edge.data;
+        contextMenu.value = {
+            x: event.clientX, y: event.clientY,
+            items: [{label: 'Unlink', action: () => remove_link(linkId)}]
         };
     }
 }
@@ -463,6 +665,8 @@ function on_pane_context_menu(event) {
         x: event.clientX, y: event.clientY,
         items: [
             ...scopeItems,
+            {separator: true},
+            {label: 'New transform', action: () => store.dispatch('transforms/create_transform', {})},
             {separator: true},
             {label: 'Add data source…', action: () => store.commit('ui/open_modal', {name: 'add-source'})}
         ]
@@ -516,6 +720,14 @@ function on_pane_context_menu(event) {
 
 .wiring-node--resource {
   border-style: dashed;
+}
+
+.wiring-node--transform {
+  border-style: dotted;
+}
+
+.wiring-node--disabled {
+  opacity: 0.5;
 }
 
 .wiring-node--hovered {

@@ -15,6 +15,7 @@
 // reference's current value fresh, on demand, whenever a consumer needs it.
 import { get_module, payload_type_accepted } from '@/modules/registry';
 import { matches_facets_selector } from '@/store/facets';
+import { resolve_origin, resolve_outgoing_link } from '@/store/originResolve';
 
 // The part every dispatch flavor shares, regardless of how `items` was
 // built: resolve the named link (by id, not targetDataType -- several
@@ -29,10 +30,9 @@ import { matches_facets_selector } from '@/store/facets';
 // still carries at this point -- only what gets persisted afterward is
 // stripped down.
 export function deliver_to_sink(store, {originContextId, linkId, items}) {
-    const origin = store.getters['contexts/context'](originContextId);
-    const link = origin?.sinkLinks?.[linkId];
+    const link = resolve_outgoing_link(store, originContextId, linkId);
     if(!link) {
-        throw new Error(`No sink link "${linkId}" set for context "${originContextId}"`);
+        throw new Error(`No sink link "${linkId}" set for origin "${originContextId}"`);
     }
 
     const targetModule = get_module(link.targetDataType);
@@ -61,10 +61,9 @@ export function deliver_to_sink(store, {originContextId, linkId, items}) {
 // selection-based sink dispatch at all) simply isn't usable as a
 // *selection* sink origin; nothing calls this for it.
 export function send_selection_to_sink(store, {originContextId, linkId}) {
-    const origin = store.getters['contexts/context'](originContextId);
-    const originModule = get_module(origin?.dataType);
+    const originModule = resolve_origin(store, originContextId);
     if(!originModule?.buildSinkSnapshot) {
-        throw new Error(`Data type "${origin?.dataType}" has no selection to send to a sink`);
+        throw new Error(`Origin "${originContextId}" has no selection to send to a sink`);
     }
     const items = originModule.buildSinkSnapshot(store, originContextId);
     deliver_to_sink(store, {originContextId, linkId, items});

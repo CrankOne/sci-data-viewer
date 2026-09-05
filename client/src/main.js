@@ -9,6 +9,7 @@ import App from './App.vue';
 import { stateModule as connection } from './connection';  // data source state module
 import appCommon from './store/modules/appCommon';
 import contexts from './store/modules/contexts';
+import transforms from './store/modules/transforms';
 import widgetInstances from './store/modules/widgetInstances';
 import ui from './store/modules/ui';
 import session from './store/modules/session';
@@ -43,7 +44,7 @@ async function main() {
         (acc, mod) => ({...acc, ...mod.storeModules}), {}
     );
     const store = createStore({
-        modules: {connection, appCommon, contexts, widgetInstances, ui, session, layout, ...moduleStoreModules}
+        modules: {connection, appCommon, contexts, transforms, widgetInstances, ui, session, layout, ...moduleStoreModules}
     });
 
     // Global, session-independent standing behavior -- not persisted state,

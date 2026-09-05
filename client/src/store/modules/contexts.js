@@ -284,6 +284,12 @@ export default {
 
             dispatch('connection/reassign_context_sources', {fromContextId: id, toContextId: reassignSourcesTo}, {root: true});
 
+            // `id` may feed one or more transform nodes (store/modules/
+            // transforms.js's `feeds`) -- drop those the same way a sink
+            // link's own target-side cleanup below does, just keyed by
+            // origin instead of target.
+            dispatch('transforms/remove_feeds_from_context', id, {root: true});
+
             // `id` may be a sink *target* some other context's sinkLinks
             // points at -- drop those links so they don't dangle (same
             // "clean up a cross-reference at the removal site" shape as
@@ -299,6 +305,11 @@ export default {
                     }
                 }
             }
+
+            // A transform's own outputLinks (store/modules/transforms.js,
+            // stage 2) can point at `id` too -- same cleanup, just owned by
+            // a different registry.
+            dispatch('transforms/remove_output_links_to_context', id, {root: true});
 
             // `id` may be a sink *origin* some other context's landing-zone
             // module is holding routed-in entries for -- let that module

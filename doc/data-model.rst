@@ -13,6 +13,13 @@ Client Data Model
    (not behavior), this document is the more current description;
    :doc:`ui-session` is being brought in line with it.
 
+   Corrected 2026-09-04: "One input concept per scope, not two" originally
+   claimed the two link kinds share one uniform *item* shape. They don't,
+   and were never meant to -- they share one *mechanism* (one input port,
+   live resolution, a membership-rule/refresh-trigger distinction). See
+   "Two link kinds, two item shapes -- deliberately" for why the item
+   shapes differ on purpose.
+
 Three entities, not two
 ------------------------
 
@@ -63,11 +70,14 @@ structurally different kinds of input; neither holds up.
 One input concept per scope, not two
 --------------------------------------
 
-Given the above, a scope's incoming data is uniform in shape: **a stream
-of typed item references** -- ``{itemId, srcID, type, payload}`` -- from
-however many links are currently active. What varies between a *data
-source* link and a *sink* (another-scope-selection) link is not the shape
-of what flows through them, but two independent, per-link properties:
+Given the above, a scope's incoming data is uniform in **mechanism**: one
+input, live-resolved (see below), from however many links are currently
+active, regardless of kind. It is **not** uniform in item *shape* -- see
+"Two link kinds, two item shapes -- deliberately" further down for why
+that's a separate, deliberate decision this section's own claim never
+actually required. What varies between a *data source* link and a *sink*
+(another-scope-selection) link, mechanism-wise, is two independent,
+per-link properties:
 
 ``membership rule`` -- which items currently qualify
     A source link's rule is *unconditional by default*: every item the
@@ -131,6 +141,62 @@ per-context store (``view3D.js``, ``graphBoard.js``, ``plotDesk.js``,
 by this context's id and the module's own ``type``, rather than as
 committed state a mutation once pushed into.
 
+Two link kinds, two item shapes -- deliberately
+----------------------------------------------------
+
+One input port and live resolution (above) are properties of the
+*mechanism* feeding a scope. The *item* a scope actually receives through
+that mechanism is not uniformly shaped, and was never meant to be:
+
+``data source`` item -- plain
+    Whatever shape the source's own module defines, with that module's own
+    provenance/identity fields merged directly into it -- the plotter's
+    ``_id``/``_facets.dataSource`` (``modules/plotter/store/plotDesk.js``),
+    the graph module's equivalent on its own nodes/edges. No wrapper: the
+    real data sits at the top level.
+
+``sink`` item -- enveloped
+    ``{itemId, srcID, originRef, payloadType, snapshot}`` (modules/
+    registry.js's ``buildSinkSnapshot``/``resolveSinkItem`` contract) --
+    the real data is nested under ``snapshot``, never merged into the
+    top level.
+
+Two things force the second shape, and neither was touched by "Resolution
+is always live" above -- that refactor changed *when* data is read, not
+*what shape* it comes in:
+
+1. **Dynamic origin dispatch.** A data-source item's origin is always
+   exactly the one desk already reading it -- resolved once, at the
+   getter level (``connection.js``'s ``resources``), no per-item lookup
+   needed. A sink item's origin is one of an open-ended set, chosen at
+   link-creation time -- any contextual module, or (``store/modules/
+   transforms.js``) a transform -- so resolving it fresh requires an
+   explicit ``originContextId`` to dispatch through
+   (``store/originResolve.js``'s ``resolve_origin``). There is no fixed
+   "ask the desk" shortcut, because *which* desk (or transform) to ask is
+   itself part of what a sink link records.
+
+2. **Shape safety for a payload the consumer doesn't own.** A data
+   source's item shape is defined and consumed by the same module on both
+   ends, so that module can safely merge its own metadata fields into it.
+   A sink item's payload can come from anywhere -- another module's
+   internal data, or a user-authored transform whose function body can
+   ``return`` literally anything: a number, a string, an array, not
+   necessarily an object at all (``store/transformRun.js``). Merging
+   metadata fields into an arbitrary, possibly non-object value either
+   breaks outright or silently collides with a same-named real field.
+   Nesting the payload under ``snapshot`` is what lets the fully generic
+   sink machinery (``store/sinkDispatch.js``, ``store/sinkResolve.js``,
+   ``store/sinkInbox.js``) stay completely agnostic about what it's
+   carrying.
+
+Unifying either direction would cost more than it buys: wrapping every
+data-source item in an envelope it structurally doesn't need is pure
+indirection, since its origin is never dynamically dispatched; flattening
+a sink item's payload into its own top level breaks the moment that
+payload isn't a plain object, which a transform already proves happens in
+practice. The difference is load-bearing, not leftover.
+
 Status against the current implementation
 --------------------------------------------
 
@@ -156,9 +222,10 @@ Status against the current implementation
   no explicit remove-from-old / refetch-into-new step, since nothing owns
   a copy to invalidate.
 * A scope's two intakes sharing one input port and one uniform mechanism
-  shape, distinguished only by their own membership rule and refresh
-  trigger (this document's "One input concept per scope, not two"), rather
-  than being mechanically different pipelines.
+  (not item shape -- see below), distinguished only by their own
+  membership rule and refresh trigger (this document's "One input concept
+  per scope, not two"), rather than being mechanically different
+  pipelines.
 * A source link's membership rule symmetric with a sink link's: both
   optionally narrowed by a ``facetsSelector``, the same AND-match predicate
   either way (``store/facets.js``'s ``matches_facets_selector``), editable
@@ -168,6 +235,11 @@ Status against the current implementation
   itself declares -- a client-injected ``dataSource`` facet
   (``with_data_source_facet``), so a resource's own ``facetsSelector`` is
   never filtering against a possibly-empty ``_facets``.
+* The two link kinds' item shapes deliberately staying different (plain
+  vs. enveloped) rather than converging on one -- see "Two link kinds, two
+  item shapes -- deliberately" above. Not a gap left over from the
+  "resolve live" refactor; unifying either direction was considered and
+  rejected on 2026-09-04.
 
 Consequence for the wiring diagram
 --------------------------------------

@@ -344,7 +344,7 @@ const stateModule = {
             return dispatch('fetch_resource_manifest', {name, load});
         },
 
-        remove_resource({state, commit}, name) {
+        remove_resource({state, commit, dispatch}, name) {
             const resource = state.resources[name];
             if(resource) {
                 // Best-effort, fire-and-forget release of an active
@@ -356,6 +356,10 @@ const stateModule = {
             }
             gManifestRequests.get(name)?.controller.abort();
             gManifestRequests.delete(name);
+            // A resource's own `out` handle can feed a transform directly
+            // (store/modules/transforms.js's resource-sourced feeds) --
+            // same cleanup shape as contexts.js's own remove_context.
+            dispatch('transforms/remove_feeds_from_resource', name, {root: true});
             commit('remove_resource', name);
         },
 

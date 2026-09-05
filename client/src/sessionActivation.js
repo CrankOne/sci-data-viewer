@@ -7,6 +7,7 @@
 // simpler and lower-risk than tearing down and rehydrating live.
 import { all_modules } from './modules/registry';
 import { install_layout_persistence } from './store/modules/layoutPersistence';
+import { install_transforms_persistence } from './store/modules/transformsPersistence';
 import { install_connection_persistence, restore_persisted_sources } from './connectionPersistence';
 import { apply_share_from_route } from './shareLink';
 
@@ -40,6 +41,7 @@ export async function activate_session(store, sessionId, {isNew = false, router 
     store.commit('session/set_active', {id: sessionId, name});
 
     install_layout_persistence(store, sessionId);
+    install_transforms_persistence(store, sessionId);
     for(const mod of all_modules()) mod.installPersistence?.(store, sessionId);
     install_connection_persistence(store, sessionId);
 

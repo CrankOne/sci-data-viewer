@@ -16,6 +16,8 @@
 // installers, this isn't persisted state, just a standing store.subscribe.
 import { get_module } from '@/modules/registry';
 import { send_selection_to_sink } from '@/store/sinkDispatch';
+import { dispatch_transform_feeds, dispatch_transform_feeds_from_resource } from '@/store/transformDispatch';
+import { enter_dispatch, exit_dispatch } from '@/store/dispatchGuard';
 
 const SELECTION_NS_PREFIX = 'selection_';
 const SINK_INBOX_NS_PREFIX = 'sinkInbox_';
@@ -31,40 +33,78 @@ const SELECTION_CHANGING_MUTATIONS = new Set([
     'select_items', 'unselect_items', 'clear_selection', 'apply_selection_set'
 ]);
 
+// The store/sinkInbox.js mutations that can invalidate a *previously
+// selected* item in a context that itself selects from its own sinkInbox
+// (modules/sink-view/index.js's own buildSinkSnapshot -- the first, and so
+// far only, module that does): a new batch landing (`receive_sink_items`)
+// can drop an item that used to be there, and an origin disappearing
+// outright (`clear_incoming_origin`, store/modules/contexts.js's/
+// transforms.js's own removal cleanup) drops all of that origin's items at
+// once -- prune_selection_after_inbox_update below treats both the same
+// way, by just re-checking what buildSinkSnapshot still resolves.
+const SINK_INBOX_CHANGING_MUTATIONS = new Set(['receive_sink_items', 'clear_incoming_origin']);
+
 export function install_sink_auto_dispatch(store) {
     store.subscribe(mutation => {
         const [namespace, mutationName] = mutation.type.split('/');
 
         if(namespace?.startsWith(SELECTION_NS_PREFIX) && SELECTION_CHANGING_MUTATIONS.has(mutationName)) {
             dispatch_from_selection_change(store, namespace.slice(SELECTION_NS_PREFIX.length));
-        } else if(namespace?.startsWith(SINK_INBOX_NS_PREFIX) && mutationName === 'receive_sink_items') {
+        } else if(namespace?.startsWith(SINK_INBOX_NS_PREFIX) && SINK_INBOX_CHANGING_MUTATIONS.has(mutationName)) {
             prune_selection_after_inbox_update(store, namespace.slice(SINK_INBOX_NS_PREFIX.length));
+        } else if(mutation.type === 'connection/update_resource') {
+            // A resource's own `out` handle can feed a transform directly
+            // (store/modules/transforms.js's resource-sourced feeds,
+            // unconditional -- doc/data-model.rst's "source link" rule) --
+            // re-runs whenever the resource's own fetched data changes
+            // (connection.js's load_resource_data et al.), same "re-run
+            // when what feeds me changes" idea as dispatch_from_selection
+            // _change below, just triggered by a different kind of change.
+            dispatch_transform_feeds_from_resource(store, mutation.payload.name);
         }
     });
 }
 
 function dispatch_from_selection_change(store, originContextId) {
-    const origin = store.getters['contexts/context'](originContextId);
-    const originModule = get_module(origin?.dataType);
-    // A context whose module never declares buildSinkSnapshot isn't a
-    // selection-based sink origin at all (e.g. table's own "Plot
-    // dispatch" isn't selection-based) -- nothing to resend, and no
-    // link could have been created pointing away from it in the first
-    // place (ConnectScopeModal.vue only offers that for such modules).
-    if(!originModule?.buildSinkSnapshot) return;
+    // See dispatchGuard.js: refuses to re-enter this same context's own
+    // outgoing dispatch if it's already running higher up this same
+    // synchronous call chain -- e.g. a transform this context feeds having
+    // its output wired back into this same context, which would otherwise
+    // land right back here on every delivered batch, forever.
+    const guardId = `context:${originContextId}`;
+    if(!enter_dispatch(guardId)) return;
+    try {
+        const origin = store.getters['contexts/context'](originContextId);
+        const originModule = get_module(origin?.dataType);
+        // A context whose module never declares buildSinkSnapshot isn't a
+        // selection-based sink origin at all (e.g. table's own "Plot
+        // dispatch" isn't selection-based) -- nothing to resend, and no
+        // link could have been created pointing away from it in the first
+        // place (ConnectScopeModal.vue only offers that for such modules).
+        if(!originModule?.buildSinkSnapshot) return;
 
-    const links = store.getters['contexts/linksFrom'](originContextId);
-    for(const {linkId, targetDataType} of links) {
-        try {
-            send_selection_to_sink(store, {originContextId, linkId});
-        } catch(error) {
-            // A stale link (its target module's registry declaration
-            // changed since the link was created/persisted) shouldn't
-            // break every other active link or spam an uncaught error
-            // on every single click -- surfaced once per attempt, not
-            // thrown.
-            console.warn(`Auto sink dispatch "${originContextId}" -> "${targetDataType}" (${linkId}) failed:`, error);
+        const links = store.getters['contexts/linksFrom'](originContextId);
+        for(const {linkId, targetDataType} of links) {
+            try {
+                send_selection_to_sink(store, {originContextId, linkId});
+            } catch(error) {
+                // A stale link (its target module's registry declaration
+                // changed since the link was created/persisted) shouldn't
+                // break every other active link or spam an uncaught error
+                // on every single click -- surfaced once per attempt, not
+                // thrown.
+                console.warn(`Auto sink dispatch "${originContextId}" -> "${targetDataType}" (${linkId}) failed:`, error);
+            }
         }
+
+        // Same trigger, same "whatever's currently selected here" snapshot --
+        // a transform feed (store/modules/transforms.js) re-runs on every
+        // selection change exactly like a sink link's own resend above, it just
+        // has nowhere yet to deliver its result but the console (store/
+        // transformDispatch.js's own header comment).
+        dispatch_transform_feeds(store, originContextId);
+    } finally {
+        exit_dispatch(guardId);
     }
 }
 

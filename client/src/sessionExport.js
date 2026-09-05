@@ -16,6 +16,25 @@ import { list_session_keys, register_session_key, write_stored } from './store/p
 const FORMAT = 'viewer-session';
 const VERSION = 1;
 
+const TRANSFORMS_KEY_PREFIX = 'viewer.transforms.v1.';
+
+// A transform's `source` (store/modules/transforms.js) is arbitrary user
+// -authored JavaScript, executed via `new Function` (store/transformRun.js)
+// -- unlike every other piece of persisted state here, running it has a
+// real side effect. There's no way to tell "my own file, reimported" from
+// "someone else's export" (deep_remap below treats both identically), so
+// every incoming transform is force-disabled regardless of provenance: the
+// session opens with each one visible on the wiring diagram (shown
+// "(disabled)") but inert until the user opens it, reads the source, and
+// explicitly re-enables it (components/modals/TransformEditorModal.vue).
+function disable_imported_transforms(value) {
+    if(!value?.byId) return value;
+    const byId = Object.fromEntries(
+        Object.entries(value.byId).map(([id, transform]) => [id, {...transform, enabled: false}])
+    );
+    return {...value, byId};
+}
+
 function generate_id(prefix) {
     return `${prefix}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
@@ -115,7 +134,8 @@ export function import_session(store, bundle) {
     const newSessionId = idMap.get(bundle.sessionId);
     for(const [key, value] of Object.entries(bundle.entries)) {
         const newKey = remap_storage_key(key, idMap);
-        write_stored(newKey, deep_remap(value, idMap));
+        const remapped = deep_remap(value, idMap);
+        write_stored(newKey, key.startsWith(TRANSFORMS_KEY_PREFIX) ? disable_imported_transforms(remapped) : remapped);
         register_session_key(newSessionId, newKey);
     }
 

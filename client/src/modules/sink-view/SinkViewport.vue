@@ -1,41 +1,81 @@
 <!--
-  Bare-bones viewport for the "sink-view" dev stub (modules/sink-view/
-  index.js) -- lists whatever has landed in this context's own sinkInbox
-  sub-state, one JsonTree.js (jjsontree.js) tree per origin
-  (SinkInboxEntry.vue), resolved to current data (store/sinkResolve.js --
-  sinkInbox itself only holds references, resolution is always live).
-  Exists only to prove the cross-module "selection sink" mechanism end to
-  end, not as a real consumer -- see index.js's header comment.
+  Viewport for the JSON viewer (modules/sink-view/index.js) -- lists
+  whatever has landed in this context's own sinkInbox sub-state, one
+  JsonTree.js (jjsontree.js) tree per *item* (SinkInboxEntry.vue), resolved
+  to current data (store/sinkResolve.js -- sinkInbox itself only holds
+  references, resolution is always live). One tree per item rather than one
+  per origin's whole batch (its former shape) specifically so each item can
+  carry its own checkbox: this module is a sink *origin* now too (index
+  .js's own buildSinkSnapshot/resolveSinkItem), and a checkbox is the
+  selection affordance here precisely because jjsontree.js's own rendered
+  tree is itself click-interactive (expand/collapse, text selection) --
+  overloading a click on the item as a whole would fight that, so selection
+  gets its own dedicated control instead.
+
+  One toolbar for the whole widget, `position: sticky` at the top of this
+  component's own scroll container (not one per origin entry, absolutely
+  positioned and scrolling away with it, its former shape) -- so expand
+  -all/collapse-all/copy-all/"Show metadata" stay reachable no matter how
+  far down a long list of landed items the user has scrolled. Expand/
+  collapse/copy now act on *every* item across every origin, not just one
+  entry's -- the toolbar no longer has a "which entry" to scope itself to.
+
+  Default view is payload-only (`item.snapshot`), not the full envelope
+  (`{itemId, srcID, originRef, payloadType, snapshot}`) -- this module
+  isn't a dev stub any more (index.js's own header comment), so its default
+  should read like a real JSON viewer showing *your data*, not this app's
+  own sink-forwarding plumbing. "Show metadata (dev)" flips to the full
+  envelope for exactly that plumbing-debugging case -- per-widget-instance,
+  local, unpersisted (defaults back off every time the panel is reopened).
 -->
 <template>
   <div class="sink-viewport">
+    <div class="sink-viewport__toolbar toolbar-floating">
+      <div class="button-group">
+        <button type="button" class="icon-button" title="Expand all" @click="expand_all">
+          <span class="vi vi-plus-framed" aria-hidden="true" />
+        </button>
+        <button type="button" class="icon-button" title="Collapse all" @click="collapse_all">
+          <span class="vi vi-minus-framed" aria-hidden="true" />
+        </button>
+        <button type="button" class="icon-button" title="Copy all" @click="copy_all">
+          <span class="vi vi-clipboard" aria-hidden="true" />
+        </button>
+
+        <IconToggleButton
+          v-model="showMetadata"
+          icon-on="vi-document-in-envelope" icon-off="vi-document"
+          title-on="Showing full envelope (metadata) -- click to show payload only"
+          title-off="Showing payload only -- click to show full envelope (metadata)"
+        />
+      </div>
+    </div>
+
     <p v-if="!incomingList.length" class="sink-viewport__empty">Nothing routed in yet.</p>
     <div v-for="entry in incomingList" :key="entry.originContextId" class="sink-viewport__entry">
-      <div class="sink-viewport__entry-toolbar toolbar-floating">
-        <div class="button-group">
-          <button type="button" class="icon-button" title="Expand all" @click="expand_all(entry)">
-            <span class="vi vi-plus-framed" aria-hidden="true" />
-          </button>
-          <button type="button" class="icon-button" title="Collapse all" @click="collapse_all(entry)">
-            <span class="vi vi-minus-framed" aria-hidden="true" />
-          </button>
-          <button type="button" class="icon-button" title="Copy all" @click="copy_all(entry)">
-            <span class="vi vi-clipboard" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
       <div class="sink-viewport__entry-label">From {{ entry.originContextId }} ({{ entry.payloadType }})</div>
-      <SinkInboxEntry :element-id="element_id(entry)" :data="resolved_items(entry)" />
+
+      <div
+        v-for="item in resolved_items(entry)" :key="item.originRef"
+        class="sink-viewport__item" :class="{'sink-viewport__item--selected': is_selected(entry, item)}"
+      >
+        <label class="sink-viewport__item-select" :title="is_selected(entry, item) ? 'Unselect' : 'Select (forward via a sink link)'">
+          <input type="checkbox" :checked="is_selected(entry, item)" @change="toggle_select(entry, item)">
+          <span class="sink-viewport__item-id">{{ item.itemId }}</span>
+        </label>
+        <SinkInboxEntry :element-id="item_element_id(entry, item)" :data="showMetadata ? item : item.snapshot" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
 import { resolve_incoming_sink_items } from '@/store/sinkResolve';
+import { make_selection_id } from './ids';
 import SinkInboxEntry from './SinkInboxEntry.vue';
+import IconToggleButton from '@/components/IconToggleButton.vue';
 // Side-effect imports: sets window.$jsontree (jjsontree.js has no ESM
 // exports of its own -- see SinkInboxEntry.vue) and its base stylesheet.
 // Scoped to this module's own entry component, same as SinkWiringPanel.vue
@@ -53,38 +93,66 @@ const store = useStore();
 const contextId = computed(() => store.getters['widgetInstances/instance'](props.instanceId)?.contextId ?? null);
 const ns = computed(() => `sinkInbox_${contextId.value}`);
 const incomingList = computed(() => contextId.value ? store.getters[`${ns.value}/incomingList`] : []);
+const selectedIds = computed(() => contextId.value ? store.getters[`selection_${contextId.value}/selectedItemIDs`] : new Set());
+
+const showMetadata = ref(false);
 
 // Prefixed by this widget instance, not just the origin context id -- two
-// "Sink Inbox (dev)" viewports open at once could otherwise both try to
-// render into the same DOM id.
+// JSON Viewer viewports open at once could otherwise both try to render
+// into the same DOM id.
 function element_id(entry) {
     return `sink-tree-${props.instanceId}-${entry.originContextId}`;
+}
+
+function item_element_id(entry, item) {
+    return `${element_id(entry)}-${item.originRef}`;
 }
 
 function resolved_items(entry) {
     return resolve_incoming_sink_items(store, [entry]);
 }
 
+function all_items() {
+    return incomingList.value.flatMap(entry => resolved_items(entry).map(item => ({entry, item})));
+}
+
+// Same composite id index.js's own resolve_selected_item decodes -- this
+// is the only other place that needs to encode one.
+function composite_id(entry, item) {
+    return make_selection_id(entry.originContextId, item.originRef);
+}
+
+function is_selected(entry, item) {
+    return selectedIds.value.has(composite_id(entry, item));
+}
+
+function toggle_select(entry, item) {
+    const mutation = is_selected(entry, item) ? 'unselect_items' : 'select_items';
+    store.commit(`selection_${contextId.value}/${mutation}`, composite_id(entry, item));
+}
+
 // The three actions JsonTree.js's own (now switched-off, see
 // SinkInboxEntry.vue) title bar used to offer, driven through the
-// library's public API by this entry's own element id instead -- openAll/
+// library's public API by each item's own element id instead -- openAll/
 // closeAll are direct API calls; copy has no dedicated "copy to clipboard"
-// entry point, so this re-serializes getJson's result itself. That's safe
-// here specifically because resolve_incoming_sink_items always hands the
-// library already-parsed JSON (never a Date/Map/Set/etc. instance
+// entry point, so this re-serializes getJson's own result itself. That's
+// safe here specifically because resolve_incoming_sink_items always hands
+// the library already-parsed JSON (never a Date/Map/Set/etc. instance
 // JSON.parse could never produce), which is exactly the one case the
-// library's own copy path does extra work for that this skips.
-function expand_all(entry) {
-    window.$jsontree.openAll(element_id(entry));
+// library's own copy path does extra work for that this skips. "All" means
+// every item across every origin now (one shared, sticky toolbar, not one
+// per entry) -- unrelated to the selection/forwarding mechanism above.
+function expand_all() {
+    for(const {entry, item} of all_items()) window.$jsontree.openAll(item_element_id(entry, item));
 }
 
-function collapse_all(entry) {
-    window.$jsontree.closeAll(element_id(entry));
+function collapse_all() {
+    for(const {entry, item} of all_items()) window.$jsontree.closeAll(item_element_id(entry, item));
 }
 
-function copy_all(entry) {
-    const json = window.$jsontree.getJson(element_id(entry));
-    navigator.clipboard.writeText(JSON.stringify(json, null, 2));
+function copy_all() {
+    const items = all_items().map(({entry, item}) => window.$jsontree.getJson(item_element_id(entry, item)));
+    navigator.clipboard.writeText(JSON.stringify(items, null, 2));
 }
 </script>
 
@@ -104,22 +172,25 @@ function copy_all(entry) {
     font-style: italic;
 }
 
-.sink-viewport__entry {
-    position: relative;
-    margin-bottom: 12px;
-    /* Clears the hovering toolbar below, positioned absolute at this
-       entry's own top-left corner -- without it, a short enough payload's
-       label and root node would render right underneath the toolbar
-       instead of below it. Sized to the toolbar's own footprint
-       (--hover-toolbar-top + its buttons' height) plus a small gap. */
-    padding-top: calc(var(--hover-toolbar-top) + 1.8rem + var(--um2));
-}
-
-.sink-viewport__entry-toolbar {
-    position: absolute;
-    top: var(--hover-toolbar-top);
-    left: var(--hover-toolbar-left);
+/* `position: sticky` (not absolute, its former per-entry shape) so this
+   stays pinned to the top of .sink-viewport's own scroll area rather than
+   scrolling away with the content underneath it. A sticky element still
+   occupies its own space in normal flow (unlike the old absolutely
+   -positioned per-entry toolbar it replaces), which is what already keeps
+   the first entry's label from starting underneath it -- the margin/
+   padding below are purely a little extra breathing room, not overlap
+   prevention. An opaque background (not .toolbar-floating's usual
+   translucent-per-button look alone) keeps scrolled-past content from
+   showing through the gaps once something is actually stuck under it. */
+.sink-viewport__toolbar {
+    position: sticky;
+    top: 0;
     z-index: 10;
+    margin: 0 0 var(--um2);
+    padding-bottom: var(--um2);
+    display: flex;
+    justify-content: space-between;
+    background: var(--clr-bg-panel);
 }
 
 .icon-button {
@@ -132,6 +203,32 @@ function copy_all(entry) {
 
 .sink-viewport__entry-label {
     margin-bottom: 2px;
+    font-size: 8pt;
+    color: var(--clr-fg-main-muted);
+}
+
+.sink-viewport__item {
+    margin-bottom: 6px;
+    padding: 3px 4px 4px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+}
+
+.sink-viewport__item--selected {
+    border-color: var(--clr-border-active);
+    background: color-mix(in srgb, var(--clr-border-active) 8%, transparent);
+}
+
+.sink-viewport__item-select {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+    cursor: pointer;
+}
+
+.sink-viewport__item-id {
+    font-family: var(--font-data);
     font-size: 8pt;
     color: var(--clr-fg-main-muted);
 }
@@ -168,9 +265,7 @@ function copy_all(entry) {
  * - `--font-data` (style.css's "Typography" section -- monospace, for
  *   data/code-like display) replaces the library's own default UI font.
  *
- * Spacing otherwise is left as the library's own default for now -- see
- * index.js's header comment, this is still a dev stub, not a polished
- * module.
+ * Spacing otherwise is left as the library's own default for now.
  */
 .sink-viewport :deep(.json-tree-js) {
     display: block;

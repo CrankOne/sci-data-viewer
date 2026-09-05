@@ -3,6 +3,7 @@ import AddSourceModal from '@/components/modals/AddSourceModal.vue';
 import AddContentModal from '@/components/modals/AddContentModal.vue';
 import ConnectScopeModal from '@/components/modals/ConnectScopeModal.vue';
 import FacetSelectorModal from '@/components/modals/FacetSelectorModal.vue';
+import TransformEditorModal from '@/components/modals/TransformEditorModal.vue';
 
 // Catalog of modal components addressable by name (see store/modules/ui.js,
 // components/ModalHost.vue). A name with no entry resolves to null and
@@ -13,7 +14,8 @@ const registry = {
     'add-source': AddSourceModal,
     'add-content': AddContentModal,
     'connect-scope': ConnectScopeModal,
-    'facet-selector': FacetSelectorModal
+    'facet-selector': FacetSelectorModal,
+    'transform-editor': TransformEditorModal
 };
 
 export function resolve_modal(name) {

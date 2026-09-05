@@ -63,6 +63,14 @@ const props = defineProps({
     name: {type: String, default: null},            // for kind === 'resource'
     instanceId: {type: String, default: null},      // for kind === 'instance'
     originContextId: {type: String, default: null}, // for kind === 'sink'
+    // 'transform' when `originContextId` actually names a store/modules/
+    // transforms.js record rather than a real context -- see that file's
+    // header comment. Only ever changes which store calls existingLinks/
+    // remove_link/submit below make (transforms/outputLinksFrom+
+    // create_output_link+remove_output_link vs. contexts/linksFrom+
+    // create_sink_link+remove_sink_link); everything else about the "send
+    // selection to a sink" flow is identical either way.
+    originKind: {type: String, default: 'context'}, // 'context' | 'transform'
     // Which contextual dataType's scenes to offer. For kind === 'sink' this
     // is only the *initially* selected target -- every registered module
     // that declares receiveSinkMutation (modules/registry.js) is offered
@@ -95,7 +103,10 @@ const sinkTargetTypes = computed(() =>
 // conversation this modal predates).
 const existingLinks = computed(() => {
     if(props.kind !== 'sink' || !props.originContextId) return [];
-    return store.getters['contexts/linksFrom'](props.originContextId).map(link => ({
+    const links = props.originKind === 'transform'
+        ? store.getters['transforms/outputLinksFrom'](props.originContextId)
+        : store.getters['contexts/linksFrom'](props.originContextId);
+    return links.map(link => ({
         ...link,
         targetLabel: get_module(link.targetDataType)?.label ?? link.targetDataType,
         targetName: store.getters['contexts/context'](link.targetContextId)?.name ?? link.targetContextId
@@ -103,7 +114,11 @@ const existingLinks = computed(() => {
 });
 
 function remove_link(linkId) {
-    store.commit('contexts/remove_sink_link', {contextId: props.originContextId, linkId});
+    if(props.originKind === 'transform') {
+        store.commit('transforms/remove_output_link', {transformId: props.originContextId, linkId});
+    } else {
+        store.commit('contexts/remove_sink_link', {contextId: props.originContextId, linkId});
+    }
 }
 
 const selectedDataType = ref(props.dataType);
@@ -165,16 +180,19 @@ async function submit() {
             if(!selectedPayloadType.value) {
                 throw new Error(`"${effectiveDataType.value}" declares no acceptsPayloadTypes -- cannot receive`);
             }
-            // Always adds a new link (store/modules/contexts.js's true N:N
-            // sinkLinks) rather than replacing one -- existingLinks above is
-            // where a prior link gets removed, if that's what's wanted.
-            const linkId = await store.dispatch('contexts/create_sink_link', {
-                contextId: props.originContextId,
+            // Always adds a new link (true N:N -- store/modules/contexts.js's
+            // sinkLinks, or store/modules/transforms.js's outputLinks) rather
+            // than replacing one -- existingLinks above is where a prior
+            // link gets removed, if that's what's wanted.
+            const linkArgs = {
                 targetDataType: effectiveDataType.value,
                 targetContextId: contextId,
                 payloadType: selectedPayloadType.value,
                 facetsSelector: facetKey.value ? {[facetKey.value]: facetValue.value} : null
-            });
+            };
+            const linkId = props.originKind === 'transform'
+                ? await store.dispatch('transforms/create_output_link', {transformId: props.originContextId, ...linkArgs})
+                : await store.dispatch('contexts/create_sink_link', {contextId: props.originContextId, ...linkArgs});
             // Sends once immediately, same as before this link concept
             // existed -- store/sinkAutoDispatch.js takes over from here,
             // resending automatically on every future selection change in

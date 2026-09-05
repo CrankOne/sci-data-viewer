@@ -1,14 +1,14 @@
 <!--
-  One resolved sink-inbox entry (SinkViewport.vue), rendered as a
-  JsonTree.js (jjsontree.js) tree instead of SinkViewport.vue's former flat
-  `<pre>{{ JSON.stringify(...) }}` dump -- same underlying data (store/
-  sinkResolve.js's resolve_incoming_sink_items), now navigable/collapsible
-  instead of a wall of text. Deliberately dumb about payload shape:
-  whatever JSON `data` holds renders as-is, which is the whole point of
-  this dev stub (modules/sink-view/index.js's own header comment) and of
-  switching to a real tree view -- a future sink-forwarded arbitrary JSON
-  payload (e.g. a plotter selection, not built yet) needs nothing new here
-  to display correctly.
+  One resolved sink item (SinkViewport.vue -- one instance per landed item,
+  not per origin batch, since index.js's own buildSinkSnapshot needs each
+  item individually selectable), rendered as a JsonTree.js (jjsontree.js)
+  tree rather than a flat `<pre>{{ JSON.stringify(...) }}` dump -- same
+  underlying data (store/sinkResolve.js's resolve_incoming_sink_items), now
+  navigable/collapsible instead of a wall of text. Deliberately dumb about
+  payload shape: whatever JSON `data` holds renders as-is, which is the
+  whole point of this module (modules/sink-view/index.js's own header
+  comment) -- any sink-forwarded payload, whatever shape it turns out to
+  have, needs nothing new here to display correctly.
 
   JsonTree.js owns this component's own container element's DOM entirely
   once rendered (its own expand state) -- Vue never patches inside it, only
@@ -52,8 +52,9 @@ function render_options(data) {
         data,
         showObjectSizes: true,
         // Read-only display, same as every other viewer module (doc/
-        // module-plotter.rst's "The module is read-only") -- this is a
-        // dev stub for the sink mechanism, not a JSON editor.
+        // module-plotter.rst's "The module is read-only") -- a JSON
+        // *viewer* (and forwarder, index.js's own buildSinkSnapshot), not
+        // a JSON editor.
         allowEditing: false,
         // Peeled down to just the tree itself (line numbers, collapsible
         // nodes) -- its copy/expand/collapse-all actions move to
