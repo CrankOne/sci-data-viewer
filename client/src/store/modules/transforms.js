@@ -207,6 +207,28 @@ export default {
             return linkId;
         },
 
+        // The one sanctioned way to remove *one* output link (SinkWiringPanel
+        // .vue's own "Unlink") -- same target-side cleanup remove_transform
+        // above already does when the whole transform goes away, just scoped
+        // to this one link instead of every link this transform has. Dropping
+        // only the link record (the bare `remove_output_link` mutation)
+        // leaves the target module's own landing-zone state holding this
+        // transform's last-delivered batch forever -- doc/todo's own "unlink
+        // does not clear selection".
+        remove_output_link({state, commit, rootGetters}, {transformId, linkId}) {
+            const link = state.byId[transformId]?.outputLinks?.[linkId];
+            commit('remove_output_link', {transformId, linkId});
+            if(!link) return;
+
+            const targetContext = rootGetters['contexts/context'](link.targetContextId);
+            const targetModule = get_module(targetContext?.dataType);
+            if(!targetModule?.removeIncomingOrigin) return;
+            const mutation = typeof targetModule.removeIncomingOrigin === 'function'
+                ? targetModule.removeIncomingOrigin(link.targetContextId)
+                : targetModule.removeIncomingOrigin;
+            commit(mutation, transformId, {root: true});
+        },
+
         // Mirrors contexts.js's own remove_context cleanup of sinkLinks
         // pointing at a removed target -- called from there (`{root:
         // true}`) so a removed context's dangling *incoming* feeds (this

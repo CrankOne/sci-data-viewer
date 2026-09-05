@@ -1,18 +1,26 @@
 <!--
-  CodeFlask-based editor for one transform record (store/modules/
+  CodeMirror 6-based editor for one transform record (store/modules/
   transforms.js) -- stage 1 of the user-authored-transform feature (see
   components/SinkWiringPanel.vue's header comment, doc/data-model.rst).
-  CodeFlask itself owns the mounted <div>'s DOM entirely (imperative API,
-  same "hand a ref to a library, let it own that subtree" pattern
-  modules/sink-view/SinkInboxEntry.vue uses for jjsontree.js) -- Vue never
-  patches inside it.
+  CodeMirror owns the mounted <div>'s DOM entirely (imperative API, same
+  "hand a ref to a library, let it own that subtree" pattern modules/
+  sink-view/SinkInboxEntry.vue uses for jjsontree.js) -- Vue never patches
+  inside it.
 
-  Chosen over vue-prism-editor: that library's only Vue-3-targeting release
-  is a five-year-old, never-stabilized alpha (last published 2020, still at
-  2.0.0-alpha.2) -- a real risk for a feature meant to stick around.
-  CodeFlask has no Vue binding to go stale against in the first place (a
-  plain JS class over a DOM element, exactly the same shape as jjsontree.js
-  above), with prismjs -- actively maintained -- as its only dependency.
+  Replaced CodeFlask (see git history for the previous version) after
+  todo.md recorded two independent Firefox-only failures from it: broken
+  arrow-key/Home/End/Ctrl+C/Ctrl+V navigation, and visible text/coloring
+  glitches with line numbers on once a line outgrows the viewport
+  (kazzkiq/CodeFlask#102, never fixed upstream). Both trace to the same
+  root cause -- CodeFlask is a transparent <textarea> stacked over a
+  syntax-highlighted <pre>, plus a third line-number layer, kept in sync
+  purely by mirroring scroll position via `transform: translate3d` on every
+  scroll event (exactly the pattern behind Firefox's own "scroll-linked
+  positioning effect" warning) -- rather than two unrelated bugs, so
+  patching around each symptom wasn't worth it. CodeMirror 6 has no
+  overlay/mirroring of that kind: a single real editable surface handles
+  selection, IME and clipboard natively, and is what todo.md's own "switch
+  editor" option asked for.
 -->
 <template>
   <div class="transform-editor-modal">
@@ -54,7 +62,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useStore } from 'vuex';
-import CodeFlask from 'codeflask';
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
+import { javascript } from '@codemirror/lang-javascript';
+import { tags as t } from '@lezer/highlight';
 
 const props = defineProps({
     transformId: {type: String, required: true}
@@ -66,7 +79,7 @@ const transform = computed(() => store.getters['transforms/transform'](props.tra
 
 const nameDraft = ref(transform.value?.name ?? '');
 const editorMount = ref(null);
-let flask = null;
+let view = null;
 
 function commit_name() {
     if(nameDraft.value) store.commit('transforms/rename_transform', {id: props.transformId, name: nameDraft.value});
@@ -76,19 +89,107 @@ function enable() {
     store.commit('transforms/set_transform_enabled', {id: props.transformId, enabled: true});
 }
 
-onMounted(() => {
-    if(!editorMount.value || !transform.value) return;
-    flask = new CodeFlask(editorMount.value, {language: 'js', lineNumbers: true, defaultTheme: false});
-    flask.updateCode(transform.value.source);
-    flask.onUpdate(source => store.commit('transforms/set_transform_source', {id: props.transformId, source}));
+// Committing on every keystroke was the actual cause of todo.md's "vast and
+// lengthy updates making the app unresponsive" -- `transforms/
+// set_transform_source` is one of transformsPersistence.js's own
+// persistMutations, so every single commit was synchronously
+// JSON.stringify-ing and localStorage.setItem-ing this session's *entire*
+// transforms slice (store/persistence.js's write_stored has no debounce of
+// its own). Debouncing the commit itself here -- rather than touching that
+// shared persistence helper, which every other persisted slice also relies
+// on -- keeps the fix scoped to the one editor that actually types fast
+// enough for it to matter.
+const COMMIT_DEBOUNCE_MS = 400;
+let commitTimer = null;
+let pendingSource = null;
+
+function schedule_commit(source) {
+    pendingSource = source;
+    clearTimeout(commitTimer);
+    commitTimer = setTimeout(flush_commit, COMMIT_DEBOUNCE_MS);
+}
+
+// Also called on unmount (closing the modal) so a pause shorter than the
+// debounce window right before closing never silently drops the last few
+// keystrokes.
+function flush_commit() {
+    clearTimeout(commitTimer);
+    commitTimer = null;
+    if(pendingSource === null) return;
+    store.commit('transforms/set_transform_source', {id: props.transformId, source: pendingSource});
+    pendingSource = null;
+}
+
+// Re-maps CodeMirror's own generic syntax tags onto this app's existing
+// --clr-legendN palette -- the same mapping (and the same rationale: reuse
+// the plot/graph legend colors rather than invent a separate code-editor
+// palette) the old CodeFlask `.token.*` rules used, just expressed in
+// CodeMirror's own token-tag vocabulary instead of Prism's CSS classes.
+const highlightStyle = HighlightStyle.define([
+    {tag: t.keyword, color: 'var(--clr-legend1)'},
+    {tag: t.string, color: 'var(--clr-legend3)'},
+    {tag: [t.number, t.bool], color: 'var(--clr-legend4)'},
+    {tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--clr-legend2)'},
+    {tag: t.comment, color: 'var(--clr-fg-main-muted)', fontStyle: 'italic'}
+]);
+
+// Structural + color theme, entirely through CSS custom properties so it
+// tracks this app's own light/dark theme switch (main.js's data-theme)
+// automatically, same as every other re-themed third-party widget (e.g.
+// modules/sink-view/SinkInboxEntry.vue's own jjsontree.js palette) --
+// nothing here needs to change when the app's theme does. Injected by
+// CodeMirror itself as a real stylesheet (a StyleModule, not scoped CSS),
+// so this needs no :deep() the way overriding CodeFlask's own classes did.
+const baseTheme = EditorView.theme({
+    '&': {
+        height: '100%',
+        backgroundColor: 'var(--clr-bg-panel)',
+        color: 'var(--clr-fg-panel)'
+    },
+    '.cm-content': {
+        fontFamily: 'var(--font-data)',
+        caretColor: 'var(--clr-fg-panel)'
+    },
+    '.cm-scroller': {
+        overflow: 'auto',
+        fontFamily: 'var(--font-data)'
+    },
+    '.cm-gutters': {
+        backgroundColor: 'var(--clr-bg-panel)',
+        color: 'var(--clr-fg-main-muted)',
+        borderRight: '1px solid var(--clr-border-inactive)'
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+        backgroundColor: 'var(--clr-border-active)'
+    }
 });
 
-// CodeFlask has no destroy()/teardown of its own -- it only ever owns
-// elements inside editorMount, which Vue itself unmounts along with the
-// rest of this component's tree, so there's nothing left to clean up here
-// beyond dropping the reference.
+onMounted(() => {
+    if(!editorMount.value || !transform.value) return;
+    const state = EditorState.create({
+        doc: transform.value.source,
+        extensions: [
+            lineNumbers(),
+            highlightActiveLine(),
+            history(),
+            bracketMatching(),
+            indentOnInput(),
+            javascript(),
+            syntaxHighlighting(highlightStyle),
+            baseTheme,
+            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+            EditorView.updateListener.of(update => {
+                if(update.docChanged) schedule_commit(update.state.doc.toString());
+            })
+        ]
+    });
+    view = new EditorView({state, parent: editorMount.value});
+});
+
 onBeforeUnmount(() => {
-    flask = null;
+    flush_commit();
+    view?.destroy();
+    view = null;
 });
 </script>
 
@@ -145,35 +246,4 @@ onBeforeUnmount(() => {
   border-radius: 2pt;
   overflow: hidden;
 }
-
-/* CodeFlask injects one global, unscoped <style id="codeflask-style"> the
-   first time any instance mounts (node_modules/codeflask's own
-   injectCss()) -- with `defaultTheme: false` above, that stylesheet is
-   purely structural (position/overflow/font-family), no colors, so
-   nothing here fights an existing rule; these :deep() selectors are simply
-   more specific than that plain-class stylesheet and win without
-   `!important`. Colors re-mapped onto this app's own --clr-legendN
-   palette, same convention as modules/sink-view/SinkViewport.vue's own
-   jjsontree.js re-theme. */
-.transform-editor-modal :deep(.codeflask) {
-  background: var(--clr-bg-panel);
-  color: var(--clr-fg-panel);
-  font-family: var(--font-data);
-}
-
-.transform-editor-modal :deep(.codeflask__lines) {
-  background: var(--clr-bg-panel);
-  border-right: 1px solid var(--clr-border-inactive);
-}
-
-.transform-editor-modal :deep(.codeflask__textarea) {
-  caret-color: var(--clr-fg-panel);
-}
-
-.transform-editor-modal :deep(.codeflask .token.keyword) { color: var(--clr-legend1); }
-.transform-editor-modal :deep(.codeflask .token.string) { color: var(--clr-legend3); }
-.transform-editor-modal :deep(.codeflask .token.number),
-.transform-editor-modal :deep(.codeflask .token.boolean) { color: var(--clr-legend4); }
-.transform-editor-modal :deep(.codeflask .token.function) { color: var(--clr-legend2); }
-.transform-editor-modal :deep(.codeflask .token.comment) { color: var(--clr-fg-main-muted); font-style: italic; }
 </style>

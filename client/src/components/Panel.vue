@@ -1,7 +1,7 @@
 <template>
   <div
     class="panel"
-    :class="{'panel--drop-target': dropHover}"
+    :class="{'panel--drop-target': dropHover, 'panel--fixed': node.content.kind !== 'items'}"
     :data-panel-id="node.id"
     @dragover="on_panel_drag_over"
     @dragleave="on_panel_drag_leave"
@@ -277,6 +277,26 @@ function on_item_drop(event, item) {
     min-width: 0;
     min-height: 0;
     overflow: auto;
+}
+
+/* A 'module' or 'wiring' leaf's own content (PanelResidentChrome.vue's
+   resident-chrome__content, SinkWiringPanel.vue) is always exactly
+   width/height: 100% of this panel -- by construction, never more, so it
+   never has legitimate extra content for `overflow: auto` above to offer a
+   scrollbar for. It still occasionally shows one anyway: a sub-pixel
+   rounding difference between browser engines for this app's own nested
+   -percentage layout (splitpanes' own panes, this panel's 100% inside
+   them) can leave a couple of CSS px of residual scrollable distance that
+   Chromium and Firefox don't agree on rounding the same way -- confirmed
+   by direct measurement to be exactly that (not real overflowing content,
+   and not fixed by a subsequent box-sizing correction that removed a
+   larger, separate overflow bug). `overflow: auto`'s only actual job here
+   -- letting an 'items' leaf's own subpanel stack scroll once it has more
+   items than fit -- doesn't apply to these two kinds at all, so clipping
+   this sub-pixel noise via `hidden` loses nothing: there was never
+   anything below the fold to scroll to. */
+.panel--fixed {
+    overflow: hidden;
 }
 
 .panel--drop-target {

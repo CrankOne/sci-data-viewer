@@ -1,3 +1,28 @@
+/*                                                                       ______
+ * ______________________________________________________________/ Box sizing
+ * Without this, `height: 100%; padding: Npx;` (a pattern several viewport
+ * roots and Panel.vue's own empty-panel placeholder all use, independently)
+ * renders at 100% of the parent *plus* the padding -- content-box's default
+ * meaning of width/height counts padding/border as extra, on top of the box
+ * a percentage resolves against. That overflow is exactly what todo.md's
+ * "Parasitic scrollbars" bug is: an `overflow: auto` ancestor (Panel.vue's
+ * own `.panel`, or a viewport root's own internal scroll area) sees a child
+ * a few pixels taller/wider than itself and shows a scrollbar for it, even
+ * though nothing is actually meant to overflow. border-box makes
+ * width/height include padding/border instead, so `height: 100%` really
+ * means "exactly the parent's height" -- the behavior every one of those
+ * rules actually wants, and the one every other modern CSS reset defaults
+ * to for exactly this reason. Global and unconditional: nothing in this
+ * app relies on content-box's own sizing -- nothing anywhere sets
+ * box-sizing to content-box explicitly, a few components already set
+ * border-box by hand (now redundant, harmless) -- so this can't quietly
+ * change any *other* element's rendered size: it only ever affects
+ * elements that mix a percentage/fixed size with padding or a border,
+ * which were exactly the ones sized wrong before. */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 /*                                                                  __________
  * _______________________________________________________________/ Typography
  * Two root-defined font stacks -- every component should reference these

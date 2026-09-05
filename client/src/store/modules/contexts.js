@@ -273,6 +273,33 @@ export default {
             return linkId;
         },
 
+        // The one sanctioned way to remove a sink link (SinkWiringPanel.vue's
+        // own "Unlink") -- mirrors the target-side cleanup remove_context
+        // already does for every link pointing at a context being removed
+        // wholesale, just scoped to this *one* link instead of every link
+        // into a departing context. Dropping only the link record (the bare
+        // `remove_sink_link` mutation, still used as-is by remove_context's
+        // own loop below, where the target is being torn down anyway so
+        // there's nothing to clear) leaves the target module's own landing
+        // -zone state (e.g. modules/sink-view's sinkInbox) holding this
+        // origin's last-delivered batch forever -- doc/todo's own "unlink
+        // does not clear selection": the data was never wrong, just never
+        // told to go away, so it sits there (and, for a bulky payload,
+        // keeps costing real render time) until something else happens to
+        // overwrite that same origin slot.
+        remove_sink_link({state, commit}, {contextId, linkId}) {
+            const link = state.byId[contextId]?.sinkLinks?.[linkId];
+            commit('remove_sink_link', {contextId, linkId});
+            if(!link) return;
+
+            const targetModule = get_module(state.byId[link.targetContextId]?.dataType);
+            if(!targetModule?.removeIncomingOrigin) return;
+            const mutation = typeof targetModule.removeIncomingOrigin === 'function'
+                ? targetModule.removeIncomingOrigin(link.targetContextId)
+                : targetModule.removeIncomingOrigin;
+            commit(mutation, contextId, {root: true});
+        },
+
         remove_context({state, commit, dispatch, rootGetters}, {id, reassignSourcesTo} = {}) {
             const context = state.byId[id];
             if(!context) return false;

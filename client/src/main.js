@@ -17,6 +17,7 @@ import layout from './store/modules/layout';
 import create_router from './router';
 import { get_active_session_id_for_tab, activate_session } from './sessionActivation';
 import { install_sink_auto_dispatch } from './store/sinkAutoDispatch';
+import { install_splitpanes_race_guard } from './splitpanesRaceGuard';
 
 import { all_modules } from './modules/registry';
 import './modules/three-view';  // registers itself as a viewer module (dataType: 'geo3d')
@@ -33,6 +34,8 @@ import './modules/sink-view';
 // import './modules/fsm-view';  // <- future viewer modules just add a line here
 
 async function main() {
+    install_splitpanes_race_guard();
+
     const router = create_router();
     const app = createApp(App);
 

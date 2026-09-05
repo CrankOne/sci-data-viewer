@@ -486,9 +486,9 @@ function remove_link(linkId) {
     // (build_transform_output_edges vs build_sink_edges) says which one
     // `originContextId` actually names.
     if(edge.data.kind === 'transform-output') {
-        store.commit('transforms/remove_output_link', {transformId: edge.data.originContextId, linkId});
+        store.dispatch('transforms/remove_output_link', {transformId: edge.data.originContextId, linkId});
     } else {
-        store.commit('contexts/remove_sink_link', {contextId: edge.data.originContextId, linkId});
+        store.dispatch('contexts/remove_sink_link', {contextId: edge.data.originContextId, linkId});
     }
 }
 
