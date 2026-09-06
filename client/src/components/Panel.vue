@@ -1,26 +1,26 @@
 <template>
   <div
     class="panel"
-    :class="{'panel--drop-target': dropHover, 'panel--fixed': node.content.kind !== 'items'}"
+    :class="{'panel--drop-target': dropHover, 'panel--fixed': content.kind !== 'items'}"
     :data-panel-id="node.id"
     @dragover="on_panel_drag_over"
     @dragleave="on_panel_drag_leave"
     @drop="on_panel_drop"
     @click="on_panel_click"
   >
-    <template v-if="node.content.kind === 'module'">
+    <template v-if="content.kind === 'module'">
       <PanelResidentChrome
         drag-type="application/x-panel-module"
-        :drag-payload="node.content.instanceId"
+        :resolve-drag-payload="() => content.instanceId"
       >
         <div :id="'module-slot-' + node.id" class="module-slot" />
       </PanelResidentChrome>
     </template>
 
-    <template v-else-if="node.content.kind === 'wiring'">
+    <template v-else-if="content.kind === 'wiring'">
       <PanelResidentChrome
         drag-type="application/x-panel-wiring"
-        :drag-payload="node.id"
+        :resolve-drag-payload="() => node.id"
       >
         <template #toolbar>
           <CreateScopeToolbar />
@@ -93,6 +93,21 @@ const props = defineProps({
 
 const store = useStore();
 
+// Read live off the store by this leaf's own stable id, rather than trusting
+// `props.node.content` directly -- LayoutNode.vue's own header comment
+// explains why: a plain content-value update (same leaf id, same
+// content.kind, e.g. move_module's swap landing a different instanceId
+// here) passed down as a prop through two nested <splitpanes>/<pane> levels
+// was found to silently not reach a second-or-deeper-nested Panel instance,
+// leaving this component holding a stale `node` indefinitely. Going through
+// the `layout/leafContent` getter (already used by CleanModeOverlay.vue for
+// an unrelated reason -- resolving a clicked panel's content off the store
+// rather than through a Panel.vue instance's own props) ties this
+// component's reactivity directly to the store instead of to however many
+// intermediate components happened to re-render, sidestepping that gap
+// entirely rather than working around one specific symptom of it.
+const content = computed(() => store.getters['layout/leafContent'](props.node.id));
+
 // The dataType of the contextual module owning `itemType`, or null if
 // `itemType` isn't a subpanel type for a contextual module (e.g. a core
 // item like Data Sources) -- used to decide whether a "connect to scene"
@@ -105,14 +120,14 @@ function owning_contextual_data_type(itemType) {
     return null;
 }
 
-// props.node.content.ids are widget-instance ids (see
+// content.ids are widget-instance ids (see
 // store/modules/widgetInstances.js); resolve each to its component/title
 // via the itemType it was created with. `id` here stays the instance id
 // (not the item type) so drag-reordering below keeps operating on the same
 // ids layout.js's `ids` array holds.
 const resolvedItems = computed(() => {
-    if(props.node.content.kind !== 'items') return [];
-    return props.node.content.ids
+    if(content.value.kind !== 'items') return [];
+    return content.value.ids
         .map(instanceId => {
             const instance = store.getters['widgetInstances/instance'](instanceId);
             const catalogEntry = instance ? resolve_item_type(instance.itemType) : null;
@@ -151,7 +166,7 @@ function on_empty_panel_click(event) {
 // item (its own header handles that, e.g. the expand/collapse toggle).
 function on_panel_click(event) {
     if(!event.shiftKey) return;
-    if(props.node.content.kind !== 'items' || resolvedItems.value.length === 0) return;
+    if(content.value.kind !== 'items' || resolvedItems.value.length === 0) return;
     if(event.target.closest('.panel-item')) return;
     store.commit('ui/open_modal', {name: 'add-content', props: {toPanelId: props.node.id, subpanelOnly: true}});
 }
@@ -193,9 +208,19 @@ function drag_kind(event) {
     return null;
 }
 
+// A module/wiring drag is accepted onto an empty items leaf (plain move,
+// the only case before todo.md's "Swap dragged panel") or onto a leaf that
+// already holds a module or the wiring widget -- landing there now swaps
+// the two leaves' content (layout.js's move_module/move_wiring) instead of
+// being refused. A non-empty items (subpanel stack) leaf is never a swap
+// partner -- dragging a whole module/wiring panel onto one would have
+// nowhere sensible to put the displaced subpanel stack.
 function can_accept(kind) {
-    if(kind === 'module' || kind === 'wiring') return props.node.content.kind === 'items' && props.node.content.ids.length === 0;
-    return props.node.content.kind !== 'module' && props.node.content.kind !== 'wiring';
+    if(kind === 'module' || kind === 'wiring') {
+        if(content.value.kind === 'items') return content.value.ids.length === 0;
+        return true;
+    }
+    return content.value.kind !== 'module' && content.value.kind !== 'wiring';
 }
 
 // Panel-level handlers: module drops, and item drops that land outside any

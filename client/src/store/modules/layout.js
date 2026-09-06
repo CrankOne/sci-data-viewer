@@ -124,6 +124,24 @@ function find_leaf_with_module_instance(node, instanceId) {
     return null;
 }
 
+// Swaps the `content` of two distinct leaves outright, leaving the tree
+// shape (split nodes, ratios, leaf ids, which slot either leaf sits in)
+// completely untouched -- only used once a caller has already established
+// both ids name leaves and that swapping their content is actually wanted
+// (move_module/move_wiring below). This is *not* the "swap which slot two
+// subtrees occupy" operation LayoutNode.vue's own :key comment flags as
+// unimplemented: that would move whole subtrees between positions in the
+// tree; this only overwrites two already-fixed leaves' `content` fields in
+// place, so the index-keyed <pane> in LayoutNode.vue never sees a slot
+// change and needs no extra handling for it.
+function swap_leaf_content(root, leafIdA, leafIdB) {
+    const a = find_leaf(root, leafIdA);
+    const b = find_leaf(root, leafIdB);
+    let next = replace_node(root, leafIdA, node => ({...node, content: b.content}));
+    next = replace_node(next, leafIdB, node => ({...node, content: a.content}));
+    return next;
+}
+
 function collect_module_instance_ids(node, acc = []) {
     if(node.type === 'leaf') {
         if(node.content.kind === 'module') acc.push(node.content.instanceId);
@@ -229,11 +247,29 @@ export default {
             });
         },
 
-        // Relocates the module widget instance `instanceId` to toPanelId --
-        // clears whichever leaf currently holds *that* instance (if any;
-        // a different instance's module leaf elsewhere is untouched) and
-        // sets it at the target.
+        // Relocates the module widget instance `instanceId` to toPanelId. If
+        // toPanelId is an empty items leaf, this is a plain move: clears
+        // whichever leaf currently holds *that* instance (if any -- a
+        // different instance's module leaf elsewhere is untouched) and sets
+        // it at the target. If toPanelId already holds a module or the
+        // wiring widget, the two leaves swap content instead -- todo.md's
+        // "Swap dragged panel" -- rather than the target's previous occupant
+        // being silently clobbered/orphaned. A non-empty items (subpanel
+        // stack) leaf is never a swap partner, matching Panel.vue's own
+        // can_accept gating; this mutation still re-checks it rather than
+        // trusting the caller, since it's cheap and keeps the invariant
+        // local.
         move_module(state, {toPanelId, instanceId}) {
+            const fromLeaf = find_leaf_with_module_instance(state.root, instanceId);
+            const target = find_leaf(state.root, toPanelId);
+            if(!target || fromLeaf?.id === toPanelId) return;
+
+            if(fromLeaf && (target.content.kind === 'module' || target.content.kind === 'wiring')) {
+                state.root = swap_leaf_content(state.root, fromLeaf.id, toPanelId);
+                return;
+            }
+            if(target.content.kind === 'items' && target.content.ids.length > 0) return;
+
             let root = clear_instance(state.root, instanceId);
             root = replace_node(root, toPanelId, (node) => {
                 if(node.type !== 'leaf') return node;
@@ -280,8 +316,19 @@ export default {
         // "clear wherever it currently is" step by: fromLeafId already
         // names the exact source leaf directly (it's the leaf's own id,
         // per the module header comment), so this only ever touches that
-        // one leaf and the target.
+        // one leaf and the target. Same swap-instead-of-clobber behavior as
+        // move_module when toPanelId already holds a module or wiring.
         move_wiring(state, {fromLeafId, toPanelId}) {
+            if(fromLeafId === toPanelId) return;
+            const target = find_leaf(state.root, toPanelId);
+            if(!target) return;
+
+            if(target.content.kind === 'module' || target.content.kind === 'wiring') {
+                state.root = swap_leaf_content(state.root, fromLeafId, toPanelId);
+                return;
+            }
+            if(target.content.kind === 'items' && target.content.ids.length > 0) return;
+
             let root = replace_node(state.root, fromLeafId, (node) => {
                 if(node.type !== 'leaf' || node.content.kind !== 'wiring') return node;
                 return {...node, content: {kind: 'items', ids: []}};

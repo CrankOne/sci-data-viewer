@@ -10,9 +10,11 @@
     HTML5 drag-and-drop -- the same mechanism Panel.vue's own drop handling
     already reads (`event.dataTransfer.types`), just generalized to whatever
     MIME type/payload string this instance is told to use (`dragType`/
-    `dragPayload` props) so a module drag stays `application/x-panel-module`
-    +instanceId and a wiring drag becomes `application/x-panel-wiring`+the
-    leaf's own id, with no kind-specific branching in this component itself.
+    `resolveDragPayload` props) so a module drag stays
+    `application/x-panel-module`+instanceId and a wiring drag becomes
+    `application/x-panel-wiring`+the leaf's own id, with no kind-specific
+    branching in this component itself. `resolveDragPayload` is a getter,
+    not a plain value, and deliberately so -- see its own doc comment below.
     Sits top-right (there used to be a matching "remove" corner button/emit
     in that corner instead -- removed in favor of CleanModeOverlay.vue's
     click-a-panel gesture, AppControls.vue's "Clean panel" button, which
@@ -57,13 +59,28 @@ const props = defineProps({
     // on_panel_drag_over/on_panel_drop read event.dataTransfer.types to
     // decide what a given panel can accept and how to interpret a drop.
     dragType: {type: String, required: true},
-    // The id string carried as that MIME type's payload (an instanceId for
-    // a module, a leaf id for a wiring widget) -- opaque to this component.
-    dragPayload: {type: String, required: true}
+    // Returns the id string to carry as that MIME type's payload (an
+    // instanceId for a module, a leaf id for a wiring widget) -- opaque to
+    // this component. A getter, called fresh at the moment the knob is
+    // actually grabbed, rather than a plain value computed once by the
+    // caller's own template render: once a leaf's content changes without
+    // its `kind` also changing (layout.js's move_module/move_wiring landing
+    // a swap, rather than a move into/out of an empty panel), the caller
+    // (Panel.vue) sits nested inside splitpanes' own hand-written,
+    // non-compiler-tracked render()+slots (node_modules/splitpanes), which
+    // was found to not reliably re-render Panel for a same-kind content-only
+    // update -- confirmed live: a plain value prop kept advertising the
+    // *previous* instanceId indefinitely after such a swap, with no amount
+    // of waiting fixing it. A getter sidesteps that regardless of whether
+    // Panel's own render ever re-runs: it closes over Panel's reactive
+    // `content` (a computed, itself always correctly live off the store),
+    // and reading `.value` inside it is fresh on every call by construction,
+    // with or without an intervening re-render of whoever passed it down.
+    resolveDragPayload: {type: Function, required: true}
 });
 
 function on_drag_start(event) {
-    event.dataTransfer.setData(props.dragType, props.dragPayload);
+    event.dataTransfer.setData(props.dragType, props.resolveDragPayload());
     event.dataTransfer.effectAllowed = 'move';
 }
 </script>

@@ -4,13 +4,8 @@
   JsonTree.js (jjsontree.js) tree per *item* (SinkInboxEntry.vue), resolved
   to current data (store/sinkResolve.js -- sinkInbox itself only holds
   references, resolution is always live). One tree per item rather than one
-  per origin's whole batch (its former shape) specifically so each item can
-  carry its own checkbox: this module is a sink *origin* now too (index
-  .js's own buildSinkSnapshot/resolveSinkItem), and a checkbox is the
-  selection affordance here precisely because jjsontree.js's own rendered
-  tree is itself click-interactive (expand/collapse, text selection) --
-  overloading a click on the item as a whole would fight that, so selection
-  gets its own dedicated control instead.
+  per origin's whole batch, so each item gets its own expand/collapse state
+  and its own itemId label.
 
   One toolbar for the whole widget, `position: sticky` at the top of this
   component's own scroll container (not one per origin entry, absolutely
@@ -55,14 +50,8 @@
     <div v-for="entry in incomingList" :key="entry.originContextId" class="sink-viewport__entry">
       <div class="sink-viewport__entry-label">From {{ entry.originContextId }} ({{ entry.payloadType }})</div>
 
-      <div
-        v-for="item in resolved_items(entry)" :key="item.originRef"
-        class="sink-viewport__item" :class="{'sink-viewport__item--selected': is_selected(entry, item)}"
-      >
-        <label class="sink-viewport__item-select" :title="is_selected(entry, item) ? 'Unselect' : 'Select (forward via a sink link)'">
-          <input type="checkbox" :checked="is_selected(entry, item)" @change="toggle_select(entry, item)">
-          <span class="sink-viewport__item-id">{{ item.itemId }}</span>
-        </label>
+      <div v-for="item in resolved_items(entry)" :key="item.originRef" class="sink-viewport__item">
+        <div class="sink-viewport__item-id">{{ item.itemId }}</div>
         <SinkInboxEntry :element-id="item_element_id(entry, item)" :data="showMetadata ? item : item.snapshot" />
       </div>
     </div>
@@ -73,7 +62,6 @@
 import { computed, ref } from 'vue';
 import { useStore } from 'vuex';
 import { resolve_incoming_sink_items } from '@/store/sinkResolve';
-import { make_selection_id } from './ids';
 import SinkInboxEntry from './SinkInboxEntry.vue';
 import IconToggleButton from '@/components/IconToggleButton.vue';
 // Side-effect imports: sets window.$jsontree (jjsontree.js has no ESM
@@ -93,7 +81,6 @@ const store = useStore();
 const contextId = computed(() => store.getters['widgetInstances/instance'](props.instanceId)?.contextId ?? null);
 const ns = computed(() => `sinkInbox_${contextId.value}`);
 const incomingList = computed(() => contextId.value ? store.getters[`${ns.value}/incomingList`] : []);
-const selectedIds = computed(() => contextId.value ? store.getters[`selection_${contextId.value}/selectedItemIDs`] : new Set());
 
 const showMetadata = ref(false);
 
@@ -116,21 +103,6 @@ function all_items() {
     return incomingList.value.flatMap(entry => resolved_items(entry).map(item => ({entry, item})));
 }
 
-// Same composite id index.js's own resolve_selected_item decodes -- this
-// is the only other place that needs to encode one.
-function composite_id(entry, item) {
-    return make_selection_id(entry.originContextId, item.originRef);
-}
-
-function is_selected(entry, item) {
-    return selectedIds.value.has(composite_id(entry, item));
-}
-
-function toggle_select(entry, item) {
-    const mutation = is_selected(entry, item) ? 'unselect_items' : 'select_items';
-    store.commit(`selection_${contextId.value}/${mutation}`, composite_id(entry, item));
-}
-
 // The three actions JsonTree.js's own (now switched-off, see
 // SinkInboxEntry.vue) title bar used to offer, driven through the
 // library's public API by each item's own element id instead -- openAll/
@@ -141,7 +113,7 @@ function toggle_select(entry, item) {
 // JSON.parse could never produce), which is exactly the one case the
 // library's own copy path does extra work for that this skips. "All" means
 // every item across every origin now (one shared, sticky toolbar, not one
-// per entry) -- unrelated to the selection/forwarding mechanism above.
+// per entry).
 function expand_all() {
     for(const {entry, item} of all_items()) window.$jsontree.openAll(item_element_id(entry, item));
 }
@@ -214,20 +186,8 @@ function copy_all() {
     border-radius: 2px;
 }
 
-.sink-viewport__item--selected {
-    border-color: var(--clr-border-active);
-    background: color-mix(in srgb, var(--clr-border-active) 8%, transparent);
-}
-
-.sink-viewport__item-select {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 2px;
-    cursor: pointer;
-}
-
 .sink-viewport__item-id {
+    margin-bottom: 2px;
     font-family: var(--font-data);
     font-size: 8pt;
     color: var(--clr-fg-main-muted);
