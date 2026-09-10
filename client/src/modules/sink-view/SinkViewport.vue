@@ -162,7 +162,6 @@ function copy_all() {
     padding-bottom: var(--um2);
     display: flex;
     justify-content: space-between;
-    background: var(--clr-bg-panel);
 }
 
 .icon-button {

@@ -45,14 +45,25 @@ export function resolve_outgoing_link(store, originId, linkId) {
 
 // A transform's own "current items" are whatever its feeding context(s)
 // currently select and/or its feeding resource(s) currently hold (store/
-// modules/transforms.js's two feed kinds), passed one-to-one through its
-// own function -- always recomputed fresh (never cached, same as every
-// other resolution in this app), so editing the transform's source or its
-// upstream selection/resource data is reflected immediately. `originRef`
-// is reused verbatim from the underlying item (a transform never mints its
-// own item identity) -- resolveSinkItem below just recomputes the same
-// list and finds it by that same key, exactly like a real module's own
-// resolveSinkItem would.
+// modules/transforms.js's two feed kinds), gathered by label (a/b/c/...,
+// each an array -- a feed's origin can select/hold more than one) and run
+// through the transform's own function *once* as a fan-in, not once per
+// item -- always recomputed fresh (never cached, same as every other
+// resolution in this app), so editing the transform's source or any
+// feed's upstream selection/resource data is reflected immediately.
+//
+// Combining several feeds' worth of items loses whatever single identity
+// (itemId/srcID/originRef) any *one* of them had -- there's no longer one
+// underlying item to inherit it from -- so the combined result mints its
+// own instead, fixed to the transform's own id: exactly one logical output
+// "slot" per transform, the same way a resource's own snapshot
+// (resource_snapshot below) is always exactly one item keyed by the
+// resource's own name. `payloadType: '*'` for the same reason -- a
+// fan-in's output is a newly-synthesized shape, not transparently "the same
+// kind of thing" any one input was, so store/sinkDispatch.js's own
+// deliver_to_sink can only ever match it against a wildcard-accepting
+// link (e.g. the JSON viewer's), never masquerade as a specific typed
+// payload it isn't.
 function make_transform_origin(transform) {
     return {
         buildSinkSnapshot: (store, transformId) => transform_snapshot(store, transformId, transform),
@@ -69,27 +80,33 @@ function transform_snapshot(store, transformId, transform) {
     // the point something is *about* to log/deliver.
     if(!transform.enabled) return [];
 
-    const items = store.getters['transforms/feedsInto'](transformId).flatMap(feed => {
-        if(feed.resourceName) return resource_snapshot(store, feed.resourceName);
-        const originModule = resolve_origin(store, feed.originContextId);
-        return originModule?.buildSinkSnapshot ? originModule.buildSinkSnapshot(store, feed.originContextId) : [];
-    });
+    const feeds = store.getters['transforms/feedsInto'](transformId);
+    // Nothing wired in yet (a freshly-created transform, or every feed just
+    // removed) -- never even attempts to run: there's nothing sensible to
+    // pass, and the transform's own source is free to reference whichever
+    // ports it expects without guarding against them not existing yet.
+    if(!feeds.length) return [];
 
-    // Keeps `itemId`/`srcID`/`originRef`/`payloadType` from the underlying
-    // item unchanged, replacing only `snapshot` -- a transform is
-    // transparent for typing/filtering purposes (store/sinkDispatch.js's
-    // deliver_to_sink still filters by the *original* payloadType/facets),
-    // it only ever changes the shape of the data itself. A per-item error
-    // (a typo mid-edit, e.g.) drops just that one item rather than the
-    // whole batch, same as a module's own buildSinkSnapshot silently
-    // omitting an item with nothing forwardable.
-    return run_transform(transform, items).flatMap(({item, result, error}) => {
-        if(error) {
-            console.warn(`Transform "${transform.name}" failed on item "${item.itemId}":`, error);
-            return [];
-        }
-        return [{...item, snapshot: result}];
-    });
+    const inputs = {};
+    const ctx = {};
+    for(const feed of feeds) {
+        const items = feed.resourceName
+            ? resource_snapshot(store, feed.resourceName)
+            : (resolve_origin(store, feed.originContextId)?.buildSinkSnapshot?.(store, feed.originContextId) ?? []);
+        inputs[feed.label] = items.map(item => item.snapshot);
+        // Same shape, same order as inputs[feed.label] -- ctx.a[i] is the
+        // metadata for inputs.a[i], not its payload. Kept separate rather
+        // than folded into each snapshot so a transform reading `a` never
+        // has to know or care that this envelope exists.
+        ctx[feed.label] = items.map(({itemId, srcID, payloadType}) => ({itemId, srcID, payloadType}));
+    }
+
+    const {result, error} = run_transform(transform, inputs, ctx);
+    if(error) {
+        console.warn(`Transform "${transform.name}" failed:`, error);
+        return [];
+    }
+    return [{itemId: transformId, srcID: transformId, originRef: transformId, payloadType: '*', snapshot: result}];
 }
 
 // A resource-sourced feed's one current item: whatever the resource's own

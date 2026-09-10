@@ -45,15 +45,22 @@
 
   A third node kind, 'transform' (store/modules/transforms.js), is a
   separate, still-experimental feature: a user-authored JS function, edited
-  via components/modals/TransformEditorModal.vue's CodeFlask editor, fed by
-  a context's own output the same way a sink link is (dotted 'transform'
-  -kind edge, no facet assignment -- a transform's own source is what
-  decides what it does with its whole input). Its own output, in turn,
-  feeds a context's 'in' exactly like a sink link does -- same
-  ConnectScopeModal.vue picker (`originKind: 'transform'`), same edge look
-  ('sink'-kind, solid, colored by payloadType), same "Assign facet…"/
-  "Unlink" menu -- store/originResolve.js's resolve_origin is what lets
-  store/sinkDispatch.js treat a transform id exactly like a context id
+  via components/modals/TransformEditorModal.vue's CodeMirror editor. Unlike
+  a context's single fixed 'in' port, a transform is a fan-in with as many
+  inlets as feeds are actually wired to it, plus one always-present,
+  not-yet-connected trailing inlet (transform_ports below) that a new
+  connection lands on -- landing there is what grows the node by one row,
+  auto-labeling the *next* inlet after it a, b, c, ... (store/modules/
+  transforms.js's feedsInto). Each inlet accepts a context's own output the
+  same way a sink link does, or a resource's own output directly (dotted
+  'transform'-kind edge either way, no facet assignment -- a transform's own
+  source is what decides what to do with its whole input, considering every
+  inlet's current items together rather than running once per item). Its
+  own output, in turn, feeds a context's 'in' exactly like a sink link does
+  -- same ConnectScopeModal.vue picker (`originKind: 'transform'`), same
+  edge look ('sink'-kind, solid, colored by payloadType), same "Assign
+  facet…"/"Unlink" menu -- store/originResolve.js's resolve_origin is what
+  lets store/sinkDispatch.js treat a transform id exactly like a context id
   everywhere that matters, so this widget barely has to know the
   difference. A transform never feeds *another* transform, though (no
   output handle offered as a valid drag target for one) -- deliberately
@@ -129,7 +136,29 @@
         >
           <div class="wiring-node__title">{{ nodeProps.data.label }}</div>
           <div class="wiring-node__type">transform{{ nodeProps.data.enabled ? '' : ' (disabled)' }}</div>
-          <Handle id="in" type="target" :position="Position.Left" />
+
+          <!-- One row per inlet: every currently-connected feed (label
+               a/b/c/... -- store/modules/transforms.js's own feedsInto
+               getter) plus one always-present, not-yet-connected trailing
+               row (nextFeedLabel) that a new connection lands on -- that
+               landing is what grows this list by one, auto-labeling the
+               *next* row after it. Only that trailing row is a valid drop
+               target (is_valid_connection below): dragging onto an
+               already-connected row doesn't replace it, "Unlink" that one
+               first instead, since replacing in place would either silently
+               relabel every later port or need its own separate rule. -->
+          <div
+            v-for="port in nodeProps.data.ports" :key="port.handleId"
+            class="wiring-node__inlet"
+            :class="{'wiring-node__inlet--pending': !port.connected}"
+          >
+            <Handle
+              :id="port.handleId" type="target" :position="Position.Left"
+              :connectable="port.connected ? false : nodeProps.data.enabled"
+            />
+            <span class="wiring-node__inlet-label">{{ port.label }}</span>
+          </div>
+
           <!-- Disabled (not just dimmed styling) while the transform itself
                is disabled -- an imported, unreviewed transform's code
                shouldn't be wireable into a real target before someone has
@@ -184,6 +213,17 @@ const store = useStore();
 
 const NODE_WIDTH = 170;
 const NODE_HEIGHT = 56;
+// A transform node grows one row taller per inlet (#node-transform's own
+// v-for) -- a rough per-row estimate is all dagre needs below, just to
+// keep its one-time initial placement from overlapping; the real, final
+// height (and so the real handle positions) is whatever it actually
+// renders to, corrected automatically by Vue Flow's own per-node
+// ResizeObserver once mounted.
+const PORT_ROW_HEIGHT = 16;
+
+function node_height(node) {
+    return node.type === 'transform' ? NODE_HEIGHT + (node.data.ports?.length ?? 0) * PORT_ROW_HEIGHT : NODE_HEIGHT;
+}
 
 // Deterministic string -> color, so every port/edge for one payload or
 // data type reads consistently across the whole diagram without a
@@ -276,26 +316,42 @@ function build_sink_edges() {
 // null` renders the edge in the neutral "no declared type" color
 // (type_color's own fallback) either way: a transform forwards its whole
 // input untyped, there's no single payloadType to color by.
+//
+// `data.ports` is the fan-in inlet list the #node-transform template
+// v-for's over: one row per already-connected feed (its own label, per
+// transforms.js's feedsInto) plus one trailing, always-present row for
+// `nextFeedLabel` -- the not-yet-connected inlet a new connection actually
+// lands on (is_valid_connection below only accepts that one handle id as a
+// drop target for this transform).
+function transform_ports(transformId) {
+    const connected = store.getters['transforms/feedsInto'](transformId)
+        .map(feed => ({handleId: `in-${feed.label}`, label: feed.label, connected: true}));
+    const nextLabel = store.getters['transforms/nextFeedLabel'](transformId);
+    return [...connected, {handleId: `in-${nextLabel}`, label: nextLabel, connected: false}];
+}
+
 function build_transform_nodes() {
     return store.getters['transforms/list'].map(transform => ({
         id: `transform:${transform.id}`,
         type: 'transform',
-        data: {label: transform.name, enabled: transform.enabled}
+        data: {label: transform.name, enabled: transform.enabled, ports: transform_ports(transform.id)}
     }));
 }
 
 function build_transform_edges() {
-    return store.getters['transforms/allFeeds'].map(feed => ({
-        id: `feed:${feed.feedId}`,
-        type: 'wiring',
-        source: feed.resourceName ? `resource:${feed.resourceName}` : `context:${feed.originContextId}`,
-        sourceHandle: 'out',
-        target: `transform:${feed.transformId}`, targetHandle: 'in',
-        data: {
-            colorType: null, feedId: feed.feedId,
-            originContextId: feed.originContextId, resourceName: feed.resourceName, kind: 'transform'
-        }
-    }));
+    return store.getters['transforms/list'].flatMap(transform =>
+        store.getters['transforms/feedsInto'](transform.id).map(feed => ({
+            id: `feed:${feed.feedId}`,
+            type: 'wiring',
+            source: feed.resourceName ? `resource:${feed.resourceName}` : `context:${feed.originContextId}`,
+            sourceHandle: 'out',
+            target: `transform:${transform.id}`, targetHandle: `in-${feed.label}`,
+            data: {
+                colorType: null, feedId: feed.feedId, label: feed.label,
+                originContextId: feed.originContextId, resourceName: feed.resourceName, kind: 'transform'
+            }
+        }))
+    );
 }
 
 // A transform's own output link -- store/modules/transforms.js's
@@ -331,7 +387,7 @@ function layout_new_nodes(desiredNodes, desiredEdges, existingPositions) {
     const g = new dagre.graphlib.Graph();
     g.setGraph({rankdir: 'LR', nodesep: 30, ranksep: 90});
     g.setDefaultEdgeLabel(() => ({}));
-    for(const node of desiredNodes) g.setNode(node.id, {width: NODE_WIDTH, height: NODE_HEIGHT});
+    for(const node of desiredNodes) g.setNode(node.id, {width: NODE_WIDTH, height: node_height(node)});
     for(const edge of desiredEdges) {
         if(g.hasNode(edge.source) && g.hasNode(edge.target)) g.setEdge(edge.source, edge.target);
     }
@@ -340,7 +396,7 @@ function layout_new_nodes(desiredNodes, desiredEdges, existingPositions) {
     return Object.fromEntries(desiredNodes.map(node => {
         if(existingPositions[node.id]) return [node.id, existingPositions[node.id]];
         const {x, y} = g.node(node.id);
-        return [node.id, {x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2}];
+        return [node.id, {x: x - NODE_WIDTH / 2, y: y - node_height(node) / 2}];
     }));
 }
 
@@ -377,24 +433,37 @@ watch(
 // object, `id` included) -- always accepted, this component already
 // decided what belongs in `edges` -- versus validating a *new* interactive
 // drag connection (a bare {source, sourceHandle, target, targetHandle},
-// never an `id`), which must land on a context's own 'in' port either way.
-// A context source creates a sink link (any target context, own type
-// checked in on_connect below via acceptsPayloadTypes, same as a sink link
-// always could); a resource source targeting a *context* reattaches it
-// (only a context of the *same* dataType -- unlike a sink link's payload
-// -type-based acceptance, a resource attachment has no type-conversion
-// story, so this is checked here rather than left to fail inside
-// on_connect) -- but targeting a *transform* instead, any resource is a
-// valid feed source regardless of type (a transform's own function decides
-// what to do with whatever raw payload it gets). A transform node's `in`
-// therefore accepts either a context's or a resource's output; its own
-// `out`, in turn, only ever accepts a *context* target (deliberately no
-// transform -> transform chaining, see the file header comment) -- a
-// transform is never itself a valid feed source for another transform.
+// never an `id`). A context source creates a sink link (any target
+// context, own type checked in on_connect below via acceptsPayloadTypes,
+// same as a sink link always could); a resource source targeting a
+// *context* reattaches it (only a context of the *same* dataType --
+// unlike a sink link's payload-type-based acceptance, a resource
+// attachment has no type-conversion story, so this is checked here rather
+// than left to fail inside on_connect) -- but targeting a *transform*
+// instead, any resource is a valid feed source regardless of type (a
+// transform's own function decides what to do with whatever raw payload it
+// gets). A transform node's target handle must specifically be its own
+// *next* inlet (transform_ports' own trailing, not-yet-connected row,
+// store/modules/transforms.js's nextFeedLabel) -- dropping onto an
+// already-connected row isn't a valid way to replace it, matching that
+// row's own `:connectable="false"` in the template (this is the
+// authoritative check; that one is just the visual/interaction-blocking
+// echo of it). A transform's own `out`, in turn, only ever accepts a
+// *context* target (deliberately no transform -> transform chaining, see
+// the file header comment) -- a transform is never itself a valid feed
+// source for another transform.
 function is_valid_connection(connection, {sourceNode, targetNode}) {
     if(connection.id) return true;
-    if(connection.sourceHandle !== 'out' || connection.targetHandle !== 'in') return false;
-    if(targetNode.type === 'transform') return sourceNode.type === 'context' || sourceNode.type === 'resource';
+    if(connection.sourceHandle !== 'out') return false;
+
+    if(targetNode.type === 'transform') {
+        if(sourceNode.type !== 'context' && sourceNode.type !== 'resource') return false;
+        const transformId = targetNode.id.slice('transform:'.length);
+        const nextLabel = store.getters['transforms/nextFeedLabel'](transformId);
+        return connection.targetHandle === `in-${nextLabel}`;
+    }
+
+    if(connection.targetHandle !== 'in') return false;
     if(sourceNode.type === 'transform') return targetNode.type === 'context';
     if(targetNode.type !== 'context') return false;
     if(sourceNode.type === 'context') return sourceNode.id !== targetNode.id;
@@ -745,6 +814,28 @@ function on_pane_context_menu(event) {
 .wiring-node__type {
   color: var(--clr-fg-main-muted);
   font-size: 0.85em;
+}
+
+/* One row per transform inlet -- `position: relative` so each row's own
+   Handle (`.vue-flow__handle-left`, positioned `top: 50%` of its nearest
+   positioned ancestor by Vue Flow's own default CSS) lands centered on
+   *this* row rather than on the node as a whole, which is what actually
+   stacks the ports vertically; nothing here needs an explicit `top` -- a
+   plain v-for in normal document flow already spaces them apart. */
+.wiring-node__inlet {
+  position: relative;
+  margin: 4pt 0;
+  padding-left: 2pt;
+  font-size: 0.85em;
+  color: var(--clr-fg-main-muted);
+}
+
+/* The one always-present, not-yet-connected trailing inlet (nextFeedLabel)
+   -- dimmer than an already-wired row, reading as "drop something here to
+   add another port" rather than a real, currently-feeding one. */
+.wiring-node__inlet--pending {
+  opacity: 0.5;
+  font-style: italic;
 }
 
 /* Vue Flow's own theme-default.css isn't imported (kept fully app-themed

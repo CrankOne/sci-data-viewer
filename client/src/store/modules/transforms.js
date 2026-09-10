@@ -22,7 +22,35 @@
 // one of `originContextId`/`resourceName` is ever set on one feed record;
 // a transform never feeds *another* transform (deliberately transform ->
 // context only on the output side, no chaining).
+//
+// A transform is a fan-in: `feedsInto` below (not the record itself --
+// there's no `label` field to keep in sync on removal) assigns each of a
+// transform's own feeds a stable letter (a, b, c, ...) purely from its
+// *position* in insertion order, the same "position is the real identity"
+// choice components/LayoutNode.vue's own :key comment makes for a split's
+// two children. Removing a middle feed therefore relabels everything after
+// it, closing the gap rather than leaving a hole -- matches
+// components/SinkWiringPanel.vue's own auto-expanding-inlet UI, where the
+// *n*-th connected port is always labeled the *n*-th letter regardless of
+// which specific feed record it happens to be. store/originResolve.js's
+// transform_snapshot binds each label to that feed's own current items
+// (always an array -- a feed's origin can select/hold more than one) as a
+// same-named local inside the transform's own function body, e.g. `a`,
+// `b`, `c`; store/transformRun.js is what actually compiles that binding.
 import { get_module } from '@/modules/registry';
+
+// Spreadsheet-column-style labels (0->a, 1->b, ..., 25->z, 26->aa, ...) --
+// open-ended rather than capped at 26, even though a real session is very
+// unlikely to ever wire that many feeds into one transform.
+export function label_for_index(index) {
+    let n = index;
+    let label = '';
+    do {
+        label = String.fromCharCode(97 + (n % 26)) + label;
+        n = Math.floor(n / 26) - 1;
+    } while(n >= 0);
+    return label;
+}
 
 let transformIdCounter = 0;
 function generate_transform_id() {
@@ -42,11 +70,14 @@ function generate_link_id() {
     return `tlink-${Date.now().toString(36)}-${linkIdCounter}`;
 }
 
-// A one-item identity transform -- deliberately not a no-op comment-only
-// stub: pasting this straight into a real feed already proves the wiring
-// end to end (console shows exactly the selected item back), before the
-// user has changed a single character.
-const DEFAULT_SOURCE = 'return item;';
+// Deliberately not a no-op comment-only stub: wiring in a first feed
+// already proves the wiring end to end (console shows `{a: [...]}`, the
+// selected item(s) on port "a", back) before the user has changed a single
+// character. References `a` rather than trying to stay valid with zero
+// feeds connected -- transform_snapshot below never even attempts to run a
+// transform with no feeds at all, so there's no pre-wiring moment where
+// referencing a not-yet-existing port could actually surface an error.
+const DEFAULT_SOURCE = 'return {a};';
 
 export default {
     namespaced: true,
@@ -73,7 +104,6 @@ export default {
     getters: {
         list: state => state.order.map(id => state.byId[id]),
         transform: state => id => state.byId[id] ?? null,
-        allFeeds: state => Object.entries(state.feeds).map(([feedId, feed]) => ({feedId, ...feed})),
         feedsFrom: state => originContextId => Object.entries(state.feeds)
             .filter(([, feed]) => feed.originContextId === originContextId)
             .map(([feedId, feed]) => ({feedId, ...feed})),
@@ -83,12 +113,21 @@ export default {
         // The reverse of feedsFrom/feedsFromResource -- "which
         // contexts/resources currently feed this transform", what store/
         // originResolve.js's transform-as-origin needs to gather its own
-        // current input, regardless of which kind each feed is.
+        // current input, regardless of which kind each feed is. `label`
+        // (a/b/c/...) is derived here, from each feed's position in this
+        // filtered, insertion-ordered list -- see the file header comment --
+        // rather than stored on the feed record, so removing one always
+        // relabels the rest into a contiguous a, b, c, ... with no gap.
         feedsInto: state => transformId => Object.entries(state.feeds)
             .filter(([, feed]) => feed.transformId === transformId)
-            .map(([feedId, feed]) => ({feedId, ...feed})),
+            .map(([feedId, feed], index) => ({feedId, label: label_for_index(index), ...feed})),
         outputLinksFrom: state => transformId => Object.entries(state.byId[transformId]?.outputLinks ?? {})
-            .map(([linkId, link]) => ({linkId, ...link}))
+            .map(([linkId, link]) => ({linkId, ...link})),
+        // The label the *next* new feed into this transform would get --
+        // components/SinkWiringPanel.vue's own always-present trailing empty
+        // inlet (auto-labeled each time the previous one is connected) is
+        // this, not a stored value.
+        nextFeedLabel: (state, getters) => transformId => label_for_index(getters.feedsInto(transformId).length)
     },
 
     mutations: {

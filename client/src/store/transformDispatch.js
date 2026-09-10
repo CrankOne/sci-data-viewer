@@ -64,8 +64,12 @@ function log_transform_preview(store, transformId) {
         return;
     }
 
+    // At most one item now (store/originResolve.js's transform_snapshot is
+    // a fan-in, one combined result per transform, not one per input item)
+    // -- logging `item.itemId` itself would be uninformative, it's always
+    // just this same transform's own id.
     const origin = resolve_origin(store, transformId);
     for(const item of origin?.buildSinkSnapshot?.(store, transformId) ?? []) {
-        console.log(`[transform:${transform.name}] ${item.itemId} ->`, item.snapshot);
+        console.log(`[transform:${transform.name}] ->`, item.snapshot);
     }
 }

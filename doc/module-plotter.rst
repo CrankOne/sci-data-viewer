@@ -8,8 +8,11 @@ interactivity (zooming, panning, highlight and selection).
 Purpose
 -------
 
-The module is read-only. It is intended primarily for inspection and selection
-of the grouped data items.
+The module is read-only. It is intended primarily for inspection and
+selection of the grouped data items. However, one should keep in mind that
+the selection itself can be a rather advanced procedure and implies certain
+level of persistency and can expose means for export of selection settings
+(e.g. saving lasso selection).
 
 Plotting layout
 ---------------
@@ -116,8 +119,7 @@ Notable differences between this module's transformation domain and
 Primitives
 ~~~~~~~~~~
 
-The data source provides items to be plotted in the (MP). List
-of items:
+The data source provides items to be plotted in the (MP). List of items:
     - markers -- from **simple markers** (points, crosses, etc.) to
       **complex markers** such as a stat. box, optionally with whiskers and
       notch (see "Markers" below);

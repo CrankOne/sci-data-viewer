@@ -46,9 +46,12 @@
       <div ref="editorMount" class="transform-editor-code"></div>
 
       <p class="transform-editor-hint">
-        Function body: receives <code>item</code> (the selected payload) and <code>ctx</code>
-        (<code>{itemId, srcID, payloadType}</code>). Must <code>return</code> the transformed value.
-        Runs once per selected item, result logged to the browser console (no delivery target yet).
+        Function body: one local variable per connected inlet on the wiring diagram node
+        (<code>a</code>, <code>b</code>, <code>c</code>, ... in connection order), each always an array of that
+        inlet's current item(s). <code>ctx</code> mirrors the same ports and indices with each item's
+        <code>{itemId, srcID, payloadType}</code> instead (e.g. <code>ctx.a[0].payloadType</code>). Considers
+        every inlet together and runs once, not once per item -- must <code>return</code> the combined value.
+        Result is always logged to the console, and delivered to whatever the node's own output is wired to.
       </p>
 
       <p class="transform-editor-actions">
@@ -95,29 +98,15 @@ function enable() {
 // persistMutations, so every single commit was synchronously
 // JSON.stringify-ing and localStorage.setItem-ing this session's *entire*
 // transforms slice (store/persistence.js's write_stored has no debounce of
-// its own). Debouncing the commit itself here -- rather than touching that
-// shared persistence helper, which every other persisted slice also relies
-// on -- keeps the fix scoped to the one editor that actually types fast
-// enough for it to matter.
-const COMMIT_DEBOUNCE_MS = 400;
-let commitTimer = null;
-let pendingSource = null;
-
-function schedule_commit(source) {
-    pendingSource = source;
-    clearTimeout(commitTimer);
-    commitTimer = setTimeout(flush_commit, COMMIT_DEBOUNCE_MS);
-}
-
-// Also called on unmount (closing the modal) so a pause shorter than the
-// debounce window right before closing never silently drops the last few
-// keystrokes.
-function flush_commit() {
-    clearTimeout(commitTimer);
-    commitTimer = null;
-    if(pendingSource === null) return;
-    store.commit('transforms/set_transform_source', {id: props.transformId, source: pendingSource});
-    pendingSource = null;
+// its own). An earlier version of this file debounced the commit to cope;
+// simpler still, and what was actually asked for, is to not run the
+// transform live at all while its editor is open -- committing (and so
+// re-running it, store/sinkAutoDispatch.js) only once, when the editor
+// closes, is enough. CodeMirror keeps its own document state regardless of
+// when this commits, so there's nothing to lose by waiting.
+function commit_source() {
+    if(!view) return;
+    store.commit('transforms/set_transform_source', {id: props.transformId, source: view.state.doc.toString()});
 }
 
 // Re-maps CodeMirror's own generic syntax tags onto this app's existing
@@ -177,17 +166,14 @@ onMounted(() => {
             javascript(),
             syntaxHighlighting(highlightStyle),
             baseTheme,
-            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-            EditorView.updateListener.of(update => {
-                if(update.docChanged) schedule_commit(update.state.doc.toString());
-            })
+            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab])
         ]
     });
     view = new EditorView({state, parent: editorMount.value});
 });
 
 onBeforeUnmount(() => {
-    flush_commit();
+    commit_source();
     view?.destroy();
     view = null;
 });
